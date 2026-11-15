@@ -63,7 +63,7 @@ Manual: Initialize an owned disposable worktree instance, inspect its printed pa
 
 ## Gotchas
 
-- Personal MCP login/proxy is covered by [assistant connections](./assistant-connections.md); outbound mail by [chat channels](./chat-channels.md#outbound-agentmail); managed-profile setup by [agents](./agents.md#managed-agent-cli); verified runtime installation/import by [instance operations](./instance-operations.md#runtime-provisioning).
+- Managed-profile setup is covered by [agents](./agents.md#managed-agent-cli); verified runtime installation/import by [instance operations](./instance-operations.md#runtime-provisioning).
 
 - API success proves its contract, not the equivalent browser creation journey.
 - The CLI command registry is broader than the UI page inventory; new command families need a recipe review.

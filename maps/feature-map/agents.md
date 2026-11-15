@@ -16,7 +16,6 @@ Agent access: [companion](../agent-access-map/agents.md).
 
 - `create`: `agents/create` — choose identity, harness, model, and required account settings; edit
   coordination relationships through the agent configuration afterward.
-- `grok-bot`: `agents/grok-bot` — experimental existing-Bot agent setup through remote OAuth, routine credentials, and an authenticated two-way challenge; current contact, stop and explicit recovery.
 - `instructions`: `agents/instructions` — edit agent configuration and instruction files with durable revisions.
 - `coordination`: `agents/coordination` — inspect and change coordination relationships through supported controls.
 - `default-agent`: `agents/default-agent` — choose a personal default agent for the space, confirm replacement, and inspect its roster/sidebar and task/chat defaults.
@@ -318,17 +317,10 @@ Sources: [Managed-agent CLI](../../cli/src/commands/managed-agent.ts), [profile 
 
 - A roster entry is not proof of an authenticated or invokable adapter.
 - Pending agents may live in approval/task surfaces rather than the active roster.
-- Skill and tool grants are separate: see [skills](./skills.md) and [app permissions](./app-permissions.md).
+- Skill grants are separate from agent identity: see [skills](./skills.md).
 - A personal default agent is a per-user/space preference. It does not change
   coordination relationships, stars, permissions, or another person's default agent.
 
-### `connect-grok-bot`
-
-Choose **Invite an external agent → Grok Bot**, identify the Bot by its desktop name, connect its remote MCP plugin, configure a webhook-only routine, and verify delivery plus authenticated reply. Save & exit resumes the same agent. Keep pairing codes in browser authorization and routine credentials in Outpost’s fields. A working Bot web URL is not required.
-
-Prerequisites: authenticated public HTTPS, Assistant connections (MCP), Outpost Runner and Grok Bot experimental settings. Cloud uses its normal managed Runner environment. Provider usage is unknown. Routine uncertainty blocks new assignments until explicit inspection and recovery; stopping work revokes Outpost authority without confirming remote termination.
-
-Evidence: source implementation and focused protocol tests; real provider assigned/proactive workflows and deployed managed acceptance remain release gates.
 ### Documentation scope: Agents, coordination, and runtime setup
 
 Per-harness/model/account capabilities and every instruction-file error remain separate qualification matrices.

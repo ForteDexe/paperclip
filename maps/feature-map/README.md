@@ -65,7 +65,7 @@ Use this index to open a recipe or copy its feature and full capability IDs.
 
 | Feature ID | Recipe | Capability IDs |
 | --- | --- | --- |
-| `agents` | [Creation, configuration, and coordination](agents.md) | `agents/create`, `agents/grok-bot`, `agents/instructions`, `agents/coordination`, `agents/default-agent`, `agents/lifecycle`, `agents/built-in`, `agents/api-keys`, `agents/managed-agent-setup` |
+| `agents` | [Creation, configuration, and coordination](agents.md) | `agents/create`, `agents/instructions`, `agents/coordination`, `agents/default-agent`, `agents/lifecycle`, `agents/built-in`, `agents/api-keys`, `agents/managed-agent-setup` |
 | `runs-adapters` | [Runs, harnesses, and model accounts](runs-adapters.md) | `runs-adapters/availability`, `runs-adapters/validation`, `runs-adapters/runs`, `runs-adapters/session` |
 | `skills` | [Skills and Skill Studio](skills.md) | `skills/discovery`, `skills/authoring`, `skills/versions`, `skills/policy`, `skills/testing` |
 

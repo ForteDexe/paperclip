@@ -428,11 +428,11 @@ Formal approval request/read/revision/decision operations retain independent boa
 
 API: `present` — GET /api/spaces/{spaceId}/approvals; GET /api/approvals/{id}; GET /api/approvals/{id}/issues; GET /api/approvals/{id}/comments.
 
-Agent access: `available` — agent REST/CLI approval list/get; native list_approvals/get_approval/get_approval_context; public MCP outpost_pending_approvals returns links only.
+Agent access: `available` — agent REST/CLI approval list/get and native list_approvals/get_approval/get_approval_context.
 
 Policy: Space_scope:read where route requires; every ID route hides approval unless all linked/payload tasks readable, including responsible-user/private scope. Native context filters linked tasks. Read capability doesn't grant decisions.
 
-Evidence: `source-only` — [approval routes](../../server/src/routes/approvals.ts), [approval privacy](../../server/src/services/authorization.ts), [native authority](../../server/src/services/native-runtime/outpost-runner-tool-authority.ts), [assistant pending links](../../server/src/services/public-mcp/capabilities.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
+Evidence: `source-only` — [approval routes](../../server/src/routes/approvals.ts), [approval privacy](../../server/src/services/authorization.ts), and [native authority](../../server/src/services/native-runtime/outpost-runner-tool-authority.ts); reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. No live proof.
 
 Verification: `not-run` — Read visible approvals/history/context; foreign/private-linked/payload task hidden and no secret values; pending link alone can't decide.
 
@@ -556,7 +556,7 @@ Evidence: `source-only` — [remember transaction](../../server/src/services/too
 
 Verification: `not-run` — Approve remember then safe changed args obey rule; Off/definition change still blocks/reviews. Failed rule save leaves pending/no execution. Revoke rule then next action follows current policy.
 
-Gaps: Cross-link app-permissions for full trust administration; not space-wide blanket trust.
+Gaps: Trust administration is not space-wide blanket trust.
 
 ### `execution-and-continuation`
 
