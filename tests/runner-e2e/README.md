@@ -488,10 +488,6 @@ self-hosted test target and preserves the supplied account. It has separate
 non-paying preflight, owned-resource recovery and normal report commands. Saved
 reuse is separate from global release qualification.
 
-The [public MCP suite](PUBLIC-MCP.md) adds explicit paid assistant/plugin journeys
-with authenticated browser consent, real MCP tool use and independently graded
-team execution. Select `--suite public-mcp`; it is excluded from `--all`.
-
 This README is the authoritative runbook for the retained local Product E2E
 runner cells. The removed hosted campaign system is recorded in
 [the retained product boundary](../../doc/RETAINED_VERTICAL_SLICES.md).

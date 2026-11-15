@@ -29,7 +29,6 @@ export type RunnerTaskFlow =
   | "antigravity_agent_journey"
   | "plan_task_guidance"
   | "blocker_guidance"
-  | "public_mcp"
   | "everyday_workflow"
   | "context_integrity"
 

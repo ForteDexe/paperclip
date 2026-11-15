@@ -612,7 +612,7 @@ async function runAttempt(input: {
       OUTPOST_E2E_ACCOUNTING_CAMPAIGN_ID: accountingCampaignId,
       OUTPOST_E2E_ACCOUNTING_ATTEMPT_ID: accountingAttemptId,
       OUTPOST_RUNNER_E2E_INSTALLED_STARTUP_ONLY: options.installedStartupOnly ? "1" : undefined,
-      OUTPOST_RUNNER_E2E_PUBLIC_MCP: executions.some(candidate => candidate.task.flow === "public_mcp" || candidate.suite.id === "chat-features" && findChatCatalogCase(candidate.task.id)?.authentication === "human-session") ? "1" : "0",
+      OUTPOST_RUNNER_E2E_PUBLIC_MCP: executions.some(candidate => candidate.suite.id === "chat-features" && findChatCatalogCase(candidate.task.id)?.authentication === "human-session") ? "1" : "0",
       OUTPOST_RUNNER_E2E_PORT: String(port),
       OUTPOST_RUNNER_E2E_TEMP_ROOT: temporaryRoot,
       OUTPOST_RUNNER_E2E_PRIVATE_DIR: privateDir,
