@@ -7,7 +7,6 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { assertOwnedContainer, currentDockerEngine, DockerCommandError, databaseFingerprintIdentity, databaseIdentityMatches, dockerDatabaseLaunchState, dockerDatabaseSupervisorEnvironment, DOCKER_DATABASE_ENV, DATABASE_LANE_ENV, POSTGRES_IMAGE, POSTGRES_IMAGE_ID, POSTGRES_VERSION, selectedDatabaseLane, startOwnedDockerDatabase, type DockerRun } from "./docker-postgres.js";
 import { prepareRunnerE2EServerConfig, prepareSupervisorServerConfig } from "./server-config.js";
 import { assertRunnerDatabaseIsolation, assertEmbeddedDatabaseIsolation } from "./instance-isolation.js";
-import { campaignDatabaseEvidenceEligible, type CampaignAttempt } from "./chat-campaign.js";
 import { assertChatCatalogFingerprintLane, fingerprintChatDependencyClosure } from "./chat-catalog-fingerprint.js";
 import { validateRetainedRunnerResult } from "./result-validation.js";
 import { buildOutpostServerEnvironment } from "./harness-env.js";
@@ -154,7 +153,7 @@ it("preserves old embedded result interpretation and rejects unverified or crede
   }
 });
 
-it("fingerprints stable database lane/artifacts and rejects cross-lane retained proof", async () => {
+it("fingerprints stable database lanes and rejects cross-lane identities", async () => {
   const temp = await root(), selected = { suiteId: "chat-features", flow: "agent_chat", environment: "local" };
   const embedded = assertChatCatalogFingerprintLane(selected, {}, []).database;
   const docker = assertChatCatalogFingerprintLane(selected, { [DATABASE_LANE_ENV]: "owned-docker-postgres" }, []).database;
@@ -165,12 +164,6 @@ it("fingerprints stable database lane/artifacts and rejects cross-lane retained 
   const { run } = daemon(), owned = await startOwnedDockerDatabase({ temporaryRoot: temp, privateSecrets: [], run }); await owned.close();
   const actual = (await dockerDatabaseLaunchState("owned-docker-postgres", temp)).identity!;
   expect(databaseIdentityMatches(docker, actual)).toBe(true); expect(databaseIdentityMatches(embedded, actual)).toBe(false); expect(databaseIdentityMatches(docker)).toBe(false);
-  const relative = "tests/runner-e2e/results/owned/result.json"; await mkdir(path.dirname(path.join(temp, relative)), { recursive: true });
-  await writeFile(path.join(temp, relative), JSON.stringify({ executionId: "owned", source: { sha: "a".repeat(40) }, databaseIdentity: actual }));
-  const attempt = { executionId: "owned", sourceRevision: "a".repeat(40), evidencePaths: [relative], databaseLane: docker } as CampaignAttempt;
-  expect(campaignDatabaseEvidenceEligible(attempt, temp)).toBe(true);
-  expect(campaignDatabaseEvidenceEligible({ ...attempt, databaseLane: embedded }, temp)).toBe(false);
-  expect(campaignDatabaseEvidenceEligible({ ...attempt, databaseLane: undefined }, temp)).toBe(false);
 });
 
 it("allows only exact Docker Desktop host translation with an owned canonical private password", async () => {

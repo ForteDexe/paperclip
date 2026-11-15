@@ -27,7 +27,7 @@ export const chatCatalogSemanticDigest = createHash("sha256").update(JSON.string
   ({ id, capabilities, context, query, expected_outcome }) => ({ id, capabilities, context, query, expected_outcome }),
 ))).digest("hex");
 
-/** Campaign freeze also binds original file bytes and shared context defaults. */
+/** Inventory identity also binds original file bytes and shared context defaults. */
 export const chatCatalogInventoryDigest = createHash("sha256").update(JSON.stringify({
   defaultsSha256: createHash("sha256").update(readFileSync(new URL("defaults.yaml", directory))).digest("hex"),
   scenarios: chatCatalogScenarios.map(({ id, capabilities, context, query, expected_outcome, sourceFile }) => ({

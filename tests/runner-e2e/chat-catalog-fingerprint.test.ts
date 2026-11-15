@@ -72,14 +72,13 @@ it("refuses formerly inactive launch targets and source drift falls back conserv
 });
 
 it("binds selected and spawned code, conservatively closing unresolved CLI and production loaders", () => {
-  const descriptor = findChatCatalogCase("projects.create-project")!;
+  const descriptor = findChatCatalogCase("spaces.rename-space")!;
   const result = chatCatalogCaseFingerprint(descriptor, { suiteId: "chat-features", flow: "agent_chat", environment: "local" });
   const files = result.sources.map(source => source.file);
-  expect(files).toContain("tests/runner-e2e/chat-catalog-domains/internal-projects.ts");
+  expect(files).toContain("tests/runner-e2e/chat-catalog-domains/identity-spaces.ts");
+  expect(files).toContain("tests/runner-e2e/chat-catalog-domains/identity-support.ts");
   expect(files).toContain("tests/runner-e2e/chat-catalog-domains/internal-support.ts");
-  expect(files).toContain("packages/adapter-utils/src/workspace-snapshot-thread-worker.ts");
-  expect(files).toEqual(expect.arrayContaining([...chatCatalogSpawnedSourceEntries, "tests/runner-e2e/chat-catalog-domains/internal-goals.ts"]));
-  expect(files).toContain("tests/runner-e2e/chat-catalog-domains/identity-auth.ts");
+  expect(files).toEqual(expect.arrayContaining([...chatCatalogSpawnedSourceEntries, "tests/runner-e2e/chat-scenarios/spaces.yaml"]));
   expect(result.unknownDynamicImports).toEqual(expect.arrayContaining(["cli/src/commands/run.ts", "server/src/adapters/plugin-loader.ts"]));
 });
 it("fails closed when preserved prerequisites or a rejected query lack their independent verifier", async () => {
@@ -93,7 +92,7 @@ it("fails closed when preserved prerequisites or a rejected query lack their ind
 });
 
 it("replays the retained public name-only identity after raw selected inputs have been removed", () => {
-  const descriptor = findChatCatalogCase("projects.create-project")!;
+  const descriptor = findChatCatalogCase("spaces.rename-space")!;
   const execution = { executionId: "offline-selected", suiteId: "chat-features", flow: "agent_chat", environment: "local" };
   const names = { credentialNames: ["OPENAI_API_KEY"], referenceNames: [], externalRequirements: [] };
   const before = chatCatalogCaseFingerprint(descriptor, execution, names).digest;

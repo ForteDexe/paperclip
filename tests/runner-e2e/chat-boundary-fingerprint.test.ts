@@ -1,11 +1,12 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, expect, it } from "vitest";
 import { boundaryScenarioMetadata, chatBoundaryFingerprint } from "./chat-boundary-fingerprint.js";
 import { fingerprintChatDependencyClosure } from "./chat-catalog-fingerprint.js";
 import { findChatCatalogCase } from "./chat-catalog-registry.js";
+import { chatCatalogScenarios } from "./chat-catalog-inventory.js";
 import type { MatrixExecution } from "./types.js";
 
 const roots: string[] = [];
@@ -15,7 +16,7 @@ const scenario = { id: "access.sign-in", capabilities: ["access/sign-in"], conte
 function fixture() {
   const root = mkdtempSync(path.join(tmpdir(), "boundary-metadata-fingerprint-")); roots.push(root);
   mkdirSync(path.join(root, "tests/runner-e2e"), { recursive: true });
-  const manifestPath = "tests/runner-e2e/chat-campaign-manifest.json";
+  const manifestPath = "tests/runner-e2e/selected-scenario-metadata.json";
   const write = (file: string, body: string) => writeFileSync(path.join(root, file), body);
   write("selected.ts", 'import "./dependency.js"; export const load = (name: string) => import(name);');
   write("dependency.ts", 'export const behavior = "original";');
@@ -69,10 +70,10 @@ it("wires the actual boundary lane to the selected scenario projection without d
   const descriptor = findChatCatalogCase("access.sign-in")!;
   const execution = { id: "offline-sign-in", suite: { id: "chat-features" }, environment: { id: "local" }, requiredCredentials: [] } as unknown as MatrixExecution;
   const result = chatBoundaryFingerprint(descriptor, execution, {}, { credentialNames: [], referenceNames: [], externalRequirements: [] });
-  const manifest = JSON.parse(readFileSync(new URL("./chat-campaign-manifest.json", import.meta.url), "utf8"));
-  const frozen = boundaryScenarioMetadata(manifest, descriptor.scenarioId);
-  const expected = createHash("sha256").update(JSON.stringify(frozen)).digest("hex");
-  expect(result.sources.find(row => row.file === "tests/runner-e2e/chat-campaign-manifest.json")?.sha256).toBe(expected);
+  const definition = chatCatalogScenarios.find(row => row.id === descriptor.scenarioId)!;
+  const selected = boundaryScenarioMetadata({ scenarios: [definition] }, descriptor.scenarioId);
+  const expected = createHash("sha256").update(JSON.stringify(selected)).digest("hex");
+  expect(result.sources.find(row => row.file === definition.sourceFile)?.sha256).toBe(expected);
   expect(result.sources.map(row => row.file)).toEqual(expect.arrayContaining(["tests/runner-e2e/chat-boundary-fingerprint.ts", "tests/runner-e2e/runner.spec.ts", "tests/runner-e2e/launch.ts"]));
   expect(result.fingerprintKind).toBe("complete-execution-and-oracle-closure");
   expect(result.unknownDynamicImports.length).toBeGreaterThan(0);

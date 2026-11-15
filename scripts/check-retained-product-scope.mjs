@@ -88,6 +88,8 @@ const retiredInfrastructure = [
 ];
 
 const retiredFilenamePrefixes = [
+  { root: "tests/runner-e2e", prefix: "catalog-overview" },
+  { root: "tests/runner-e2e", prefix: "chat-campaign" },
   { root: "tests/runner-e2e", prefix: "public-mcp-" },
   { root: "tests/runner-e2e/chat-catalog-domains", prefix: "external-" },
   { root: "tests/runner-e2e/chat-catalog-domains", prefix: "runtime-grok" },

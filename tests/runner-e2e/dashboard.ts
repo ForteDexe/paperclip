@@ -1,4 +1,3 @@
-import { renderCatalogOverview, catalogOverviewStyles, catalogOverviewScript, type CatalogOverview, type CatalogScenarioDescription } from "./catalog-overview.js";
 import { screenshotWithholdingNotice } from "./screenshot-privacy.js";
 import { campaignAttemptTimeLabel, campaignTimingScope, renderWorkerPhaseTiming, summarizeCampaignTiming, summarizeWorkerPhaseTiming } from "./campaign-timing.js";
 import { html, durationLabel, tokenLabel, llmCostLabel, usdLabel } from "./report-format.js";
@@ -53,8 +52,6 @@ export interface RunnerDashboardInput {
   /** Existing public summary.md content, rendered only as escaped readable text. */
   summaryText?: string;
   history?: RunnerE2EHistoryIndex;
-  catalogOverview?: CatalogOverview;
-  catalogOverviewDescriptions?: ReadonlyMap<string, CatalogScenarioDescription>;
   presentation?: {
     title?: string;
     description?: string;
@@ -411,8 +408,6 @@ function renderSuiteResults(input: {
 }
 
 export function renderRunnerE2EDashboard(input: RunnerDashboardInput) {
-  if (input.catalogOverview && (input.entries.length || input.expected.length || input.catalog.length || input.campaign)) throw new Error("Catalog metadata cannot be mixed with campaign results");
-  const catalogOverview = input.catalogOverview ? renderCatalogOverview(input.catalogOverview, input.catalogOverviewDescriptions) : null;
   const presentationLinks = (input.presentation?.links ?? []).flatMap(link => {
     const href = reportEvidenceHref(link.href);
     return href ? [{ ...link, href }] : [];
@@ -877,13 +872,11 @@ export function renderRunnerE2EDashboard(input: RunnerDashboardInput) {
       .matrix thead th, .profile-cell, .profile-sticky { position: static; }
     }
     ${reportNavigationStyles}
-    ${catalogOverviewStyles}
   </style>
 </head>
-<body id="top"${catalogOverview ? " data-catalog-metadata" : ""}>
-  ${renderReportShell(catalogOverview ? { history: input.history } : { campaignId: input.campaign?.campaignId, catalog, history: input.history })}
+<body id="top">
+  ${renderReportShell({ campaignId: input.campaign?.campaignId, catalog, history: input.history })}
   <main id="overview">
-    ${catalogOverview ?? `
     <section class="case-page-heading" data-case-page-heading hidden><p class="eyebrow">Test case</p><h1 data-case-page-title tabindex="-1"></h1><a href="?view=all" data-nav-return>← Back to campaign results</a></section>
     <section data-campaign-overview>
     <header class="report-header">
@@ -939,7 +932,6 @@ export function renderRunnerE2EDashboard(input: RunnerDashboardInput) {
     </section>
     ${suiteSections}
     <footer><span>Generated ${html(input.generatedAt)}</span><span>${catalog.length} selected executions · Declared screenshots and normalized results published</span></footer>
-    `}
   </main>
   </div></div>
   <a class="back-to-top" href="#top" data-back-to-top hidden><span aria-hidden="true">↑</span>Back to top</a>
@@ -1095,7 +1087,7 @@ export function renderRunnerE2EDashboard(input: RunnerDashboardInput) {
       stage.addEventListener("pointercancel", () => { pointerStartX = null; });
     })();
   </script>
-  <script>${reportShellScript}${catalogOverview ? catalogOverviewScript : reportBrowserScript}</script>
+  <script>${reportShellScript}${reportBrowserScript}</script>
 
 </body>
 </html>
