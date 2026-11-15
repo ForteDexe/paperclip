@@ -8,8 +8,6 @@ import { installAgentFilesystemSandbox } from "./agent-filesystem-sandbox.js";
 import { OutpostRunnerToolAuthority } from "../../server/src/services/native-runtime/outpost-runner-tool-authority.js";
 import { canonicalDocumentIssueId, contextCommentGateSelected, holdCommittedDocumentResponse, isArmed } from "./context-comment-gate.js";
 import { holdInteractionResponse } from "./interaction-response-gate.js";
-import { installOwnedEmailResponseLoss } from "./chat-catalog-domains/runtime-email-fault.js";
-import { installOwnedEmailReceiptDuplicate } from "./chat-catalog-domains/runtime-email-duplicate.js";
 
 const ids: string[] = JSON.parse(process.env.OUTPOST_RUNNER_E2E_EXECUTION_IDS ?? "[]");
 if (ids.length && ids.every(id => id === CHAT_SETUP_HEALTH_ID || id.startsWith("chat-features.runner-opencode.local."))) {
@@ -17,8 +15,6 @@ if (ids.length && ids.every(id => id === CHAT_SETUP_HEALTH_ID || id.startsWith("
   await installChatReadinessObserver({ executionIds: ids, temporaryRoot: process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT ?? "",
     adapter: requireServerAdapter("outpost_runner") });
 }
-await installOwnedEmailResponseLoss({ executionIds: ids, attemptId: process.env.OUTPOST_E2E_ACCOUNTING_ATTEMPT_ID ?? "", temporaryRoot: process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT ?? "" });
-await installOwnedEmailReceiptDuplicate({ executionIds: ids, attemptId: process.env.OUTPOST_E2E_ACCOUNTING_ATTEMPT_ID ?? "", temporaryRoot: process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT ?? "" });
 const contextCommentGate = contextCommentGateSelected(ids);
 const completionBusyGate = ids.some(id => id.startsWith("completion-updates.") && id.endsWith(".handoff-completion-busy"));
 if (ids.some((id) => id.endsWith(".accept-while-running"))) {

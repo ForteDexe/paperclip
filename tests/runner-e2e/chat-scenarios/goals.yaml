@@ -8,29 +8,30 @@ scenarios:
     capabilities:
       - goals/hierarchy
     context: >-
-      The space has a growth mission and no matching quarterly goal; the agent may create
-      goals.
+      The space has a growth mission and no matching quarterly goal; the agent
+      may create goals.
     query: >-
-      Set a space goal of reaching a thousand signups, with a team goal for launching the
-      website.
+      Set a space goal of reaching a thousand signups, with a team goal for
+      launching the website.
     expected_outcome: >-
-      The saved goals have the requested levels and a valid same-space parent relationship.
-      Ownership may remain unassigned when none was requested; any assigned owner belongs to the
-      space. The saved hierarchy is inspectable through ordinary Goals navigation and public
-      readback, without invented progress metrics. A retry reuses the intended goals rather than
-      creating another parallel tree.
+      The saved goals have the requested levels and a valid same-space parent
+      relationship. Ownership may remain unassigned when none was requested; any
+      assigned owner belongs to the space. The saved hierarchy is inspectable
+      through ordinary Goals navigation and public readback, without invented
+      progress metrics. A retry reuses the intended goals rather than creating
+      another parallel tree.
   - id: goals.align-existing-work
     capabilities:
       - goals/alignment
-      - projects/defaults
     context: >-
-      Launch and the growth goal are accessible in the same space.
+      The website task and growth North Star are accessible in the same Space.
     query: >-
-      Tie the Launch project and website task to our growth goal.
+      Tie the website task to our growth North Star.
     expected_outcome: >-
-      The agent updates the allowed goal associations on the intended records and confirms them
-      through readback. Cross-space goals are rejected. The response distinguishes changing
-      strategic context from changing task priority, ownership or execution state.
+      The agent updates the task North Star association and confirms it through
+      readback. Cross-Space North Stars are rejected. The response distinguishes
+      changing strategic context from changing task priority, ownership, or
+      execution state.
   - id: goals.explain-purpose
     capabilities:
       - goals/navigation
@@ -39,7 +40,7 @@ scenarios:
     query: >-
       Why are we doing this website task?
     expected_outcome: >-
-      The answer follows the real task, project and goal references and explains the chain in
-      plain language with links. Missing associations are described as missing rather than
-      filled with an invented business rationale, and inaccessible goals do not leak through the
-      explanation.
+      The answer follows the real task, project and goal references and explains
+      the chain in plain language with links. Missing associations are described
+      as missing rather than filled with an invented business rationale, and
+      inaccessible goals do not leak through the explanation.

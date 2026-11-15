@@ -2,7 +2,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import type { ChatCatalogContext } from "./chat-catalog-contract.js";
 import { chatCatalogNativePhaseDeadline, chatCatalogNativePhaseIsTimely, chatCatalogOriginalPhaseDeadline } from "./chat-catalog-contract.js";
 import { waitForReply } from "./chat-catalog-domains/identity-support.js";
-const ids = ["spaces.export-space", "projects.project-defaults", "questions-and-approvals.ambiguous-yes", "questions-and-approvals.review-plan", "questions-and-approvals.necessary-question", "task-coordination.block-on-design", "gateways-profiles.rotate-token", "gateways-profiles.create-gateway", "workspaces.preview-service", "assistant-connections.consent-read-only", "navigation-preferences.quick-search", "navigation-preferences.edit-profile", "navigation-preferences.broken-link", "projects.share-project"];
+const ids = ["questions-and-approvals.ambiguous-yes", "questions-and-approvals.review-plan", "questions-and-approvals.necessary-question", "task-coordination.block-on-design"];
 const context = (id: string, deadline: number | undefined = 630000) => ({ scenario: { id }, input: { execution: { id: `chat-features.runner-opencode.local.${id}` } }, observationDeadlineAt: deadline,
   refreshIssue: async () => {}, issue: () => ({ conversationState: "waiting" }), allRuns: async () => [{ status: Date.now() >= 200000 ? "succeeded" : "running" }] }) as unknown as ChatCatalogContext;
 afterEach(() => vi.useRealTimers());
@@ -12,7 +12,7 @@ it.each(ids)("%s reuses the original setup-inclusive deadline and never grants a
   vi.setSystemTime(629999); expect(chatCatalogNativePhaseDeadline(c, 900000)).toBe(630000);
   vi.setSystemTime(630000); expect(chatCatalogNativePhaseIsTimely(c)).toBe(false); expect(() => chatCatalogOriginalPhaseDeadline(c)).toThrow(/exhausted/);
 });
-it.each(["spaces.export-space", "navigation-preferences.quick-search", "questions-and-approvals.ambiguous-yes"])("%s actual identity waiter can finish after the incidental150s cap", async id => {
+it.each(["questions-and-approvals.ambiguous-yes"])("%s actual identity waiter can finish after the incidental150s cap", async id => {
   vi.useFakeTimers(); vi.setSystemTime(0); const c = context(id, 270000); let completed = false;
   const pending = waitForReply(c, chatCatalogOriginalPhaseDeadline(c)).then(() => { completed = true; });
   await vi.advanceTimersByTimeAsync(151000); expect(completed).toBe(false);
@@ -26,6 +26,6 @@ it("missing, infinite, expired clocks and delayed late successes fail closed", a
 });
 it("unselected cases and other provider/environment lanes retain authored phase caps", () => {
   vi.useFakeTimers(); vi.setSystemTime(1000);
-  for (const id of ["goals.create-goal-tree", "skills.author-skill", "questions-and-approvals.reject-and-revise", "questions-and-approvals.multi-part-question"]) { const c = context(id, 0); expect(chatCatalogOriginalPhaseDeadline(c)).toBeUndefined(); expect(chatCatalogNativePhaseDeadline(c, 151000)).toBe(151000); }
+  for (const id of ["goals.create-goal-tree", "questions-and-approvals.reject-and-revise", "questions-and-approvals.multi-part-question"]) { const c = context(id, 0); expect(chatCatalogOriginalPhaseDeadline(c)).toBeUndefined(); expect(chatCatalogNativePhaseDeadline(c, 151000)).toBe(151000); }
   for (const id of ids) for (const lane of ["runner-codex.local", "runner-opencode.daytona"]) { const c = context(id, 0); Object.assign(c.input.execution, { id: `chat-features.${lane}.${id}` }); expect(chatCatalogOriginalPhaseDeadline(c)).toBeUndefined(); }
 });

@@ -1,13 +1,13 @@
 import { expect, it } from "vitest";
 import { runnerMatrix, runnerSuites } from "./catalog.js";
 import { chatCatalogCases } from "./chat-catalog-registry.js";
-import { chatFeatureProfile } from "./chat-feature-cases.js";
+import { chatFeatureProfile, chatFeatureTasks } from "./chat-feature-cases.js";
 import { CHAT_NATIVE_TIMEOUT_POLICY, chatNativeTimeoutEvidence } from "./chat-native-timeout-policy.js";
 import type { RunnerProfileFixture } from "./types.js";
 
 it("uses the production native cap only in the catalog while preserving every finite scenario budget and run bound", () => {
   const cells = runnerMatrix.filter(row => row.suite.id === "chat-features" && row.profile.id === "runner-opencode");
-  expect(cells).toHaveLength(240);
+  expect(cells).toHaveLength(chatCatalogCases.length + chatFeatureTasks.length);
   for (const cell of cells) {
     expect(cell.task.turnTimeoutMs).toBe(["create-backlog", "delegate-announcement"].includes(cell.task.id) ? 120_000 : 0);
     const declaration = chatCatalogCases.find(row => row.scenarioId === cell.task.id);
@@ -20,8 +20,6 @@ it("uses the production native cap only in the catalog while preserving every fi
     expect(cell.task.automaticRetryPolicy).toBe("single_attempt");
   }
   const byId = (id: string) => cells.find(row => row.task.id === id)!;
-  expect(byId("projects.create-project").task).toMatchObject({ expectedRunCount: 2, attemptTimeoutMs: { local: 420_000 } });
-  expect(byId("projects.project-work").task).toMatchObject({ expectedRunCount: 3, minimumExpectedRunCount: 1, attemptTimeoutMs: { local: 300_000 } });
   expect(byId("tasks.organize-open-work").task.attemptTimeoutMs.local).toBe(900_000);
   expect(runnerSuites.find(row => row.id === "chat-features")?.definitionMetadata).toMatchObject({ nativeTimeoutPolicy: CHAT_NATIVE_TIMEOUT_POLICY });
   expect(runnerMatrix.filter(row => row.suite.id !== "chat-features").some(row => (row.task.turnTimeoutMs ?? 0) > 0)).toBe(true);

@@ -85,6 +85,43 @@ const retiredInfrastructure = [
   "tests/hiring-ai-connections",
   "docker/daytona-runner",
   "scripts/prepare-runner-release-image.mjs",
+  "tests/runner-e2e/chat-scenarios/budgets-costs.yaml",
+  "tests/runner-e2e/chat-scenarios/cli-operations.yaml",
+  "tests/runner-e2e/chat-scenarios/developer-labs.yaml",
+  "tests/runner-e2e/chat-scenarios/execution-environments.yaml",
+  "tests/runner-e2e/chat-scenarios/instance-operations.yaml",
+  "tests/runner-e2e/chat-scenarios/navigation-preferences.yaml",
+  "tests/runner-e2e/chat-scenarios/onboarding.yaml",
+  "tests/runner-e2e/chat-scenarios/projects.yaml",
+  "tests/runner-e2e/chat-scenarios/routines.yaml",
+  "tests/runner-e2e/chat-scenarios/skills.yaml",
+];
+
+const retiredCatalogScenarioIds = [
+  "access.cli-authorization",
+  "access.invite-teammate",
+  "activity.agent-feedback",
+  "activity.routine-audit",
+  "agents.agent-api-key",
+  "agents.create-denied",
+  "agents.create-needs-account",
+  "agents.create-needs-approval",
+  "agents.existing-grok-bot",
+  "agents.managed-profile",
+  "cases.cases-disabled",
+  "inbox-search.notification-audience",
+  "recovery.unknown-email-outcome",
+  "runs-adapters.upgrade-runner",
+  "spaces.configure-decision-model",
+  "spaces.export-space",
+  "spaces.fast-responses",
+  "spaces.import-preview",
+  "spaces.prompt-injection-guard",
+  "task-coordination.independent-review",
+  "tasks.website-without-project",
+  "workspaces.prepare-repository",
+  "workspaces.preview-service",
+  "workspaces.private-repository-no-access",
 ];
 
 const retiredFilenamePrefixes = [
@@ -133,6 +170,15 @@ for (const retired of retiredFilenamePrefixes) {
       failures.push(`retired file family exists: ${retired.root}/${entry}`);
     }
   }
+}
+
+const catalogDirectory = path.join(repoRoot, "tests/runner-e2e/chat-scenarios");
+const catalogText = (await Promise.all((await readdir(catalogDirectory))
+  .filter(name => name.endsWith(".yaml"))
+  .map(name => readFile(path.join(catalogDirectory, name), "utf8"))))
+  .join("\n");
+for (const scenarioId of retiredCatalogScenarioIds) {
+  if (catalogText.includes(`id: ${scenarioId}`)) failures.push(`retired catalog scenario exists: ${scenarioId}`);
 }
 
 if (failures.length > 0) {

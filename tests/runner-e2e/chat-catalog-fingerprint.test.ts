@@ -1,10 +1,9 @@
-import { CHAT_OPENCODE_MODEL } from "./chat-runtime-profile.js";
 import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterEach, expect, it, vi } from "vitest";
-import { assertChatCatalogFingerprintLane, chatCatalogCaseFingerprint, chatCatalogSpawnedSourceEntries, fingerprintChatDependencyClosure, normalizedChatCatalogExecution } from "./chat-catalog-fingerprint.js";
+import { assertChatCatalogFingerprintLane, chatCatalogCaseFingerprint, chatCatalogSpawnedSourceEntries, fingerprintChatDependencyClosure } from "./chat-catalog-fingerprint.js";
 import { findChatCatalogCase, loadChatCatalogImplementation, type ChatCatalogDescriptor } from "./chat-catalog-registry.js";
 const directories: string[] = [];
 afterEach(() => { vi.unstubAllEnvs(); for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true }); });
@@ -117,20 +116,4 @@ it("rejects a missing extensionless component instead of binding an unrelated TS
   f.write("selected.ts", 'export { value } from "./MissingComponent";');
   f.write("OtherComponent.tsx", 'export const value = "unrelated";');
   expect(f.fingerprint).toThrow("Unresolved fingerprint dependency: ./MissingComponent");
-});
-
-it("keeps the reviewed adapter in the normalized execution an installed OpenCode case is admitted from", async () => {
-  const { runnerMatrix } = await import("./catalog.js");
-  const execution = runnerMatrix.find(row => row.id === "chat-features.runner-opencode.local.instance-operations.update-instance");
-  expect(execution).toBeDefined();
-  const normalized = normalizedChatCatalogExecution(execution!);
-  expect(normalized.profile.adapterType).toBe("outpost_runner");
-  expect(assertChatCatalogFingerprintLane({ ...normalized, scenarioId: "instance-operations.update-instance", installedSource: "published-global-npm" }, {}, []).installedLane).toBe(true);
-});
-it("admits installed OpenCode only for its exact reviewed model, case and source-local lane", () => {
-  const lane = { suiteId: "chat-features", flow: "agent_chat", environment: "local", scenarioId: "instance-operations.update-instance", installedSource: "published-global-npm",
-    profile: { id: "runner-opencode", provider: "opencode", model: CHAT_OPENCODE_MODEL, adapterType: "outpost_runner", credential: "OPENROUTER_API_KEY" } };
-  expect(assertChatCatalogFingerprintLane(lane, {}, []).installedLane).toBe(true);
-  expect(() => assertChatCatalogFingerprintLane({ ...lane, profile: { ...lane.profile, provider: "codex" } }, {}, [])).toThrow();
-  expect(() => assertChatCatalogFingerprintLane({ ...lane, scenarioId: "tasks.create-backlog" }, { OUTPOST_RUNNER_E2E_INSTALLED_CLI: "/candidate" }, [])).toThrow();
 });

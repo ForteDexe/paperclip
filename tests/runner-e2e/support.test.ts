@@ -17,7 +17,6 @@ import {
   runnerE2EServerControlPaths,
 } from "./harness-env.js";
 import { runnerExecutionById, runnerMatrix } from "./catalog.js";
-import { CHAT_ANNOUNCEMENT_SCENARIO } from "./chat-announcement-fixture.js";
 import { assertEmbeddedDatabaseIsolation } from "./instance-isolation.js";
 import { evaluateMatchers, persistedFinalRunMessage } from "./matchers.js";
 import {
@@ -248,11 +247,11 @@ describe("runner E2E provider environment", () => {
     }
   });
 
-  it("disables announcements through the server boundary except the isolated dismissal fixture", () => {
+  it("disables announcements through the server boundary", () => {
     for (const execution of runnerMatrix) {
       const source = { OUTPOST_ANNOUNCEMENTS_ENABLED: "true" };
       const env = buildRunnerE2EProcessEnvironment(source, [execution]);
-      expect(buildOutpostServerEnvironment(env).OUTPOST_ANNOUNCEMENTS_ENABLED).toBe(execution.suite.id === "chat-features" && execution.task.id === CHAT_ANNOUNCEMENT_SCENARIO ? "true" : "false");
+      expect(buildOutpostServerEnvironment(env).OUTPOST_ANNOUNCEMENTS_ENABLED).toBe("false");
       expect(source.OUTPOST_ANNOUNCEMENTS_ENABLED).toBe("true");
     }
   });
