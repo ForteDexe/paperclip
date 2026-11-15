@@ -8,15 +8,15 @@ const meta = {
   component: ToolbarsPreview,
   args: { family: "all", width: "full" },
   argTypes: {
-    family: { control: "select", options: ["all", "tasks", "decisions", "skills", "artifacts", "projects"] },
+    family: { control: "select", options: ["all", "tasks", "decisions", "skills", "artifacts", "projects", "routines"] },
     width: { control: "inline-radio", options: ["full", "medium", "narrow"] },
     onWidthChange: { control: false },
   },
   parameters: {
     layout: "fullscreen", initialEntries: ["/PAP/issues"],
-    docs: { description: { component: "Canonical Design Proposals toolbar references. TaskListToolbar is the shared proposal and sandbox Tasks control surface; DecisionsToolbar is the shipped WhatNeedsMe and DecisionQueuePage search/filter/group/sort control set. SkillsToolbar, ArtifactsToolbar and ProjectsToolbar are shared with the shipped pages. Interactive local fixtures preserve real component/menu behavior. Width controls expose wrapping. Backend actions and production adoption are not acceptance claims." } },
+    docs: { description: { component: "Canonical Design Proposals toolbar references. TaskListToolbar is the shared proposal and sandbox Tasks control surface; DecisionsToolbar is the shipped WhatNeedsMe and DecisionQueuePage search/filter/group/sort control set. SkillsToolbar, ArtifactsToolbar ProjectsToolbar and RoutinesToolbar are shared with the shipped pages. Interactive local fixtures preserve real component/menu behavior. Width controls expose wrapping. Backend actions and production adoption are not acceptance claims." } },
     outpost: {
-      capabilities: ["tasks/organize", "inbox-search/views", "inbox-search/decisions", "skills/discovery", "documents-artifacts/library", "projects/lifecycle"],
+      capabilities: ["tasks/organize", "inbox-search/views", "inbox-search/decisions", "skills/discovery", "documents-artifacts/library", "projects/lifecycle", "routines/management"],
       home: "design-proposals", status: "proposed",
       exception: "Canonical toolbar families staged in Design Proposals for system reuse and styling before production adoption.",
       implementation: "mixed", boundary: "fixtures",
@@ -40,3 +40,5 @@ export const Skills: Story = { args: { family: "skills" } };
 export const Artifacts: Story = { args: { family: "artifacts" } };
 
 export const Projects: Story = { args: { family: "projects" } };
+
+export const Routines: Story = { args: { family: "routines" } };

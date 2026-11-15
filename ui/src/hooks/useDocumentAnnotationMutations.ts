@@ -29,13 +29,15 @@ export function useDocumentAnnotationMutations(options: MutationOptions) {
     name: session?.user?.name?.trim() || session?.user?.email?.trim() || "You",
     image: session?.user?.image ?? null,
   }), [session]);
-  const queryKey = useMemo(() => options.target.kind === "case"
+  const queryKey = useMemo(() => options.target.kind === "routine"
+    ? queryKeys.routines.documentAnnotations(options.target.routineId, options.target.documentKey, "all")
+    : options.target.kind === "case"
       ? queryKeys.cases.documentAnnotations(options.target.caseId, options.target.documentKey, "all")
       : queryKeys.issues.documentAnnotations(options.target.issueId, options.target.documentKey, "all"), [options.target]);
   const invalidateAll = useCallback(() => queryClient.invalidateQueries({
     predicate: (query) => Array.isArray(query.queryKey)
       && query.queryKey[1] === "document-annotations"
-      && query.queryKey[2] === (options.target.kind === "issue" ? options.target.issueId : options.target.caseId)
+      && query.queryKey[2] === (options.target.kind === "issue" ? options.target.issueId : options.target.kind === "case" ? options.target.caseId : options.target.routineId)
       && query.queryKey[3] === options.target.documentKey,
   }), [options.target, queryClient]);
 
@@ -119,10 +121,10 @@ function messageFor(error: unknown, fallback: string) { return error instanceof 
 function optimisticId(prefix: string) { return `${prefix}-${typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`}`; }
 function buildOptimisticComment(body: string, threadId: string, target: DocumentAnnotationTarget, userId: string | null): DocumentAnnotationComment {
   const now = new Date();
-  return { id: optimisticId("optimistic-comment"), spaceId: "", threadId, issueId: target.kind === "issue" ? target.issueId : null, routineId: null, caseId: target.kind === "case" ? target.caseId : null, documentId: "", body, authorType: "user", authorAgentId: null, authorUserId: userId, createdByRunId: null, issueCommentId: null, createdAt: now, updatedAt: now };
+  return { id: optimisticId("optimistic-comment"), spaceId: "", threadId, issueId: target.kind === "issue" ? target.issueId : null, routineId: target.kind === "routine" ? target.routineId : null, caseId: target.kind === "case" ? target.caseId : null, documentId: "", body, authorType: "user", authorAgentId: null, authorUserId: userId, createdByRunId: null, issueCommentId: null, createdAt: now, updatedAt: now };
 }
 function buildOptimisticThread(body: string, options: MutationOptions, user: { id: string | null }): DocumentAnnotationThreadWithComments {
   const id = optimisticId("optimistic-thread");
   const now = new Date();
-  return { id, issueId: options.target.kind === "issue" ? options.target.issueId : null, routineId: null, caseId: options.target.kind === "case" ? options.target.caseId : null, documentKey: options.target.documentKey, status: "open", anchorState: "active", selectedText: options.pendingAnchor!.selectedText, normalizedStart: options.pendingAnchor!.selector.position.normalizedStart, markdownStart: options.pendingAnchor!.selector.position.markdownStart, originalRevisionId: options.baseRevisionId!, originalRevisionNumber: options.baseRevisionNumber, currentRevisionId: options.baseRevisionId!, currentRevisionNumber: options.baseRevisionNumber, createdByUserId: user.id, createdAt: now, updatedAt: now, comments: [buildOptimisticComment(body, id, options.target, user.id)] } as unknown as DocumentAnnotationThreadWithComments;
+  return { id, issueId: options.target.kind === "issue" ? options.target.issueId : null, routineId: options.target.kind === "routine" ? options.target.routineId : null, caseId: options.target.kind === "case" ? options.target.caseId : null, documentKey: options.target.documentKey, status: "open", anchorState: "active", selectedText: options.pendingAnchor!.selectedText, normalizedStart: options.pendingAnchor!.selector.position.normalizedStart, markdownStart: options.pendingAnchor!.selector.position.markdownStart, originalRevisionId: options.baseRevisionId!, originalRevisionNumber: options.baseRevisionNumber, currentRevisionId: options.baseRevisionId!, currentRevisionNumber: options.baseRevisionNumber, createdByUserId: user.id, createdAt: now, updatedAt: now, comments: [buildOptimisticComment(body, id, options.target, user.id)] } as unknown as DocumentAnnotationThreadWithComments;
 }

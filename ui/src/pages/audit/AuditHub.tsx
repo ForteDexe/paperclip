@@ -10,6 +10,7 @@ import { Timeline } from "@/pages/Timeline";
 import { AuditFeed, type AuditFeedMode } from "./AuditFeed";
 import { AuditRuns } from "./AuditRuns";
 import { AgentCommentary } from "./AgentCommentary";
+import { RoutineAuditActivity } from "./RoutineAuditActivity";
 import {
   AUDIT_SECTIONS,
   auditScopeFromSearchParams,
@@ -24,6 +25,7 @@ export function AuditHub({ section }: { section: AuditSection }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const scope = auditScopeFromSearchParams(searchParams);
   const mode: AuditFeedMode = scope.mode === "agents" ? "agents" : "all";
+  const routineId = scope.entityType === "routine" ? scope.entityId ?? undefined : undefined;
   const actionParam = searchParams.get("action");
   const actionDomain = [
     "issue.",
@@ -126,6 +128,8 @@ export function AuditHub({ section }: { section: AuditSection }) {
 
       {section === "commentary" ? (
         <AgentCommentary key={selectedSpaceId} spaceId={selectedSpaceId} />
+      ) : section === "activity" && routineId ? (
+        <RoutineAuditActivity spaceId={selectedSpaceId} routineId={routineId} />
       ) : section === "activity" ? (
         <AuditFeed
           spaceId={selectedSpaceId}
@@ -148,7 +152,7 @@ export function AuditHub({ section }: { section: AuditSection }) {
           }
         />
       ) : section === "runs" ? (
-        <AuditRuns spaceId={selectedSpaceId} />
+        <AuditRuns spaceId={selectedSpaceId} routineId={routineId} />
       ) : section === "timeline" ? (
         <Timeline embedded />
       ) : (

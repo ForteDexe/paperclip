@@ -13,13 +13,17 @@ export type DocumentAnnotationListFilter = "open" | "resolved" | "all";
 
 export type DocumentAnnotationTarget =
   | { kind: "issue"; issueId: string; documentKey: string }
-  | { kind: "case"; caseId: string; documentKey: string };
+  | { kind: "case"; caseId: string; documentKey: string }
+  | { kind: "routine"; routineId: string; documentKey: "description" };
 
 function issueTarget(issueId: string, documentKey: string): DocumentAnnotationTarget {
   return { kind: "issue", issueId, documentKey };
 }
 
 function targetBasePath(target: DocumentAnnotationTarget) {
+  if (target.kind === "routine") {
+    return `/routines/${target.routineId}/description/annotations`;
+  }
   if (target.kind === "case") {
     return `/cases/${target.caseId}/documents/${encodeURIComponent(target.documentKey)}/annotations`;
   }

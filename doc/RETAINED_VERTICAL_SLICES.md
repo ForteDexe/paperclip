@@ -270,17 +270,6 @@ sandbox product. They are removed. The pull-request `Docker Runner check` keeps
 its isolated local native-runner compilation and dependency-cache verification;
 it no longer publishes images or runs paid remote qualification.
 
-### Routines UI Surface
-
-Routines are not part of Outpost's retained Space, agent, task, decision,
-artifact, case, North Star, chat, or runtime workflow. Their pages, navigation,
-client API, editor autocomplete, profile bindings, audit presentation,
-Storybook fixtures, and focused UI tests are removed. Historical routine links
-can still render as ordinary document content while the underlying server, CLI,
-shared-contract, and active-schema removal is deferred to a later complete
-backend slice. This UI checkpoint must not be interpreted as deletion of the
-routine persistence model.
-
 ## Scope guard
 
 `scripts/check-retained-product-scope.mjs` verifies that the required Codex,

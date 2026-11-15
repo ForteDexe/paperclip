@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { Agent, SpaceSecret, EnvBinding } from "@outpost/shared";
+import type { Agent, SpaceSecret, EnvBinding, Project, RoutineVariable } from "@outpost/shared";
 import { Code2, FileText, ListPlus, RotateCcw, Table2 } from "lucide-react";
 import { EnvironmentVariablesEditor } from "@/components/environment-variables-editor";
 import { ExecutionParticipantPicker } from "@/components/ExecutionParticipantPicker";
@@ -11,6 +11,11 @@ import { JsonSchemaForm, type JsonSchemaNode, getDefaultValues } from "@/compone
 import { MarkdownBody } from "@/components/MarkdownBody";
 import { MarkdownEditor, type MentionOption } from "@/components/MarkdownEditor";
 import { CoordinationLeadPicker } from "@/components/CoordinationLeadPicker";
+import {
+  RoutineRunVariablesDialog,
+  type RoutineRunDialogSubmitData,
+} from "@/components/RoutineRunVariablesDialog";
+import { RoutineVariablesEditor, RoutineVariablesHint } from "@/components/RoutineVariablesEditor";
 import { ScheduleEditor, describeSchedule } from "@/components/ScheduleEditor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -249,6 +254,77 @@ const filledEnv: Record<string, EnvBinding> = {
   OPENAI_API_KEY: { type: "secret_ref", secretId: "secret-openai", version: "latest" },
 };
 
+const routineVariables: RoutineVariable[] = [
+  {
+    name: "repo",
+    label: "Repository",
+    type: "text",
+    defaultValue: "paperclipai/paperclip",
+    required: true,
+    options: [],
+  },
+  {
+    name: "priority",
+    label: "Priority",
+    type: "select",
+    defaultValue: "medium",
+    required: true,
+    options: ["low", "medium", "high"],
+  },
+  {
+    name: "include_browser",
+    label: "Include browser QA",
+    type: "boolean",
+    defaultValue: true,
+    required: false,
+    options: [],
+  },
+  {
+    name: "notes",
+    label: "Run notes",
+    type: "textarea",
+    defaultValue: "Capture any visible layout regressions.",
+    required: false,
+    options: [],
+  },
+];
+
+const storybookProject: Project = {
+  id: "project-operator-ui",
+  spaceId: "space-storybook",
+  urlKey: "operator-ui",
+  goalId: "goal-space",
+  goalIds: ["goal-space"],
+  goals: [{ id: "goal-space", title: "We're building Outpost" }],
+  name: "Board UI",
+  description: "Control-plane interface, Storybook review surfaces, and operator workflows.",
+  status: "in_progress",
+  leadAgentId: "agent-codex",
+  targetDate: null,
+  color: "#0f766e",
+  icon: null,
+  env: null,
+  pauseReason: null,
+  pausedAt: null,
+  executionWorkspacePolicy: null,
+  codebase: {
+    workspaceId: "workspace-operator-ui",
+    repoUrl: "https://github.com/paperclipai/paperclip",
+    repoRef: "master",
+    defaultRef: "master",
+    repoName: "outpost",
+    localFolder: "/Users/dotta/outpost",
+    managedFolder: "outpost",
+    effectiveLocalFolder: "/Users/dotta/outpost",
+    origin: "local_folder",
+  },
+  workspaces: [],
+  primaryWorkspace: null,
+  archivedAt: null,
+  createdAt: new Date("2026-04-01T10:00:00.000Z"),
+  updatedAt: new Date("2026-04-20T10:00:00.000Z"),
+};
+
 const entityOptions: InlineEntityOption[] = [
   { id: "issue-1672", label: "Storybook forms and editors", searchText: "PAP-1672 ui story coverage" },
   { id: "project-operator-ui", label: "Board UI", searchText: "project frontend Storybook" },
@@ -437,6 +513,42 @@ function ScheduleEditorGallery() {
   );
 }
 
+function RoutineVariablesGallery() {
+  const [variables, setVariables] = useState<RoutineVariable[]>(routineVariables);
+
+  return (
+    <Section
+      eyebrow="RoutineVariablesEditor"
+      title="Detected runtime variable definitions"
+      description="Variable rows are synced from title and instructions placeholders, then configured with types, defaults, required flags, and select options."
+    >
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <StatePanel label="Detected variables">
+          <RoutineVariablesEditor
+            title="Review {{repo}} at {{priority}} priority"
+            description="Include browser QA: {{include_browser}}\n\nOperator notes: {{notes}}"
+            value={variables}
+            onChange={setVariables}
+          />
+        </StatePanel>
+        <div className="space-y-4">
+          <StatePanel label="Empty hint">
+            <RoutineVariablesHint />
+          </StatePanel>
+          <StatePanel label="Disabled shell" disabled>
+            <RoutineVariablesEditor
+              title="Review {{repo}}"
+              description="Use {{priority}} priority"
+              value={variables.slice(0, 2)}
+              onChange={() => undefined}
+            />
+          </StatePanel>
+        </div>
+      </div>
+    </Section>
+  );
+}
+
 function PickerGallery() {
   const [issue, setIssue] = useState(() =>
     createIssue({
@@ -551,7 +663,50 @@ function FormsEditorsShowcase() {
       <InlineEditorGallery />
       <EnvironmentVariablesEditorGallery />
       <ScheduleEditorGallery />
+      <RoutineVariablesGallery />
       <PickerGallery />
+    </StoryShell>
+  );
+}
+
+function RoutineRunDialogStory() {
+  const [open, setOpen] = useState(true);
+  const [submitted, setSubmitted] = useState<RoutineRunDialogSubmitData | null>(null);
+
+  return (
+    <StoryShell>
+      <Section
+        eyebrow="RoutineRunVariablesDialog"
+        title="Manual routine run configuration"
+        description="The dialog collects runtime variables, the target assignee, and optional project context before creating the run issue."
+      >
+        <div className="flex flex-wrap items-center gap-3">
+          <Button onClick={() => setOpen(true)}>Open run dialog</Button>
+          {submitted ? (
+            <pre className="max-w-full overflow-x-auto rounded-md border border-border bg-muted/40 px-3 py-2 text-xs">
+              {JSON.stringify(submitted, null, 2)}
+            </pre>
+          ) : (
+            <span className="text-sm text-muted-foreground">Submit the dialog to inspect the payload.</span>
+          )}
+        </div>
+      </Section>
+      <RoutineRunVariablesDialog
+        open={open}
+        onOpenChange={setOpen}
+        spaceId="space-storybook"
+        routineName="Weekly release review"
+        projects={[storybookProject]}
+        agents={storybookAgents}
+        defaultProjectId="project-operator-ui"
+        defaultAssigneeAgentId="agent-codex"
+        variables={routineVariables}
+        isPending={false}
+        onSubmit={(data) => {
+          setSubmitted({ ...data });
+          setOpen(false);
+        }}
+      />
     </StoryShell>
   );
 }
@@ -586,6 +741,11 @@ type Story = StoryObj<typeof meta>;
 export const AllFormsAndEditors: Story = {
   name: "All Forms And Editors",
   render: () => <FormsEditorsShowcase />,
+};
+
+export const RoutineRunVariablesDialogOpen: Story = {
+  name: "Routine Run Variables Dialog",
+  render: () => <RoutineRunDialogStory />,
 };
 
 const foldCurtainLongMarkdown = [

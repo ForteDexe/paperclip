@@ -1,11 +1,18 @@
 import type { QueryClient } from '@tanstack/react-query';
-import type { ProjectSkillRepository } from '@outpost/shared';
+import type { ProjectSkillRepository, RoutineRunSummary, Issue } from '@outpost/shared';
+import { buildSkillMentionHref } from '@outpost/shared';
 import { skillSourcesApi } from '@/api/skillSources';
 import { spaceSkillsApi } from '@/api/spaceSkills';
 import { projectsApi } from '@/api/projects';
+import { routinesApi } from '@/api/routines';
+import { activityApi } from '@/api/activity';
+import { heartbeatsApi } from '@/api/heartbeats';
+import { emailApi } from '@/api/email';
 import { ApiError } from '@/api/client';
+import { issuesApi } from '@/api/issues';
 import { queryKeys } from '@/lib/queryKeys';
-import { storybookProjects } from '../fixtures/outpostData';
+import { baseRoutine } from '../fixtures/routineWebhooks';
+import { storybookProjects, storybookIssues } from '../fixtures/outpostData';
 import { SPACE_ID, SOURCE_ID, COMMIT, installFixtures, candidates, sourceFixture } from '../fixtures/githubSkillSources';
 
 export type Scenario = 'new-project' | 'attach-repository' | 'legacy' | 'duplicate' | 'partial-adoption' | 'missing-branch' | 'ready' | 'refreshing' | 'error' | 'empty' | 'private' | 'shared' | 'shared-private' | 'long' | 'many' | 'paused' | 'removed' | 'validation' | 'repair' | 'repair-conflict' | 'automatic' | 'latest';
@@ -14,13 +21,16 @@ export const projectRepository: ProjectSkillRepository = {
   workspaceId: 'workspace-skills', repositoryUrl: 'https://github.com/acme/team-skills', trackingRef: 'main',
   bindingId: null, sourceId: null, status: 'available', lastError: null,
 };
+export const ROUTINE_ID = 'routine-project-skills';
 const NEW_COMMIT = 'b'.repeat(40);
 
 /** All mutations are scoped in-memory API fixtures. No provider calls or server writes. */
 export function installProjectSkillFixtures(scenario: Scenario, client: QueryClient) {
   const cleanup = installFixtures(['new-project', 'legacy', 'duplicate'].includes(scenario), false, { journey: true, repositories: 'multiple' });
   const baseSources = { ...skillSourcesApi }, baseSkills = { ...spaceSkillsApi };
-  const originalProjects = { ...projectsApi };
+  const originalActivity = { ...activityApi }, originalHeartbeats = { ...heartbeatsApi };
+  const originalEmailThread = emailApi.thread;
+  const originalProjects = { ...projectsApi }, originalRoutines = { ...routinesApi }, originalIssues = { ...issuesApi };
   const timers: ReturnType<typeof setTimeout>[] = [];
   let projectCreated = scenario !== 'new-project';
   const updatedSources = new Set<string>();
@@ -44,6 +54,7 @@ export function installProjectSkillFixtures(scenario: Scenario, client: QueryCli
       client.invalidateQueries({ queryKey: queryKeys.skillSources.all(SPACE_ID) }),
       client.invalidateQueries({ queryKey: queryKeys.spaceSkills.list(SPACE_ID) }),
       client.invalidateQueries({ queryKey: ['project-skill-repositories', SPACE_ID] }),
+      client.invalidateQueries({ queryKey: queryKeys.routines.detail(ROUTINE_ID) }),
     ]);
   };
   const delay = (ms: number) => new Promise<void>(resolve => timers.push(setTimeout(resolve, ms)));
@@ -153,10 +164,66 @@ export function installProjectSkillFixtures(scenario: Scenario, client: QueryCli
     repository = { ...repository, projectName: project.name };
     return projectsApi.setRepositories(project.id, (input.repositoryIds ?? []) as string[]);
   };
+  const skillId = sourceFixture().entries[1]!.skillId!;
+  let routine = { ...baseRoutine, id: ROUTINE_ID, title: 'Review project changes', projectId: project.id,
+    project: { id: project.id, name: project.name, description: null, status: 'in_progress' },
+    description: `Use [/code-review](${buildSkillMentionHref(skillId, 'code-review')}) to review the project changes and report your findings.`, triggers: [], recentRuns: [] as RoutineRunSummary[] };
+  let executionIssues: Issue[] = [storybookIssues[0]!].map(issue => ({ ...issue, id: 'project-review-before', projectId: project.id,
+    originKind: 'routine_execution' as const, originId: ROUTINE_ID, title: 'Review project changes', status: 'done' as const,
+    executionWorkspaceId: null, projectWorkspaceId: null, currentExecutionWorkspace: null, labels: [],
+    description: 'Completed using the installed code review checklist.' }));
+  routinesApi.get = async () => structuredClone(routine);
+  routinesApi.list = async () => [structuredClone({ ...routine, lastRun: routine.recentRuns[0] ?? null })];
+  routinesApi.listRuns = async () => structuredClone(routine.recentRuns);
+  routinesApi.activity = async () => [];
+  routinesApi.listRevisions = async () => [];
+  routinesApi.update = async (_id, input) => (routine = { ...routine, ...input });
+  routinesApi.run = async () => {
+    const now = new Date();
+    const executionId = `project-review-${routine.recentRuns.length + 1}`;
+    const resolvedSkill = await spaceSkillsApi.detail(SPACE_ID, skillId);
+    const run: RoutineRunSummary = { id: `review-run-${routine.recentRuns.length}`, spaceId: SPACE_ID, routineId: ROUTINE_ID,
+      triggerId: null, source: 'manual', status: 'completed', idempotencyKey: null, triggerPayload: null, dispatchFingerprint: null,
+      linkedIssueId: executionId, coalescedIntoRunId: null, failureReason: null, triggeredAt: now, completedAt: now, createdAt: now, updatedAt: now,
+      trigger: null, linkedIssue: { id: executionId, identifier: `PAP-${124 + routine.recentRuns.length}`, title: 'Review project changes', status: 'done', priority: 'medium', updatedAt: now } };
+    routine = { ...routine, recentRuns: [run, ...routine.recentRuns] };
+    executionIssues = [{ ...executionIssues[0]!, id: executionId, identifier: run.linkedIssue!.identifier,
+      description: `Completed using code review version ${resolvedSkill.currentVersionId} at commit ${resolvedSkill.sourceRef}.`,
+    }, ...executionIssues];
+    return run;
+  };
+  const isExecution = (id: string) => executionIssues.some(issue => issue.id === id || issue.identifier === id);
+  emailApi.thread = async (spaceId, id) => isExecution(id) ? null : originalEmailThread(spaceId, id);
+  activityApi.forIssue = async id => isExecution(id) ? [] : originalActivity.forIssue(id);
+  activityApi.runsForIssue = async id => isExecution(id) ? [] : originalActivity.runsForIssue(id);
+  heartbeatsApi.liveRunsForIssue = async id => isExecution(id) ? [] : originalHeartbeats.liveRunsForIssue(id);
+  heartbeatsApi.activeRunForIssue = async id => isExecution(id) ? null : originalHeartbeats.activeRunForIssue(id);
+  heartbeatsApi.executionForIssue = async id => isExecution(id) ? null : originalHeartbeats.executionForIssue(id);
+  issuesApi.listComments = async (id, options) => isExecution(id) ? [] : originalIssues.listComments(id, options);
+  issuesApi.listInteractions = async id => isExecution(id) ? [] : originalIssues.listInteractions(id);
+  issuesApi.listAttachments = async id => isExecution(id) ? [] : originalIssues.listAttachments(id);
+  issuesApi.listApprovals = async id => isExecution(id) ? [] : originalIssues.listApprovals(id);
+  issuesApi.listWorkProducts = async (id, options) => isExecution(id) ? [] : originalIssues.listWorkProducts(id, options);
+  issuesApi.listFeedbackVotes = async id => isExecution(id) ? [] : originalIssues.listFeedbackVotes(id);
+  issuesApi.listTreeHolds = async (id, options) => isExecution(id) ? [] : originalIssues.listTreeHolds(id, options);
+  issuesApi.listAcceptedPlanDecompositions = async id => isExecution(id) ? [] : originalIssues.listAcceptedPlanDecompositions(id);
+  issuesApi.getQueuedComments = async id => isExecution(id) ? {
+    issueId: id, queueId: null, state: null, targetRunId: null, revision: 'empty', protocol: 'legacy', steeringDisposition: 'unsupported', entries: [],
+  } : originalIssues.getQueuedComments(id);
+  issuesApi.getTreeControlState = async id => isExecution(id) ? { activePauseHold: null } : originalIssues.getTreeControlState(id);
+  const originalList = originalIssues.list, originalCompact = originalIssues.listCompact;
+  issuesApi.get = async (id, options) => {
+    const issue = executionIssues.find(candidate => candidate.id === id || candidate.identifier === id);
+    return issue ? structuredClone(issue) : originalIssues.get(id, options);
+  };
+  issuesApi.list = async (spaceId, filters) => filters?.originId === ROUTINE_ID ? structuredClone(executionIssues) : originalList(spaceId, filters);
+  issuesApi.listCompact = async (spaceId, filters, options) => filters?.originId === ROUTINE_ID ? structuredClone(executionIssues.map(issue => ({ ...issue, activeRecoveryAction: null, successfulRunHandoff: null }))) : originalCompact(spaceId, filters, options);
   if (scenario === 'automatic') timers.push(setTimeout(() => { if (live) void refresh().then(invalidate); }, 1800));
   return () => {
     live = false; timers.forEach(clearTimeout);
-    Object.assign(projectsApi, originalProjects);
+    Object.assign(activityApi, originalActivity); Object.assign(heartbeatsApi, originalHeartbeats);
+    emailApi.thread = originalEmailThread;
+    Object.assign(projectsApi, originalProjects); Object.assign(routinesApi, originalRoutines); Object.assign(issuesApi, originalIssues);
     cleanup();
   };
 }

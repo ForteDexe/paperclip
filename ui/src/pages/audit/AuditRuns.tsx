@@ -1,11 +1,12 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { HeartbeatRun } from "@outpost/shared";
+import type { HeartbeatRun, RoutineRunSummary } from "@outpost/shared";
 import { Activity, CircleDotDashed } from "lucide-react";
 import { agentsApi } from "@/api/agents";
 import { heartbeatsApi } from "@/api/heartbeats";
+import { routinesApi } from "@/api/routines";
 import { EmptyState } from "@/components/EmptyState";
-import { QueryErrorState, useQueryView } from "@/components/QueryView";
+import { QueryErrorState, useQueryView, type QueryViewState } from "@/components/QueryView";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,12 +43,98 @@ function readableSource(source: string) {
   return source.replaceAll("_", " ");
 }
 
+function routineRunTitle(run: RoutineRunSummary) {
+  return run.linkedIssue?.title ?? run.trigger?.label ?? "Routine run";
+}
+
+function RoutineScopedRuns({
+  runs,
+  view,
+}: {
+  runs: RoutineRunSummary[];
+  view: QueryViewState<RoutineRunSummary[]>;
+}) {
+  // A loaded list stays on screen through a failed refetch; an outage before
+  // the first load reads as loading, and only a real failure shows copy.
+  if (view.kind === "loading" || view.kind === "reconnecting") {
+    return (
+      <div className="border-y border-border py-14 text-center text-sm text-muted-foreground">
+        Loading routine runs…
+      </div>
+    );
+  }
+
+  if (view.kind === "error") {
+    return (
+      <QueryErrorState
+        error={view.error}
+        action="load routine runs"
+        onRetry={view.retry}
+        retrying={view.isFetching}
+      />
+    );
+  }
+
+  if (runs.length === 0) {
+    return <EmptyState icon={Activity} message="No routine runs yet." />;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-lg font-semibold text-foreground">Routine runs</h2>
+        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+          Executions created by this routine, newest first.
+        </p>
+      </div>
+      <ul className="divide-y divide-border border-y border-border" aria-label="Routine runs">
+        {runs.map((run) => {
+          const content = (
+            <>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium text-foreground">{routineRunTitle(run)}</span>
+                  <StatusBadge status={run.status} />
+                </div>
+                <p className="mt-1 truncate text-sm text-muted-foreground">
+                  {run.trigger?.label ?? readableSource(run.source)}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground sm:justify-end">
+                <span className="capitalize">{readableSource(run.source)}</span>
+                <time dateTime={new Date(run.triggeredAt).toISOString()}>
+                  {relativeTime(run.triggeredAt)}
+                </time>
+              </div>
+            </>
+          );
+          const rowClassName = "flex flex-col gap-2 px-1 py-3 text-inherit no-underline transition-colors hover:bg-muted/50 sm:flex-row sm:items-start sm:justify-between sm:px-3";
+          return (
+            <li key={run.id}>
+              {run.linkedIssue ? (
+                <Link to={`/issues/${run.linkedIssue.identifier ?? run.linkedIssue.id}`} className={rowClassName}>
+                  {content}
+                </Link>
+              ) : (
+                <div className={rowClassName}>{content}</div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      <p className="text-xs text-muted-foreground">Showing the {RUN_LIMIT} most recent routine runs.</p>
+    </div>
+  );
+}
+
 export function AuditRuns({
   spaceId,
+  routineId,
   lockedAgentId,
   hideHeader = false,
 }: {
   spaceId: string;
+  routineId?: string;
   /** Pin the list to one agent and hide the agent filter (the agent page's Runs). */
   lockedAgentId?: string;
   hideHeader?: boolean;
@@ -58,6 +145,7 @@ export function AuditRuns({
   const agents = useQuery({
     queryKey: queryKeys.agents.list(spaceId),
     queryFn: () => agentsApi.list(spaceId),
+    enabled: !routineId,
   });
   const runs = useQuery({
     queryKey: queryKeys.audit.runs(spaceId, agentId === ALL ? null : agentId),
@@ -66,8 +154,16 @@ export function AuditRuns({
         summary: true,
       }),
     refetchInterval: 15_000,
+    enabled: !routineId,
+  });
+  const routineRuns = useQuery({
+    queryKey: [...queryKeys.routines.runs(routineId ?? ""), "audit"],
+    queryFn: () => routinesApi.listRuns(routineId!, RUN_LIMIT),
+    enabled: Boolean(routineId),
+    refetchInterval: 15_000,
   });
   const runsView = useQueryView(runs);
+  const routineRunsView = useQueryView(routineRuns);
   const agentById = useMemo(
     () => new Map((agents.data ?? []).map((agent) => [agent.id, agent])),
     [agents.data],
@@ -104,6 +200,15 @@ export function AuditRuns({
       { replace: true },
     );
   };
+
+  if (routineId) {
+    return (
+      <RoutineScopedRuns
+        runs={routineRuns.data ?? []}
+        view={routineRunsView}
+      />
+    );
+  }
 
   return (
     <div className="space-y-4">
