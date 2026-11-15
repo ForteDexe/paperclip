@@ -159,10 +159,8 @@ describe("plugin install and upgrade authz", () => {
     const byPackageName = new Map<string, { experimental: boolean; hasBuiltEntrypoints: boolean }>(
       res.body.map((plugin: { packageName: string; experimental: boolean; hasBuiltEntrypoints: boolean }) => [plugin.packageName, plugin]),
     );
-    expect(packageNames).toContain("@forted/plugin-campfire");
     expect(packageNames).not.toContain("@outpost/plugin-sdk");
-    expect(byPackageName.get("@forted/plugin-campfire")?.experimental).toBe(false);
-    expect(typeof byPackageName.get("@forted/plugin-campfire")?.hasBuiltEntrypoints).toBe("boolean");
+    expect(byPackageName.size).toBe(packageNames.length);
   }, 20_000);
 
   it("rejects plugin installation for non-admin operator users", async () => {
@@ -1202,7 +1200,7 @@ describe("operator-hidden plugin management floor", () => {
     readyPlugin();
 
     const attempts: Array<[string, request.Test]> = [
-      ["install", request(app).post("/api/plugins/install").send({ packageName: "@forted/plugin-campfire" })],
+      ["install", request(app).post("/api/plugins/install").send({ packageName: "outpost-plugin-example" })],
       ["uninstall", request(app).delete(`/api/plugins/${pluginId}`)],
       ["enable", request(app).post(`/api/plugins/${pluginId}/enable`)],
       ["disable", request(app).post(`/api/plugins/${pluginId}/disable`).send({})],

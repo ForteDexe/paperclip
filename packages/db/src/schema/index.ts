@@ -26,6 +26,14 @@ export { agentConfigRevisions } from "./agent_config_revisions.js";
 export { agentApiKeys } from "./agent_api_keys.js";
 export { agentRuntimeState } from "./agent_runtime_state.js";
 export { agentTaskSessions, agentSessionGoalActions } from "./agent_task_sessions.js";
+export {
+  campfireRooms,
+  campfireRoomMembers,
+  campfireAgentSessions,
+  campfireMessages,
+  campfireMessageMentions,
+  campfireMessageDeliveries,
+} from "./campfire.js";
 export { agentWakeupRequests } from "./agent_wakeup_requests.js";
 export { projects } from "./projects.js";
 export { projectMemberships } from "./project_memberships.js";

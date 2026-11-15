@@ -62,6 +62,7 @@ export const instanceExperimentalSettingsSchema = z.object({
   enableOutpostNotebook: z.boolean().default(false),
   enableGoogleWorkspaceConnector: z.boolean().default(false),
   enableCases: z.boolean().default(false),
+  enableCampfire: z.boolean().default(false),
   enableAgentChat: z.boolean().default(true),
   enableCombinedInboxTasks: z.boolean().default(false),
   enableArtifactsV1: z.boolean().default(true),

@@ -7,6 +7,7 @@ const OPERATOR_ROUTE_ROOTS = new Set([
   "agent-hierarchy",
   "agents",
   "chats",
+  "campfire",
   "apps",
   "projects",
   "workspaces",

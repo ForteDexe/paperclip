@@ -79,6 +79,8 @@ export interface InstanceExperimentalSettings {
   /** Show and allow the built-in Google Workspace connector while its Google verification is pending. */
   enableGoogleWorkspaceConnector: boolean;
   enableCases: boolean;
+  /** Show persistent multi-agent Campfire rooms. */
+  enableCampfire: boolean;
   enableAgentChat: boolean;
   /** Reorganized left nav, Inbox-as-Tasks-views, and the chat agent rail + task cards. */
   enableCombinedInboxTasks: boolean;

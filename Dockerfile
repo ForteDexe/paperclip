@@ -27,7 +27,6 @@ COPY packages/tailscale-https-broker/package.json packages/tailscale-https-broke
 COPY packages/adapters/claude-local/package.json packages/adapters/claude-local/
 COPY packages/adapters/codex-local/package.json packages/adapters/codex-local/
 COPY packages/plugins/sdk/package.json packages/plugins/sdk/
-COPY packages/plugins/plugin-campfire/package.json packages/plugins/plugin-campfire/
 COPY patches/ patches/
 COPY scripts/link-plugin-dev-sdk.mjs scripts/
 COPY packages/outpost-runner/scripts/install-copilot-assets.mjs packages/outpost-runner/scripts/materialize-copilot-binary.mjs packages/outpost-runner/scripts/copilot-inner-distribution.mjs packages/outpost-runner/scripts/

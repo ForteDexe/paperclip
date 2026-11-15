@@ -541,6 +541,25 @@ describe("Sidebar", () => {
     });
   });
 
+  it("shows Campfire only when its experimental setting is enabled", async () => {
+    mockInstanceSettingsApi.getExperimental.mockResolvedValue({
+      enableIsolatedWorkspaces: false,
+      enableCampfire: false,
+    });
+    let root = await renderSidebar();
+    expect(container.querySelector('a[href="/campfire"]')).toBeNull();
+    flushSync(() => root.unmount());
+
+    container.replaceChildren();
+    mockInstanceSettingsApi.getExperimental.mockResolvedValue({
+      enableIsolatedWorkspaces: false,
+      enableCampfire: true,
+    });
+    root = await renderSidebar();
+    expect(container.querySelector('a[href="/campfire"]')?.textContent).toContain("Campfire");
+    flushSync(() => root.unmount());
+  });
+
   it("keeps Timeline out of the global navigation", async () => {
     mockInstanceSettingsApi.getExperimental.mockResolvedValue({ enableIsolatedWorkspaces: false });
     const root = await renderSidebar();

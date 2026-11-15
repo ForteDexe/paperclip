@@ -165,6 +165,7 @@ export function InstanceExperimentalSettings() {
   const enableDecisions = experimentalQuery.data?.enableDecisions === true;
   const enableGoalsSidebarLink = experimentalQuery.data?.enableGoalsSidebarLink === true;
   const enableCases = experimentalQuery.data?.enableCases === true;
+  const enableCampfire = experimentalQuery.data?.enableCampfire === true;
   const enableServerInfoDebugView = experimentalQuery.data?.enableServerInfoDebugView === true;
   const enableOutpostDeveloperMode =
     experimentalQuery.data?.enableOutpostDeveloperMode === true;
@@ -229,6 +230,18 @@ export function InstanceExperimentalSettings() {
           settingKey="enableCases"
           managed={managedKeys.enableCases}
           ariaLabel="Toggle cases experimental setting"
+        />
+
+        <ExperimentalToggleCard
+          title="Campfire"
+          description="Persistent group rooms where you and multiple agents can discuss work through the native Chat interface."
+          footnote="Turning Campfire off hides the rooms and blocks its API; existing room history is kept."
+          checked={enableCampfire}
+          onCheckedChange={(checked) => toggleMutation.mutate({ enableCampfire: checked })}
+          disabled={toggleMutation.isPending}
+          settingKey="enableCampfire"
+          managed={managedKeys.enableCampfire}
+          ariaLabel="Toggle Campfire experimental setting"
         />
 
         <ExperimentalToggleCard

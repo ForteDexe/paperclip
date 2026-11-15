@@ -1,4 +1,9 @@
 export const queryKeys = {
+  campfire: {
+    all: (spaceId: string | null) => ["campfire", spaceId] as const,
+    state: (spaceId: string | null, roomId?: string | null) =>
+      ["campfire", spaceId, roomId ?? "__first"] as const,
+  },
   linkPreview: (spaceId: string, userId: string | null, url: string) =>
     ["link-preview", spaceId, userId, url] as const,
   workspacePreferences: {

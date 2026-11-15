@@ -11,7 +11,6 @@ const requiredPackageRoots = [
   "packages/db",
   "packages/mcp-server",
   "packages/outpost-runner",
-  "packages/plugins/plugin-campfire",
   "packages/plugins/sdk",
   "packages/shared",
 ];

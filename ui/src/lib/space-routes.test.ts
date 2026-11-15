@@ -26,6 +26,13 @@ describe("space routes", () => {
     expect(applySpacePrefix("/tasks", "PAP")).toBe("/PAP/tasks");
   });
 
+  it("keeps Campfire room navigation inside the active Space", () => {
+    expect(isOperatorPathWithoutPrefix("/campfire")).toBe(true);
+    expect(extractSpacePrefixFromPath("/campfire/room-123")).toBeNull();
+    expect(applySpacePrefix("/campfire/room-123", "SAN")).toBe("/SAN/campfire/room-123");
+    expect(toSpaceRelativePath("/SAN/campfire/room-123")).toBe("/campfire/room-123");
+  });
+
   it("treats execution workspace paths as operator routes that need a space prefix", () => {
     expect(isOperatorPathWithoutPrefix("/execution-workspaces/workspace-123")).toBe(true);
     expect(isOperatorPathWithoutPrefix("/execution-workspaces/workspace-123/routines")).toBe(true);

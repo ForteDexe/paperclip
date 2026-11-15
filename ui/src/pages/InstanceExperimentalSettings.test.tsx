@@ -31,6 +31,7 @@ vi.mock("../context/BreadcrumbContext", () => ({
 }));
 
 const CASES = 'button[aria-label="Toggle cases experimental setting"]';
+const CAMPFIRE = 'button[aria-label="Toggle Campfire experimental setting"]';
 const DECISIONS = 'button[aria-label="Toggle decisions experimental setting"]';
 const NORTH_STARS = 'button[aria-label="Toggle north stars sidebar link experimental setting"]';
 const DEVELOPER_MODE = 'button[aria-label="Toggle Outpost developer mode experimental setting"]';
@@ -66,6 +67,7 @@ function settings(
 ): InstanceExperimentalSettingsWithManaged {
   return {
     enableCases: false,
+    enableCampfire: false,
     enableDecisions: false,
     enableGoalsSidebarLink: false,
     enableManagedSandboxOnly: false,
@@ -134,11 +136,12 @@ describe("InstanceExperimentalSettings", () => {
     vi.clearAllMocks();
   });
 
-  it("shows only the three Outpost product experiments", async () => {
+  it("shows only the retained Outpost product experiments", async () => {
     await renderPage();
 
     expect([...container.querySelectorAll("h3")].map((node) => node.textContent)).toEqual([
       "Cases",
+      "Campfire",
       "Decisions",
       "North Stars",
       "Auto-Restart Dev Server When Idle",
@@ -159,6 +162,7 @@ describe("InstanceExperimentalSettings", () => {
 
   it.each([
     [CASES, "enableCases"],
+    [CAMPFIRE, "enableCampfire"],
     [DECISIONS, "enableDecisions"],
     [NORTH_STARS, "enableGoalsSidebarLink"],
   ] as const)("persists %s", async (selector, key) => {

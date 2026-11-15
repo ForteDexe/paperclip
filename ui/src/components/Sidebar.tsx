@@ -14,6 +14,7 @@ import {
   Settings,
   MessageCircle,
   Users,
+  Flame,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -116,6 +117,7 @@ function ClassicSidebar({ children }: { children?: ReactNode }) {
   });
   const attentionCount = attentionBadgeCount(attentionFeed);
   const showCases = experimentalSettings?.enableCases === true;
+  const showCampfire = experimentalSettings?.enableCampfire === true;
 
   const pluginContext = {
     spaceId: selectedSpaceId,
@@ -202,6 +204,7 @@ function ClassicSidebar({ children }: { children?: ReactNode }) {
           {chatRail ? (
             <SidebarNavItem to="/chats" label="Chat" icon={MessageCircle} badge={unreadChatCount} badgeLabel="unread chats" />
           ) : null}
+          {showCampfire ? <SidebarNavItem to="/campfire" label="Campfire" icon={Flame} /> : null}
           {/* Combined Inbox + Task List: Inbox is a view inside Tasks, so the
               unread/failed-run badge rides on Tasks. */}
           {combinedInboxTasks ? (

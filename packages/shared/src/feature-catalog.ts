@@ -170,6 +170,14 @@ export const INSTANCE_FEATURE_CATALOG: Record<InstanceFeatureKey, FeatureCatalog
     cloudDefault: false,
     selfHostedDefault: false,
   },
+  enableCampfire: {
+    title: "Campfire",
+    description:
+      "Enable persistent multi-agent group rooms using the native Chat interface.",
+    tier: "preference",
+    cloudDefault: false,
+    selfHostedDefault: false,
+  },
   enableAgentChat: {
     title: "Agent Chat (compatibility)",
     description: "Deprecated compatibility key. Agent Chat is always enabled; stored and managed values are ignored.",

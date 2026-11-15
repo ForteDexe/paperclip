@@ -3,6 +3,7 @@ import { lazy, Suspense, useEffect, type ReactNode } from "react";
 import { Navigate, Outlet, Route, Routes, useLocation, useParams } from "@/lib/router";
 import { Layout } from "./components/Layout";
 import { CasesExperimentalGate } from "./components/CasesExperimentalGate";
+import { CampfireExperimentalGate } from "./components/CampfireExperimentalGate";
 import { HiddenSettingsPageGate } from "./components/HiddenSettingsPageGate";
 import { useHiddenSettings } from "./hooks/useHiddenSettings";
 import { CloudAccessGate } from "./components/CloudAccessGate";
@@ -32,6 +33,7 @@ const loadIssueDetail = () =>
   (issueDetailLoad ??= import("./pages/IssueDetail").then((module) => ({ default: module.IssueDetail })));
 const IssueDetail = lazy(loadIssueDetail);
 const AgentChat = lazy(() => import("./pages/AgentChat").then((module) => ({ default: module.AgentChat })));
+const Campfire = lazy(() => import("./pages/Campfire").then((module) => ({ default: module.Campfire })));
 const loadInbox = () => import("./pages/Inbox").then((module) => ({ default: module.Inbox }));
 const Inbox = lazy(loadInbox);
 const Agents = lazy(() => import("./pages/Agents").then((module) => ({ default: module.Agents })));
@@ -157,6 +159,8 @@ function operatorRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled
       )}
       <Route path="chats" element={<AgentChats />} />
       <Route path="chats/:agentRef" element={<AgentChat />} />
+      <Route path="campfire" element={<CampfireExperimentalGate><Campfire /></CampfireExperimentalGate>} />
+      <Route path="campfire/:roomId" element={<CampfireExperimentalGate><Campfire /></CampfireExperimentalGate>} />
       <Route path="issues/:issueId" element={<IssueDetail />} />
       <Route path="routines" element={streamlinedUiEnabled ? <Routines /> : <ProductionSurface><ProductionRoutines /></ProductionSurface>} />
       <Route

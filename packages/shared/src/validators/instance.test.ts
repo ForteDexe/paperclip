@@ -6,6 +6,14 @@ import {
 } from "./instance.js";
 
 describe("instance experimental settings validators", () => {
+  it("keeps built-in Campfire experimental and accepts explicit patches", () => {
+    expect(instanceExperimentalSettingsSchema.parse({}).enableCampfire).toBe(false);
+    expect(patchInstanceExperimentalSettingsSchema.parse({ enableCampfire: true })).toEqual({
+      enableCampfire: true,
+    });
+    expect(patchInstanceExperimentalSettingsSchema.safeParse({ enableCampfire: "true" }).success).toBe(false);
+  });
+
   it("defaults legacy composer submission off and accepts only explicit boolean patches", () => {
     expect(instanceExperimentalSettingsSchema.parse({}).enableLegacyComposerSubmit).toBe(false);
     expect(patchInstanceExperimentalSettingsSchema.parse({})).not.toHaveProperty("enableLegacyComposerSubmit");

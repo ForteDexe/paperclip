@@ -1,5 +1,6 @@
 export { healthRoutes } from "./health.js";
 export { spaceRoutes } from "./spaces.js";
+export { campfireRoutes } from "./campfire.js";
 export { spaceSkillRoutes } from "./space-skills.js";
 export { spaceSkillPolicyRoutes } from "./space-skill-policy.js";
 export { inboxAgentPolicyRoutes } from "./inbox-agent-policy.js";

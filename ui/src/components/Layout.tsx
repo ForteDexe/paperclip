@@ -29,7 +29,9 @@ import { DevRestartBanner } from "./DevRestartBanner";
 import { StandaloneBrowserControls } from "./StandaloneBrowserControls";
 import { RouteErrorBoundary } from "./RouteErrorBoundary";
 import { AgentConversationsSidebar } from "./AgentConversationsSidebar";
+import { CampfireSidebar } from "./CampfireSidebar";
 import { useAgentChatEnabled } from "../hooks/useAgentChatEnabled";
+import { useCampfireEnabled } from "../hooks/useCampfireEnabled";
 import { SidebarShell } from "./SidebarShell";
 import { SecondarySidebar } from "./SecondarySidebar";
 import { ContextualSidebarFrame } from "./ContextualSidebarFrame";
@@ -134,9 +136,11 @@ export function Layout({ sidebarSections }: { sidebarSections?: ReactNode }) {
   }, [coordinatorWorkspaceEnabled, location.pathname, setPanelVisible]);
   const { enabled: agentChatEnabled } = useAgentChatEnabled();
   const isAgentChatRoute = agentChatEnabled && spacePathSegments[0]?.toLowerCase() === "chats";
+  const { enabled: campfireEnabled } = useCampfireEnabled();
+  const isCampfireRoute = campfireEnabled && spacePathSegments[0]?.toLowerCase() === "campfire";
   // Chat keeps its header beside the agent sidebar, including before an agent is selected.
-  const useStreamlinedTaskDetailShell = streamlinedUiEnabled && (isTaskDetailRoute || isAgentChatRoute);
-  const useInsetTaskDetailHeader = useStreamlinedTaskDetailShell && !isAgentChatRoute;
+  const useStreamlinedTaskDetailShell = streamlinedUiEnabled && (isTaskDetailRoute || isAgentChatRoute || isCampfireRoute);
+  const useInsetTaskDetailHeader = useStreamlinedTaskDetailShell && !isAgentChatRoute && !isCampfireRoute;
   const isToolsRoute = spacePathSegments[0]?.toLowerCase() === "tools";
   const isAppsRoute = spacePathSegments[0]?.toLowerCase() === "apps";
   const appDetailConnectionId =
@@ -217,7 +221,7 @@ export function Layout({ sidebarSections }: { sidebarSections?: ReactNode }) {
       />
     )
   ) : null;
-  const secondarySidebar = isAgentChatRoute ? <AgentConversationsSidebar /> : shellRoute.builtInContextualSurface === "agent" && agentId ? (
+  const secondarySidebar = isAgentChatRoute ? <AgentConversationsSidebar /> : isCampfireRoute ? <CampfireSidebar /> : shellRoute.builtInContextualSurface === "agent" && agentId ? (
     <AgentContextualSidebar agentRef={agentId} />
   ) : streamlinedUiEnabled && shellRoute.builtInContextualSurface === "routine" && routineId ? (
     <SetupWizardSidebarOutlet><RoutineContextualSidebar routineId={routineId} /></SetupWizardSidebarOutlet>
@@ -225,6 +229,7 @@ export function Layout({ sidebarSections }: { sidebarSections?: ReactNode }) {
   const hasSecondarySidebar = secondarySidebar != null;
   const keepsPrimarySidebar = streamlinedUiEnabled && hasSecondarySidebar && (
     isAgentChatRoute
+    || isCampfireRoute
     || shellRoute.builtInContextualSurface === "agent"
     || shellRoute.builtInContextualSurface === "routine"
     || isAppsRoute
@@ -677,8 +682,8 @@ export function Layout({ sidebarSections }: { sidebarSections?: ReactNode }) {
             isMobile ? "block" : "flex flex-1 min-h-0",
             !isMobile && useStreamlinedTaskDetailShell && "streamlined-task-detail-surface",
           )}>
-            {!isMobile && (keepsPrimarySidebar || isAgentChatRoute) ? (
-              <SecondarySidebar className={cn(isAgentChatRoute ? "w-70" : "w-60", "shrink-0 bg-background")}>
+            {!isMobile && (keepsPrimarySidebar || isAgentChatRoute || isCampfireRoute) ? (
+              <SecondarySidebar className={cn(isAgentChatRoute || isCampfireRoute ? "w-70" : "w-60", "shrink-0 bg-background")}>
                 {secondarySidebar}
               </SecondarySidebar>
             ) : null}

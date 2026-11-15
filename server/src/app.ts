@@ -79,6 +79,7 @@ import { cloudRuntimeIdentityMiddleware } from "./middleware/cloud-runtime-ident
 import { cloudControlMiddleware } from "./middleware/cloud-control.js";
 import { cloudRoutes } from "./routes/cloud.js";
 import { spaceRoutes } from "./routes/spaces.js";
+import { campfireRoutes } from "./routes/campfire.js";
 import { spaceSkillRoutes } from "./routes/space-skills.js";
 import { spaceSkillPolicyRoutes } from "./routes/space-skill-policy.js";
 import { inboxAgentPolicyRoutes } from "./routes/inbox-agent-policy.js";
@@ -651,6 +652,7 @@ export async function createApp(
   api.use(openApiRoutes());
   api.use("/cloud", cloudRoutes());
   api.use("/spaces", spaceRoutes(db, opts.storageService));
+  api.use(campfireRoutes(db, { pluginWorkerManager: workerManager }));
   api.use(llmRoutes(db));
   api.use(folderRoutes(db));
   api.use(spaceSkillRoutes(db, { pluginWorkerManager: workerManager }));

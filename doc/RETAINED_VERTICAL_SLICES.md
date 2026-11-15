@@ -53,8 +53,8 @@ The retained product currently depends on these package roots:
   runtime tool surface used by runner capability contracts;
 - `packages/outpost-runner`: ACP/CLI execution, session continuity, and local
   runtime orchestration;
-- `packages/plugins/plugin-campfire` and `packages/plugins/sdk`: the retained
-  group-chat plugin and its host contract;
+- `packages/plugins/sdk`: the retained plugin host contract. Campfire is now a
+  built-in experimental feature rather than a plugin;
 - `packages/shared`: contracts shared by the UI, server, CLI, runner, and
   adapters.
 
