@@ -220,11 +220,9 @@ vi.mock("../context/DialogContext", () => ({
   useDialogState: () => ({ newIssueOpen: false, newProjectOpen: false, newGoalOpen: false, newAgentOpen: false }),
   useDialog: () => ({
     openNewIssue: vi.fn(),
-    openOnboarding: vi.fn(),
   }),
   useDialogActions: () => ({
     openNewIssue: vi.fn(),
-    openOnboarding: vi.fn(),
   }),
 }));
 

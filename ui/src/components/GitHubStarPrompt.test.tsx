@@ -8,9 +8,8 @@ import { ONBOARDING_FIRST_TASK_ORIGIN_KIND } from "@outpost/shared";
 import type { HealthStatus } from "@/api/health";
 import { GitHubStarPrompt, STAR_PROMPT_SEEN_KEY } from "./GitHubStarPrompt";
 
-const state = vi.hoisted(() => ({ spaceId: "space", loading: false, onboardingOpen: false, onboardingStatus: null as string | null, done: 5, listCompact: vi.fn() }));
+const state = vi.hoisted(() => ({ spaceId: "space", loading: false, onboardingStatus: null as string | null, done: 5, listCompact: vi.fn() }));
 vi.mock("@/context/SpaceContext", () => ({ useSpace: () => ({ selectedSpaceId: state.spaceId, loading: state.loading }) }));
-vi.mock("@/context/DialogContext", () => ({ useDialogState: () => ({ onboardingOpen: state.onboardingOpen }) }));
 vi.mock("@/api/issues", () => ({ issuesApi: {
   list: () => Promise.resolve(state.onboardingStatus ? [{ id: "onboarding", originKind: ONBOARDING_FIRST_TASK_ORIGIN_KIND, status: state.onboardingStatus }] : []),
   listCompact: (...args: unknown[]) => {
@@ -39,7 +38,7 @@ describe("GitHub star prompt", () => {
   };
   const visible = () => Boolean(document.querySelector('[data-testid="github-star-prompt"]'));
   beforeEach(() => {
-    Object.assign(state, { spaceId: "space", loading: false, onboardingOpen: false, onboardingStatus: null, done: 5 });
+    Object.assign(state, { spaceId: "space", loading: false, onboardingStatus: null, done: 5 });
     state.listCompact.mockClear();
     window.localStorage.clear();
     container = document.createElement("div"); document.body.append(container); root = createRoot(container);
@@ -145,13 +144,9 @@ describe("GitHub star prompt", () => {
     expect(window.localStorage.getItem(STAR_PROMPT_SEEN_KEY)).toBeNull();
   });
 
-  it("stays hidden on cloud, during onboarding, and before health is known", async () => {
+  it("stays hidden on cloud and before health is known", async () => {
     await render({ deploymentMode: "authenticated", cloud: {} as HealthStatus["cloud"] });
     expect(visible()).toBe(false);
-    state.onboardingOpen = true;
-    await render();
-    expect(visible()).toBe(false);
-    state.onboardingOpen = false;
     await render(null);
     expect(visible()).toBe(false);
     expect(state.listCompact).not.toHaveBeenCalled();

@@ -94,6 +94,12 @@ const retiredInfrastructure = [
   "tests/runner-e2e/chat-scenarios/onboarding.yaml",
   "tests/runner-e2e/chat-scenarios/projects.yaml",
   "tests/runner-e2e/chat-scenarios/skills.yaml",
+  "ui/src/components/OnboardingWizard.tsx",
+  "ui/src/components/OnboardingWizardVariant.tsx",
+  "ui/src/lib/onboarding-state.ts",
+  "ui/src/wizard-preview-main.tsx",
+  "ui/storybook/stories/onboarding",
+  "ui/wizard-preview.html",
 ];
 
 const retiredCatalogScenarioIds = [

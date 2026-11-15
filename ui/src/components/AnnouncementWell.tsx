@@ -6,7 +6,6 @@ import { useAccountIdentity } from "@/api/spaces-query";
 import type { HealthStatus } from "@/api/health";
 import { issuesApi } from "@/api/issues";
 import { useSpace } from "@/context/SpaceContext";
-import { useDialogState } from "@/context/DialogContext";
 import { useOptionalToastActions, useOptionalToastState } from "@/context/ToastContext";
 import { useAnnouncement } from "@/hooks/useAnnouncement";
 import { queryKeys } from "@/lib/queryKeys";
@@ -56,14 +55,13 @@ export type AnnouncementPlacement = "sidebar" | "floating";
 export function AnnouncementWell({ health, placement = "floating" }: { health?: HealthStatus; placement?: AnnouncementPlacement }) {
   const { userId: accountId, settled } = useAccountIdentity();
   const { selectedSpaceId, loading } = useSpace();
-  const { onboardingOpen } = useDialogState();
   const toastActions = useOptionalToastActions();
   const toasts = useOptionalToastState();
   const onboardingInProgress = useOnboardingInProgress(selectedSpaceId);
   const userId = health?.deploymentMode === "local_trusted" ? "local-operator" : (settled ? accountId : null);
   const { announcement, dismiss } = useAnnouncement({
     userId, spaceId: selectedSpaceId,
-    enabled: Boolean(userId && !loading && selectedSpaceId && !onboardingOpen && !onboardingInProgress),
+    enabled: Boolean(userId && !loading && selectedSpaceId && !onboardingInProgress),
     onSaveFailure: (savedLocally) => toastActions?.pushToast({
       title: savedLocally ? "Dismissed in this browser" : "Dismissed for this visit",
       body: "Couldn’t save across devices. We’ll retry when you reconnect or return.",

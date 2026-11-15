@@ -272,6 +272,16 @@ sandbox product. They are removed. The pull-request `Docker Runner check` keeps
 its isolated local native-runner compilation and dependency-cache verification;
 it no longer publishes images or runs paid remote qualification.
 
+### Web Onboarding Wizard
+
+Outpost assumes Codex or Claude authentication is completed in the provider's
+own CLI or desktop application. Spaces and agents are created from their normal
+product screens, so the separate full-screen onboarding wizard, saved browser
+draft, onboarding-only character and step components, standalone preview
+entries, and Storybook journeys are removed. Shared harness, model, credential,
+and motion controls used by the retained New Agent flow remain. CLI/server
+bootstrap and the historical first-task runtime are separate follow-up slices.
+
 ## Scope guard
 
 `scripts/check-retained-product-scope.mjs` verifies that the required Codex,

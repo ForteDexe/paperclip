@@ -48,7 +48,6 @@ const DRY_RUN = process.argv.includes("--check");
 const NEW_TOKENS = [
   // --- Tailwind bracket color-class hex sites (section: bracket hex) ---
   { name: "hex-959596", value: "#959596", comment: "Muted feed actor/verb/title text (ActivityFeed.tsx, FeedCard.tsx) — PRIOR-ART-flagged gap cluster, no existing token match." },
-  { name: "hex-1d1d1d", value: "#1d1d1d", comment: "OnboardingWizard.tsx dark decorative panel background, singleton." },
 
   // --- AgentHierarchy.tsx status dot colors (independent from --status-agent-* hues) ---
   { name: "hex-22d3ee", value: "#22d3ee", comment: "AgentHierarchy.tsx agent status dot — 'running' (independent palette from --status-agent-*, see TOKEN-AUDIT.md 1.2)." },
@@ -131,12 +130,6 @@ const SITES = [
     file: "components/FeedCard.tsx",
     replaceAll: [
       ['isMuted ? "text-muted-foreground/70" : "text-[#959596]"', 'isMuted ? "text-muted-foreground/70" : "text-(--hex-959596)"'],
-    ],
-  },
-  {
-    file: "components/OnboardingWizard.tsx",
-    replaceAll: [
-      ['"hidden md:block overflow-hidden bg-[#1d1d1d] transition-[width,opacity] duration-500 ease-in-out"', '"hidden md:block overflow-hidden bg-(--hex-1d1d1d) transition-[width,opacity] duration-500 ease-in-out"'],
     ],
   },
   {

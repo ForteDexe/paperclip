@@ -6,7 +6,6 @@ import { issuesApi } from "@/api/issues";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useSpace } from "@/context/SpaceContext";
-import { useDialogState } from "@/context/DialogContext";
 import { useLocation } from "@/lib/router";
 import { queryKeys } from "@/lib/queryKeys";
 import { MODAL_SELECTOR, useModalOpen, useOnboardingInProgress } from "./AnnouncementWell";
@@ -43,13 +42,12 @@ function markSeen() {
  */
 export function GitHubStarPrompt() {
   const { selectedSpaceId, loading } = useSpace();
-  const { onboardingOpen } = useDialogState();
   const [seen, setSeen] = useState(readSeen);
   const [open, setOpen] = useState(false);
   const onboardingInProgress = useOnboardingInProgress(selectedSpaceId);
   const health = useQuery({ queryKey: queryKeys.health, queryFn: () => healthApi.get(), enabled: false });
   const selfHosted = health.isSuccess && !health.data.cloud;
-  const eligible = selfHosted && !seen && !loading && Boolean(selectedSpaceId) && !onboardingOpen && !onboardingInProgress;
+  const eligible = selfHosted && !seen && !loading && Boolean(selectedSpaceId) && !onboardingInProgress;
   const done = useQuery({
     queryKey: queryKeys.issues.starPromptDone(selectedSpaceId ?? "__none__"),
     queryFn: ({ signal }) => issuesApi.listCompact(selectedSpaceId!, { status: "done", limit: STAR_PROMPT_COMPLETED_TASKS }, { signal }),

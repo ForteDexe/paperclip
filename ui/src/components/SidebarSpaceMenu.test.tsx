@@ -18,7 +18,6 @@ const mockAuthApi = vi.hoisted(() => ({
   signOut: vi.fn(),
 }));
 const mockNavigate = vi.hoisted(() => vi.fn());
-const mockOpenOnboarding = vi.hoisted(() => vi.fn());
 const mockSetSelectedSpaceId = vi.hoisted(() => vi.fn());
 const mockSetSidebarOpen = vi.hoisted(() => vi.fn());
 const mockLocation = vi.hoisted(() => ({ pathname: "/PAP/dashboard" }));
@@ -88,12 +87,6 @@ vi.mock("@/context/SpaceContext", () => ({
       status: "active",
     },
     setSelectedSpaceId: mockSetSelectedSpaceId,
-  }),
-}));
-
-vi.mock("@/context/DialogContext", () => ({
-  useDialogActions: () => ({
-    openOnboarding: mockOpenOnboarding,
   }),
 }));
 
@@ -533,7 +526,6 @@ describe("SidebarSpaceMenu", () => {
     expect(createItem).toBeTruthy();
 
     expect(createItem?.getAttribute("href")).toBe("/spaces?new=1");
-    expect(mockOpenOnboarding).not.toHaveBeenCalled();
     expect(mockNavigateTopLevel).not.toHaveBeenCalled();
 
     act(() => {
@@ -604,7 +596,6 @@ describe("SidebarSpaceMenu", () => {
       expect(document.body.textContent).toContain("Anachronist Wiki");
       expect(document.body.textContent).toContain("ANA");
       expect(document.body.textContent).toContain("New Space");
-      expect(mockOpenOnboarding).not.toHaveBeenCalled();
       const row = [...document.querySelectorAll('[data-slot="dropdown-menu-item"]')]
         .find(element => element.textContent?.includes("Anachronist Wiki"));
       act(() => row?.dispatchEvent(new MouseEvent("click", { bubbles: true })));

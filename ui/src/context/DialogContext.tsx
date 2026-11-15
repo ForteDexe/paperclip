@@ -25,11 +25,6 @@ interface NewGoalDefaults {
   parentId?: string;
 }
 
-interface OnboardingOptions {
-  initialStep?: 1 | 2 | 3 | 4;
-  spaceId?: string;
-}
-
 interface DialogContextValue {
   newIssueOpen: boolean;
   newIssueDefaults: NewIssueDefaults;
@@ -45,15 +40,6 @@ interface DialogContextValue {
   newAgentOpen: boolean;
   openNewAgent: () => void;
   closeNewAgent: () => void;
-  onboardingOpen: boolean;
-  onboardingOptions: OnboardingOptions;
-  openOnboarding: (options?: OnboardingOptions) => void;
-  closeOnboarding: () => void;
-  // Whether the user has dismissed the route-driven onboarding wizard (the one
-  // that auto-opens on /onboarding). Shared so the route launcher can hand off
-  // fully to the wizard instead of remaining interactive behind it.
-  onboardingRouteDismissed: boolean;
-  setOnboardingRouteDismissed: (dismissed: boolean) => void;
 }
 
 type DialogStateValue = Pick<
@@ -64,9 +50,6 @@ type DialogStateValue = Pick<
   | "newGoalOpen"
   | "newGoalDefaults"
   | "newAgentOpen"
-  | "onboardingOpen"
-  | "onboardingOptions"
-  | "onboardingRouteDismissed"
 >;
 
 type DialogActionsValue = Omit<DialogContextValue, keyof DialogStateValue>;
@@ -81,9 +64,6 @@ export function DialogProvider({ children }: { children: ReactNode }) {
   const [newGoalOpen, setNewGoalOpen] = useState(false);
   const [newGoalDefaults, setNewGoalDefaults] = useState<NewGoalDefaults>({});
   const [newAgentOpen, setNewAgentOpen] = useState(false);
-  const [onboardingOpen, setOnboardingOpen] = useState(false);
-  const [onboardingOptions, setOnboardingOptions] = useState<OnboardingOptions>({});
-  const [onboardingRouteDismissed, setOnboardingRouteDismissed] = useState(false);
 
   const openNewIssue = useCallback((defaults: NewIssueDefaults = {}) => {
     setNewIssueDefaults(defaults);
@@ -121,16 +101,6 @@ export function DialogProvider({ children }: { children: ReactNode }) {
     setNewAgentOpen(false);
   }, []);
 
-  const openOnboarding = useCallback((options: OnboardingOptions = {}) => {
-    setOnboardingOptions(options);
-    setOnboardingOpen(true);
-  }, []);
-
-  const closeOnboarding = useCallback(() => {
-    setOnboardingOpen(false);
-    setOnboardingOptions({});
-  }, []);
-
   const stateValue = useMemo<DialogStateValue>(
     () => ({
       newIssueOpen,
@@ -139,9 +109,6 @@ export function DialogProvider({ children }: { children: ReactNode }) {
       newGoalOpen,
       newGoalDefaults,
       newAgentOpen,
-      onboardingOpen,
-      onboardingOptions,
-      onboardingRouteDismissed,
     }),
     [
       newIssueOpen,
@@ -150,9 +117,6 @@ export function DialogProvider({ children }: { children: ReactNode }) {
       newGoalOpen,
       newGoalDefaults,
       newAgentOpen,
-      onboardingOpen,
-      onboardingOptions,
-      onboardingRouteDismissed,
     ],
   );
 
@@ -166,9 +130,6 @@ export function DialogProvider({ children }: { children: ReactNode }) {
       closeNewGoal,
       openNewAgent,
       closeNewAgent,
-      openOnboarding,
-      closeOnboarding,
-      setOnboardingRouteDismissed,
     }),
     [
       openNewIssue,
@@ -179,9 +140,6 @@ export function DialogProvider({ children }: { children: ReactNode }) {
       closeNewGoal,
       openNewAgent,
       closeNewAgent,
-      openOnboarding,
-      closeOnboarding,
-      setOnboardingRouteDismissed,
     ],
   );
 

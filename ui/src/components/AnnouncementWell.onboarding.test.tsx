@@ -12,7 +12,6 @@ import { announcementPreview } from "@/lib/announcement-preview";
 const state = vi.hoisted(() => ({ list: vi.fn() }));
 vi.mock("@/api/spaces-query", () => ({ useAccountIdentity: () => ({ userId: "alice", settled: true }) }));
 vi.mock("@/context/SpaceContext", () => ({ useSpace: () => ({ selectedSpaceId: "space", loading: false }) }));
-vi.mock("@/context/DialogContext", () => ({ useDialogState: () => ({ onboardingOpen: false }) }));
 vi.mock("@/context/ToastContext", () => ({ useOptionalToastActions: () => null, useOptionalToastState: () => [] }));
 vi.mock("@/api/issues", () => ({ issuesApi: { list: state.list } }));
 vi.mock("@/hooks/useAnnouncement", () => ({ useAnnouncement: (options: { enabled: boolean }) => ({

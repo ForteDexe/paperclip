@@ -2882,7 +2882,6 @@ span.outpost-mention-chip[data-mention-kind="external-object"] {
 */
 :root {
   --hex-959596: #959596; /* Muted feed actor/verb/title text (ActivityFeed.tsx, FeedCard.tsx) — PRIOR-ART-flagged gap cluster, no existing token match. */
-  --hex-1d1d1d: #1d1d1d; /* OnboardingWizard.tsx dark decorative panel background, singleton. */
   --hex-22d3ee: #22d3ee; /* AgentHierarchy.tsx agent status dot — 'running' (independent palette from --status-agent-*, see TOKEN-AUDIT.md 1.2). */
   --hex-4ade80: #4ade80; /* AgentHierarchy.tsx agent status dot — 'active'. */
   --hex-facc15: #facc15; /* AgentHierarchy.tsx agent status dot — 'paused' / 'idle' (shared value). */
@@ -3069,7 +3068,6 @@ span.outpost-mention-chip[data-mention-kind="external-object"] {
   --sz-50vh: 50vh; /* Extracted from ui/src/components/NewGoalDialog.tsx (max-h-[50vh]). */
   --sz-8_5rem: 8.5rem; /* Extracted from ui/src/components/NewIssueDialog.tsx (min-w-[8.5rem]). */
   --sz-160px: 160px; /* Extracted from ui/src/components/NewProjectDialog.tsx (max-w-[160px]). */
-  --sz-80px: 80px; /* Extracted from ui/src/components/OnboardingWizard.tsx (min-h-[80px]). */
   --sz-calc-17: calc(100vh - 4rem); /* Extracted from ui/src/components/PageSkeleton.tsx (h-[calc(100vh-4rem)]). */
   --sz-2px: 2px; /* Extracted from ui/src/components/QuotaBar.tsx (w-[2px]). */
   --sz-calc-18: calc(100dvh - 2rem); /* Extracted from ui/src/components/RoutineRunVariablesDialog.test.tsx (max-h-[calc(100dvh-2rem)]). */

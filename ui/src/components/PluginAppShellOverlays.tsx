@@ -1,8 +1,5 @@
 import { useAccountIdentity } from "@/api/spaces-query";
 import { useSpace } from "@/context/SpaceContext";
-import { useDialogState } from "@/context/DialogContext";
-import { useLocation } from "@/lib/router";
-import { isOnboardingPath } from "@/lib/onboarding-route";
 import type { PluginHostContext } from "@/plugins/bridge";
 import { PluginSlotMount, usePluginSlots, type PluginSlotContext } from "@/plugins/slots";
 
@@ -29,21 +26,18 @@ function AppShellEntries({ context }: { context: PluginSlotContext }) {
 
 /**
  * One persistent mount in each application shell. Navigation preserves the
- * plugin tree; changing account/space, signing out, or entering onboarding
- * disposes it. Plugins must cancel their requests/subscriptions on disposal.
+ * plugin tree; changing account/space or signing out disposes it. Plugins must
+ * cancel their requests/subscriptions on disposal.
  * Host context is display context, never proof of server authorization.
  */
 export function PluginAppShellOverlays({ localTrusted = false }: { localTrusted?: boolean }) {
   const { userId, settled } = useAccountIdentity();
   const { selectedSpaceId, selectedSpace, loading } = useSpace();
-  const { onboardingOpen, onboardingRouteDismissed } = useDialogState();
-  const { pathname } = useLocation();
   // Local-trusted instances intentionally have no login requirement. Still
   // prefer any real account and wait for identity resolution so account changes
   // cannot reuse the prior account's in-memory plugin state.
   const identity = settled ? userId ?? (localTrusted ? "local-operator" : null) : null;
-  const onboardingVisible = onboardingOpen || (!onboardingRouteDismissed && isOnboardingPath(pathname));
-  if (!identity || loading || onboardingVisible) return null;
+  if (!identity || loading) return null;
   const context: PluginSlotContext & PluginHostContext = {
     spaceId: selectedSpaceId,
     spacePrefix: selectedSpace?.issuePrefix ?? null,

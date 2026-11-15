@@ -9,11 +9,10 @@ import { announcementPreview } from "@/lib/announcement-preview";
 
 const state = vi.hoisted(() => ({
   userId: "alice" as string | null, settled: true, spaceId: "space", loading: false,
-  onboardingOpen: false, toasts: [] as unknown[], dismiss: vi.fn(), hook: vi.fn(),
+  toasts: [] as unknown[], dismiss: vi.fn(), hook: vi.fn(),
 }));
 vi.mock("@/api/spaces-query", () => ({ useAccountIdentity: () => ({ userId: state.userId, settled: state.settled }) }));
 vi.mock("@/context/SpaceContext", () => ({ useSpace: () => ({ selectedSpaceId: state.spaceId, loading: state.loading }) }));
-vi.mock("@/context/DialogContext", () => ({ useDialogState: () => ({ onboardingOpen: state.onboardingOpen }) }));
 vi.mock("@/context/ToastContext", () => ({ useOptionalToastActions: () => null, useOptionalToastState: () => state.toasts }));
 vi.mock("@/hooks/useAnnouncement", () => ({ useAnnouncement: (options: { enabled: boolean }) => {
   state.hook(options);
@@ -31,7 +30,7 @@ describe("announcement placement gates", () => {
   const render = async () => { await act(async () => root.render(<QueryClientProvider client={client}><AnnouncementWell health={health} /></QueryClientProvider>)); };
   const visible = () => Boolean(container.querySelector('[aria-label="Outpost announcements"]'));
   beforeEach(() => {
-    Object.assign(state, { userId: "alice", settled: true, spaceId: "space", loading: false, onboardingOpen: false, toasts: [] });
+    Object.assign(state, { userId: "alice", settled: true, spaceId: "space", loading: false, toasts: [] });
     vi.clearAllMocks();
     health = { deploymentMode: "authenticated" } as HealthStatus;
     // Onboarding is finished (no open first task); onboarding gating is covered in AnnouncementWell.onboarding.test.tsx.
@@ -40,11 +39,10 @@ describe("announcement placement gates", () => {
     container = document.createElement("div"); document.body.append(container); root = createRoot(container);
   });
   afterEach(async () => { await act(async () => root.unmount()); container.remove(); });
-  it("waits for identity, space and onboarding, and uses local-operator in no-login mode", async () => {
+  it("waits for identity and space, and uses local-operator in no-login mode", async () => {
     state.settled = false; await render(); expect(visible()).toBe(false);
     state.settled = true; state.loading = true; await render(); expect(visible()).toBe(false);
-    state.loading = false; state.onboardingOpen = true; await render(); expect(visible()).toBe(false);
-    state.onboardingOpen = false; await render(); expect(visible()).toBe(true);
+    state.loading = false; await render(); expect(visible()).toBe(true);
     state.userId = null; await render(); expect(visible()).toBe(false);
     health = { deploymentMode: "local_trusted" } as HealthStatus; await render(); expect(visible()).toBe(true);
     expect(state.hook).toHaveBeenLastCalledWith(expect.objectContaining({ userId: "local-operator", enabled: true }));

@@ -1,4 +1,4 @@
-import { ONBOARDING_STORAGE_KEY } from "@/components/OnboardingWizard";
+const ONBOARDING_STORAGE_KEY = "outpost-onboarding-state";
 
 /**
  * The onboarding draft, as the wizard stories need to write it.
