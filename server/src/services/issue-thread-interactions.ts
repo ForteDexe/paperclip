@@ -57,10 +57,6 @@ import {
   toolActionRequests,
   toolOauthStates,
 } from "@outpost/db";
-import {
-  trackInteractionCreated,
-  trackInteractionResolved,
-} from "@outpost/shared/telemetry";
 import type {
   AcceptIssueThreadInteraction,
   AskUserQuestionsAnswer,
@@ -116,7 +112,6 @@ import {
 } from "@outpost/shared";
 import { z } from "zod";
 import { conflict, forbidden, notFound, unprocessable } from "../errors.js";
-import { getTelemetryClient } from "../telemetry.js";
 import { authorizationService } from "./authorization.js";
 import { isCloudManagedInstance } from "./cloud-instance.js";
 import { resolveDeploymentMode } from "../config-file.js";
@@ -1413,250 +1408,6 @@ async function resolveLinkedSecretProposal(
   });
 }
 
-function resolveActorKind(
-  interaction: Pick<
-    IssueThreadInteraction,
-    "resolvedByAgentId" | "resolvedByUserId"
-  >,
-) {
-  if (interaction.resolvedByAgentId) return "agent";
-  if (interaction.resolvedByUserId) return "user";
-  return "system";
-}
-
-function resolveCreatorKind(
-  interaction: Pick<
-    IssueThreadInteraction,
-    "createdByAgentId" | "createdByUserId"
-  >,
-) {
-  if (interaction.createdByAgentId) return "agent";
-  if (interaction.createdByUserId) return "user";
-  return undefined;
-}
-
-function deriveTargetType(interaction: IssueThreadInteraction) {
-  switch (interaction.kind) {
-    case "request_confirmation":
-    case "request_checkbox_confirmation":
-    case "request_item_verdicts":
-      return interaction.payload.target?.type ?? "none";
-    default:
-      return "none";
-  }
-}
-
-function deriveResolutionReason(interaction: IssueThreadInteraction) {
-  switch (interaction.status) {
-    case "accepted":
-      return "accepted";
-    case "rejected":
-      return "rejected";
-    case "cancelled":
-      if (
-        interaction.result &&
-        "outcome" in interaction.result &&
-        interaction.result.outcome === "skipped"
-      ) {
-        return "skipped";
-      }
-      return "cancelled";
-    case "expired": {
-      if (interaction.kind === "connection_intent") {
-        return interaction.result?.outcome ?? "expired";
-      }
-      if (interaction.kind === "ask_user_questions") {
-        return interaction.result?.expirationReason ?? "expired";
-      }
-      if (
-        interaction.kind === "request_confirmation" ||
-        interaction.kind === "request_checkbox_confirmation"
-      ) {
-        return interaction.result?.outcome ?? "expired";
-      }
-      if (interaction.kind === "request_item_verdicts") {
-        return interaction.result?.outcome ?? "expired";
-      }
-      return "expired";
-    }
-    case "answered": {
-      if (interaction.kind === "request_item_verdicts") {
-        return interaction.result?.outcome ?? "answered";
-      }
-      return "answered";
-    }
-    default:
-      return undefined;
-  }
-}
-
-function nonNegativeInteger(value: number) {
-  if (!Number.isFinite(value)) return 0;
-  return Math.max(0, Math.trunc(value));
-}
-
-function buildInteractionResolvedCounts(
-  interaction: IssueThreadInteraction,
-  args?: {
-    createdTaskCount?: number;
-  },
-) {
-  switch (interaction.kind) {
-    case "suggest_tasks":
-      return {
-        createdTaskCount: nonNegativeInteger(args?.createdTaskCount ?? 0),
-        skippedTaskCount: nonNegativeInteger(
-          interaction.result?.skippedClientKeys?.length ?? 0,
-        ),
-      };
-    case "request_checkbox_confirmation":
-      return {
-        optionCount: nonNegativeInteger(interaction.payload.options.length),
-        selectedOptionCount: nonNegativeInteger(
-          interaction.result?.selectedOptionIds?.length ?? 0,
-        ),
-      };
-    case "ask_user_questions":
-      return {
-        questionCount: nonNegativeInteger(interaction.payload.questions.length),
-        answeredQuestionCount: nonNegativeInteger(
-          interaction.result?.answers?.length ?? 0,
-        ),
-      };
-    case "request_item_verdicts":
-      return {
-        itemCount: nonNegativeInteger(interaction.payload.items.length),
-        resolvedItemCount: nonNegativeInteger(
-          interaction.result?.items?.length ?? 0,
-        ),
-      };
-    default:
-      return {};
-  }
-}
-
-async function fetchCreatorAgentRoleById(
-  db: Pick<Db, "select">,
-  interactions: readonly IssueThreadInteraction[],
-) {
-  const creatorAgentIds = [
-    ...new Set(
-      interactions
-        .map((interaction) => interaction.createdByAgentId)
-        .filter((value): value is string => Boolean(value)),
-    ),
-  ];
-  if (creatorAgentIds.length === 0) return new Map<string, string | null>();
-
-  const rows = await db
-    .select({
-      id: agents.id,
-      role: agents.role,
-    })
-    .from(agents)
-    .where(inArray(agents.id, creatorAgentIds));
-
-  return new Map(rows.map((row) => [row.id, row.role] as const));
-}
-
-async function emitInteractionResolvedTelemetry(
-  db: Pick<Db, "select">,
-  interaction: IssueThreadInteraction,
-  args?: {
-    createdTaskCount?: number;
-    creatorRoleByAgentId?: ReadonlyMap<string, string | null>;
-  },
-) {
-  const telemetryClient = getTelemetryClient();
-  if (!telemetryClient) return;
-
-  try {
-    let roleByAgentId =
-      args?.creatorRoleByAgentId ?? new Map<string, string | null>();
-    if (!args?.creatorRoleByAgentId) {
-      try {
-        roleByAgentId = await fetchCreatorAgentRoleById(db, [interaction]);
-      } catch (error) {
-        console.error(
-          "[outpost] Failed to load interaction.resolved creator role",
-          error,
-        );
-      }
-    }
-    const creatorAgentRole = interaction.createdByAgentId
-      ? (roleByAgentId.get(interaction.createdByAgentId) ?? undefined)
-      : undefined;
-
-    trackInteractionResolved(telemetryClient, {
-      interactionKind:
-        interaction.kind === "connection_intent" ? "other" : interaction.kind,
-      status: interaction.status,
-      resolvedByKind: resolveActorKind(interaction),
-      resolutionReason: deriveResolutionReason(interaction),
-      createdByKind: resolveCreatorKind(interaction),
-      creatorAgentRole,
-      continuationPolicy: interaction.continuationPolicy,
-      targetType: deriveTargetType(interaction),
-      ...buildInteractionResolvedCounts(interaction, {
-        createdTaskCount: args?.createdTaskCount,
-      }),
-      legacyInheritedRestriction:
-        interaction.resolverPolicyProvenance === "legacy_inherited_restriction",
-    });
-  } catch (error) {
-    console.error(
-      "[outpost] Failed to emit interaction.resolved telemetry",
-      error,
-    );
-  }
-}
-
-function emitInteractionCreatedTelemetry(args: {
-  interactionKind: IssueThreadInteractionKind;
-  usedDeprecatedResolverPolicyAlias: boolean;
-}) {
-  const telemetryClient = getTelemetryClient();
-  if (!telemetryClient) return;
-
-  try {
-    trackInteractionCreated(telemetryClient, {
-      ...args,
-      interactionKind:
-        args.interactionKind === "connection_intent"
-          ? "other"
-          : args.interactionKind,
-    });
-  } catch (error) {
-    console.error(
-      "[outpost] Failed to emit interaction.created telemetry",
-      error,
-    );
-  }
-}
-
-async function emitResolvedInteractionsTelemetry(
-  db: Pick<Db, "select">,
-  interactions: readonly IssueThreadInteraction[],
-) {
-  if (interactions.length === 0 || !getTelemetryClient()) return;
-  let roleByAgentId = new Map<string, string | null>();
-  try {
-    roleByAgentId = await fetchCreatorAgentRoleById(db, interactions);
-  } catch (error) {
-    console.error(
-      "[outpost] Failed to load interaction.resolved creator roles",
-      error,
-    );
-  }
-  await Promise.all(
-    interactions.map((interaction) =>
-      emitInteractionResolvedTelemetry(db, interaction, {
-        creatorRoleByAgentId: roleByAgentId,
-      }),
-    ),
-  );
-}
-
 function isCommentAtOrAfterInteraction(args: {
   commentCreatedAt: Date | string;
   interactionCreatedAt: Date | string;
@@ -2169,7 +1920,6 @@ async function expireStaleRequestConfirmationTarget(
     typeof db.transaction === "function"
       ? await db.transaction(expireInTransaction)
       : await expireInTransaction(db);
-  await emitInteractionResolvedTelemetry(db, expired);
   return expired;
 }
 
@@ -2710,9 +2460,8 @@ export function issueThreadInteractionService(
         continuationIssue,
       };
     });
-    const publish = async (committedDb: Db) => {
+    const publish = async (_committedDb: Db) => {
       for (const publication of postCommitActivityPublications) publishActivity(publication);
-      await emitInteractionResolvedTelemetry(committedDb, result.interaction);
     };
     if (args.mutationOptions?.deferConfirmationCommitEffects) args.mutationOptions.deferConfirmationCommitEffects(publish);
     else await publish(db);
@@ -2907,9 +2656,6 @@ export function issueThreadInteractionService(
     });
 
     const rejected = hydrateInteraction(updated);
-    const publish = (committedDb: Db) => emitInteractionResolvedTelemetry(committedDb, rejected);
-    if (args.mutationOptions?.deferConfirmationCommitEffects) args.mutationOptions.deferConfirmationCommitEffects(publish);
-    else await publish(db);
     return rejected;
   }
 
@@ -2964,7 +2710,6 @@ export function issueThreadInteractionService(
         return interaction;
       }
 
-      let inserted = false;
       const created = await db.transaction(async (tx) => {
         const issueRow = await tx
           .select({ status: issues.status, assigneeAgentId: issues.assigneeAgentId })
@@ -3090,17 +2835,12 @@ export function issueThreadInteractionService(
           }
         }
         await touchIssue(tx, issue.id, issue.spaceId);
-        inserted = true;
         await enqueueIssueInteractionChatPublications(tx as unknown as Db, hydrateInteraction(row));
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.connection);
         return row;
       });
 
       const interaction = hydrateInteraction(created) as ConnectionIntentInteraction;
-      if (inserted) emitInteractionCreatedTelemetry({
-        interactionKind: "connection_intent",
-        usedDeprecatedResolverPolicyAlias: false,
-      });
       return interaction;
     },
     updateConnectionIntentPhase: async (
@@ -3202,7 +2942,6 @@ export function issueThreadInteractionService(
       const interaction = hydrateInteraction(
         updated,
       ) as ConnectionIntentInteraction;
-      await emitInteractionResolvedTelemetry(db, interaction);
       return interaction;
     },
     mergedPullRequestConfirmationPage,
@@ -3628,7 +3367,6 @@ export function issueThreadInteractionService(
       for (const [issueId, spaceId] of new Map(cancelled.map(interaction => [interaction.issueId, interaction.spaceId]))) {
         await touchIssue(db, issueId, spaceId);
       }
-      await emitResolvedInteractionsTelemetry(db, cancelled);
       return cancelled;
     },
 
@@ -3718,7 +3456,6 @@ export function issueThreadInteractionService(
         for (const [issueId, spaceId] of new Map(expired.map(interaction => [interaction.issueId, interaction.spaceId]))) {
           await touchIssue(db, issueId, spaceId);
         }
-        await emitResolvedInteractionsTelemetry(db, expired);
       }
       return { expired: expired.length };
     },
@@ -3762,9 +3499,6 @@ export function issueThreadInteractionService(
           data.addresseeUserId = defaultAddresseeUserId;
         }
       }
-      const usedDeprecatedResolverPolicyAlias =
-        data.resolverPolicy === "operator_or_agents" ||
-        data.resolverPolicy === "operator_only";
       const policyConfig = await db
         .select({
           interactionResolverPolicy:
@@ -4306,17 +4040,7 @@ export function issueThreadInteractionService(
       for (const publication of postCommitActivityPublications) publishActivity(publication);
       await executeIssuePostCommitActions(db, postCommitIssueActions);
       await touchIssue(db, issue.id, issue.spaceId);
-      if (superseded.length > 0) {
-        await emitResolvedInteractionsTelemetry(
-          db,
-          superseded.map(hydrateInteraction),
-        );
-      }
       const interaction = hydrateInteraction(created);
-      emitInteractionCreatedTelemetry({
-        interactionKind: interaction.kind,
-        usedDeprecatedResolverPolicyAlias,
-      });
       return interaction;
     },
 
@@ -4632,9 +4356,6 @@ export function issueThreadInteractionService(
       });
 
       const accepted = hydrateInteraction(current);
-      await emitInteractionResolvedTelemetry(db, accepted, {
-        createdTaskCount: createdWakeTargets.length,
-      });
       return {
         interaction: accepted,
         createdIssues: createdWakeTargets,
@@ -4823,9 +4544,6 @@ export function issueThreadInteractionService(
       });
 
       if ("terminalError" in submission) throw submission.terminalError;
-      if (submission.resolved) {
-        await emitInteractionResolvedTelemetry(db, submission.interaction);
-      }
       return submission;
     },
 
@@ -4887,7 +4605,6 @@ export function issueThreadInteractionService(
 
       await touchIssue(db, issue.id, issue.spaceId);
       const rejected = hydrateInteraction(updated);
-      await emitInteractionResolvedTelemetry(db, rejected);
       return rejected;
     },
 
@@ -4984,7 +4701,6 @@ export function issueThreadInteractionService(
 
       if (expired.length > 0) {
         await touchIssue(db, issue.id, issue.spaceId);
-        await emitResolvedInteractionsTelemetry(db, expired);
       }
       return expired;
     },
@@ -5216,7 +4932,6 @@ export function issueThreadInteractionService(
 
       if (expired.length > 0) {
         await touchIssue(db, issue.id, issue.spaceId);
-        await emitResolvedInteractionsTelemetry(db, expired);
       }
       return expired;
     },
@@ -5313,7 +5028,6 @@ export function issueThreadInteractionService(
 
       if (expired.length > 0) {
         await touchIssue(db, issue.id, issue.spaceId);
-        await emitResolvedInteractionsTelemetry(db, expired);
       }
       return expired;
     },
@@ -5453,7 +5167,6 @@ export function issueThreadInteractionService(
       }
       if (expired.length > 0) {
         await touchIssue(db, issue.id, issue.spaceId);
-        await emitResolvedInteractionsTelemetry(db, expired);
       }
       return expired;
     },
@@ -5559,7 +5272,6 @@ export function issueThreadInteractionService(
 
       await touchIssue(db, issue.id, issue.spaceId);
       const withdrawn = hydrateInteraction(updated);
-      await emitInteractionResolvedTelemetry(db, withdrawn);
       return withdrawn;
     },
 
@@ -5682,7 +5394,6 @@ export function issueThreadInteractionService(
 
       await touchIssue(db, issue.id, issue.spaceId);
       const answered = hydrateInteraction(updated);
-      await emitInteractionResolvedTelemetry(db, answered);
       return answered;
     },
 
@@ -5820,7 +5531,6 @@ export function issueThreadInteractionService(
 
       await touchIssue(db, issue.id, issue.spaceId);
       const skipped = hydrateInteraction(updated);
-      await emitInteractionResolvedTelemetry(db, skipped);
       return skipped;
     },
 
@@ -5897,7 +5607,6 @@ export function issueThreadInteractionService(
 
       await touchIssue(db, issue.id, issue.spaceId);
       const cancelled = hydrateInteraction(updated);
-      await emitInteractionResolvedTelemetry(db, cancelled);
       return cancelled;
     },
   };

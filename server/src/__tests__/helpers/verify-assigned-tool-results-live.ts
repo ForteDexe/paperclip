@@ -30,7 +30,6 @@ try {
   await writeFile(join(codexHome, "config.toml"), 'model_reasoning_effort = "low"\n');
   process.env.OUTPOST_HOME = join(root, "instance");
   process.env.OUTPOST_AGENT_JWT_SECRET = randomUUID();
-  process.env.OUTPOST_TELEMETRY_DISABLED = "1";
   server = await startRunnerApiTestServer();
   const fixture = await server.fixture({ disableWakeOnDemand: true, apiToolsEnabled: false });
   await server.db.update(agents).set({ permissions: { trustPreset: "low_trust_review", authorizationPolicy: {

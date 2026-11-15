@@ -3,8 +3,6 @@ import type { Request, Response, NextFunction } from "express";
 import type { Db } from "@outpost/db";
 import { ZodError } from "zod";
 import { HttpError } from "../errors.js";
-import { trackErrorHandlerCrash } from "@outpost/shared/telemetry";
-import { getTelemetryClient } from "../telemetry.js";
 import { captureException } from "../sentry.js";
 import { SPACE_IMPORT_API_PATH } from "../routes/space-import-paths.js";
 import { logger } from "./logger.js";
@@ -94,10 +92,8 @@ function sanitizeSecretSensitiveResponse(
   );
 }
 
-/** Report a server-side crash to every error sink. */
+/** Report a server-side crash to the configured error sink. */
 function reportCrash(error: Error, req: Request, reportToSentry = true): void {
-  const tc = getTelemetryClient();
-  if (tc) trackErrorHandlerCrash(tc, { errorCode: error.name });
   if (reportToSentry) {
     if (req.actor?.type === "agent" && req.actor.runId && req.actor.spaceId && req.actor.agentId) {
       captureException(error, { runId: req.actor.runId, spaceId: req.actor.spaceId, agentId: req.actor.agentId });

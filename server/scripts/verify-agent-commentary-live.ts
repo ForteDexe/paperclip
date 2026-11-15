@@ -40,7 +40,6 @@ try {
   process.env.OUTPOST_HOME = join(root, "instance");
   process.env.OUTPOST_AGENT_JWT_SECRET = randomUUID();
   process.env.OUTPOST_CODEX_AUTH_CACHE = "false";
-  process.env.OUTPOST_TELEMETRY_DISABLED = "1";
   server = await startRunnerApiTestServer();
   process.env.OUTPOST_API_URL = server.apiUrl;
   // Production boot exports this loopback origin for host-side sandbox relays.

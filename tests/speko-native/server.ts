@@ -25,7 +25,6 @@ Object.assign(process.env, {
   OUTPOST_DEPLOYMENT_MODE: process.env.SPEKO_NATIVE_AUTH === "1" ? "authenticated" : "local_trusted",
   OUTPOST_AUTH_PUBLIC_BASE_URL: origin, OUTPOST_AUTH_BASE_URL_MODE: "explicit", OUTPOST_DEPLOYMENT_EXPOSURE: "private",
   OUTPOST_VITE_CACHE_DIR: resolve(home, "vite-cache"), OUTPOST_OPEN_ON_LISTEN: "false",
-  OUTPOST_TELEMETRY_ENABLED: "false",
 });
 delete process.env.DATABASE_URL;
 delete process.env.OUTPOST_IN_WORKTREE;

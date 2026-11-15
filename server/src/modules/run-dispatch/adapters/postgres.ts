@@ -51,7 +51,6 @@ import { connectionContinuationPendingResponse } from "../../../services/satisfi
 import { collectDispositionRepairSourceState } from "../../../services/recovery/disposition-repair.js";
 import { legacyDispositionEpisode, legacyDispositionFingerprint } from "../../../services/recovery/legacy-continuation.js";
 import { appendHeartbeatRunEvent } from "../../../services/heartbeat-run-events.js";
-import { emitAgentTaskRun } from "../../../services/agent-task-run-telemetry.js";
 import { issueService } from "../../../services/issues.js";
 import { verifyBlockerStallWake } from "../../../services/recovery/blocker-stall-wakeups.js";
 import {
@@ -899,7 +898,7 @@ export function createPostgresRunDispatchAdapter(
         !run.scheduledRetryAt ||
         new Date(run.scheduledRetryAt).getTime() > now.getTime()
       ) {
-        return { outcome: { outcome: "not_promoted" as const }, telemetryRun: null };
+        return { outcome: "not_promoted" as const };
       }
       const factsResult = await loadGateFacts(
         {
@@ -930,14 +929,11 @@ export function createPostgresRunDispatchAdapter(
         });
         return cancelled.applied
           ? {
-              outcome: {
-                outcome: "gate_suppressed" as const,
-                reason: "Scheduled retry suppressed because the agent no longer exists",
-                errorCode: "agent_not_invokable" as const,
-              },
-              telemetryRun: cancelled.run,
+              outcome: "gate_suppressed" as const,
+              reason: "Scheduled retry suppressed because the agent no longer exists",
+              errorCode: "agent_not_invokable" as const,
             }
-          : { outcome: { outcome: "not_promoted" as const }, telemetryRun: null };
+          : { outcome: "not_promoted" as const };
       }
 
       const gate = decideScheduledRetryGate(factsResult.facts, now);
@@ -965,22 +961,19 @@ export function createPostgresRunDispatchAdapter(
         });
         return cancelled.applied
           ? {
-              outcome: {
-                outcome: "gate_suppressed" as const,
-                reason: gate.reason,
-                errorCode: gate.errorCode,
-              },
-              telemetryRun: cancelled.run,
+              outcome: "gate_suppressed" as const,
+              reason: gate.reason,
+              errorCode: gate.errorCode,
             }
-          : { outcome: { outcome: "not_promoted" as const }, telemetryRun: null };
+          : { outcome: "not_promoted" as const };
       }
 
       const issueId = factsResult.facts.issueId;
       if (issueId && (await deferRetryForCleanupInTx(tx, run, issueId, now))) {
-        return { outcome: { outcome: "not_promoted" as const }, telemetryRun: null };
+        return { outcome: "not_promoted" as const };
       }
       if (await parkWorkspaceBusyRetryInTx(tx, run, now)) {
-        return { outcome: { outcome: "not_promoted" as const }, telemetryRun: null };
+        return { outcome: "not_promoted" as const };
       }
 
       const promoted = await promoteDueRetryInTx(tx as unknown as Db, {
@@ -990,29 +983,18 @@ export function createPostgresRunDispatchAdapter(
       }, issueId);
       return promoted.applied
         ? {
-            outcome: {
-              outcome: "promoted" as const,
-              postCommitEffects: promoted.postCommitEffects,
-            },
-            telemetryRun: null,
+            outcome: "promoted" as const,
+            postCommitEffects: promoted.postCommitEffects,
           }
-        : { outcome: { outcome: "not_promoted" as const }, telemetryRun: null };
+        : { outcome: "not_promoted" as const };
     };
     const transactionResult = await withIssueThenRunLocks(
       input,
-      () => ({ outcome: { outcome: "not_promoted" as const }, telemetryRun: null }),
+      () => ({ outcome: "not_promoted" as const }),
       promoteLockedRun,
     );
 
-    // Telemetry is best-effort background work; fire it only after the
-    // transaction above has committed, so a suppressed retry is never
-    // published before its cancellation is durable, and never published at
-    // all if the transaction rolled back.
-    if (transactionResult.telemetryRun) {
-      void emitAgentTaskRun(db, transactionResult.telemetryRun);
-    }
-
-    return transactionResult.outcome;
+    return transactionResult;
   }
 
   /**

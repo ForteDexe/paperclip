@@ -62,7 +62,7 @@ it("configures each control with the CLI against the assembled app and enforces 
       const result = await execute(process.execPath, ["--import", `${repo}cli/node_modules/tsx/dist/loader.mjs`, `${repo}cli/src/index.ts`,
         "agent", patch ? "interaction-permissions:update" : "interaction-permissions", agentId, "--api-base", base,
         "--api-key", operatorKey, "--json", ...(patch ? ["--payload-json", JSON.stringify(patch)] : [])], {
-        cwd: repo, env: { ...process.env, OUTPOST_TELEMETRY_DISABLED: "1" }, timeout: 60000,
+        cwd: repo, env: { ...process.env }, timeout: 60000,
       });
       return JSON.parse(result.stdout);
     };

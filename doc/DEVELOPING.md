@@ -2065,7 +2065,7 @@ The managed profile also requires:
 
 Bootstrap validates the environment database URL and encryption master key before
 opening the database or creating local state. Effective storage validation follows
-canonical snapshot resolution, before signing keys, first-party Telemetry or app
+canonical snapshot resolution, before signing keys or app
 construction. Raw canonical rows and legacy S3 imports cannot obtain a missing
 bucket from schema defaults. Already-stored nonblank bucket values remain
 canonical, including the deliberate name `outpost`; prior normalization cannot

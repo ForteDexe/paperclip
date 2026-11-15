@@ -36,13 +36,7 @@ const mockGoalService = vi.hoisted(() => ({
 const mockLogActivity = vi.hoisted(() => vi.fn());
 const mockGetTelemetryClient = vi.hoisted(() => vi.fn());
 
-vi.mock("@outpost/shared/telemetry", () => ({
-  trackGoalCreated: vi.fn(),
-}));
 
-vi.mock("../telemetry.js", () => ({
-  getTelemetryClient: mockGetTelemetryClient,
-}));
 
 vi.mock("../services/index.js", () => ({
   goalService: () => mockGoalService,

@@ -131,7 +131,6 @@ import {
 } from "../issue-queued-comment-queue.js";
 import { parseObject } from "../../adapters/utils.js";
 import { isExternalChatWaitAuthorizationContention } from "../native-runtime/chat-attachment-reuse.js";
-import { emitAgentTaskRun } from "../agent-task-run-telemetry.js";
 import {
   CHAT_CONTROL_RECOVERY_ADMISSION_KEY,
   CHAT_CONTROL_RECOVERY_STOP_CODE,
@@ -1582,9 +1581,6 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
         },
       });
       publishRunLifecyclePluginEvent(queuedCommentClaim.run);
-      // Fire-and-forget: nothing else in this path depends on the emission,
-      // so it must not delay the return.
-      void emitAgentTaskRun(db, queuedCommentClaim.run);
       return null;
     }
     const claimed = queuedCommentClaim
@@ -3053,7 +3049,6 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       // same issue workspace while the assignee already has a live run.
       const agentNameKey = normalizeAgentNameKey(agent.name);
 
-      const cancelledRunsToEmit: (typeof heartbeatRuns.$inferSelect)[] = [];
       const issueActivityPublications: ActivityPublication[] = [];
       const issuePostCommitActions: IssuePostCommitAction[] = [];
 
@@ -3790,8 +3785,6 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
               .set({ nextEventSeq: eventSeq + 1, updatedAt: now })
               .where(eq(heartbeatRuns.id, cancelled.id));
 
-            cancelledRunsToEmit.push(cancelled);
-
             return true;
           };
 
@@ -3866,7 +3859,6 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
               )
               .returning();
             if (cancelled.length > 0) {
-              cancelledRunsToEmit.push(cancelled[0]);
               if (activeExecutionRun.wakeupRequestId) {
                 await tx
                   .update(agentWakeupRequests)
@@ -4671,14 +4663,6 @@ export function createHeartbeatQueue(db: Db, dependencies: HeartbeatQueueDepende
       if (outcome.kind !== "deferred" && outcome.kind !== "skipped") admission?.saved();
       for (const publication of issueActivityPublications) publishActivity(publication);
       await executeIssuePostCommitActions(db, issuePostCommitActions);
-
-      // Telemetry for the cancelled runs is best-effort background work.
-      // Fire it here and never await it: none of the lifecycle work below,
-      // nor this function's return, depends on it, so a slow telemetry
-      // lookup must not delay them.
-      for (const cancelledRun of cancelledRunsToEmit) {
-        void emitAgentTaskRun(db, cancelledRun);
-      }
 
       if (outcome.kind === "durable") {
         return outcome.receipt.runId ? getRun(outcome.receipt.runId) : null;

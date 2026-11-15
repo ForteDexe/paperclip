@@ -3,7 +3,6 @@ import { notifyToolConnectionHealth, writeToolConnectionHealthChange } from "../
 import { connectionActorUserId } from "../actor.js";
 import type { ActorInfo } from "../types.js";
 import { connectionMethodForConnection } from "../connection-methods.js";
-import { emitConnectionUpdated } from "../../connector-telemetry.js";
 import { and, eq, inArray, or } from "drizzle-orm";
 import type { Db } from "@outpost/db";
 import { connectionGrantMembers, connectionGrantDelegations, connectionGrants, spaceSecrets, toolApplications, toolCatalogEntries, toolConnectionInstalls, toolConnections } from "@outpost/db";
@@ -380,7 +379,6 @@ async function finalizeOAuthAccess(
     // step alone would never observe this transition. This is the OAuth
     // access-finalization step of the same gallery setup flow (Apps and inline
     // task cards both reach it), hence `gallery`.
-    emitConnectionUpdated(connection, preFinalizeLifecycle, "gallery");
     const catalog = await db
       .select()
       .from(toolCatalogEntries)

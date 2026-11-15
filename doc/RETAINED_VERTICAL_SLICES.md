@@ -299,6 +299,17 @@ publisher tooling, authoring assets, OpenAPI surface, and focused tests are
 removed. Historical migrations remain unchanged. This does not affect runtime
 tool-event announcements or messages agents write as normal task content.
 
+### Vendor Product Telemetry
+
+Outpost no longer collects or exports product-usage telemetry. The shared event
+schema and client, server and CLI initializers, connector and agent-run emitters,
+plugin telemetry capability, configuration keys, environment flags, extraction
+tooling, and telemetry-focused tests are removed. Local activity history, run
+diagnostics, Sentry crash reporting, and OpenTelemetry tracing remain because
+they support operating and debugging the retained local runtime rather than
+reporting product usage to a vendor. Historical release notes and immutable
+database migrations may still describe older telemetry behavior.
+
 ## Scope guard
 
 `scripts/check-retained-product-scope.mjs` verifies that the required Codex,

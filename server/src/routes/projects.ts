@@ -29,7 +29,6 @@ import {
   workspaceRuntimeControlTargetSchema,
 } from "@outpost/shared";
 import type { WorkspaceRuntimeDesiredState, WorkspaceRuntimeServiceStateMap } from "@outpost/shared";
-import { trackProjectCreated } from "@outpost/shared/telemetry";
 import { validate } from "../middleware/validate.js";
 import { accessService, projectService, logActivity, workspaceOperationService } from "../services/index.js";
 import { conflict, forbidden, unprocessable } from "../errors.js";
@@ -50,7 +49,6 @@ import {
   collectProjectWorkspaceCommandPaths,
 } from "./workspace-command-authz.js";
 import { assertCanManageProjectWorkspaceRuntimeServices } from "./workspace-runtime-service-authz.js";
-import { getTelemetryClient } from "../telemetry.js";
 import { appendWithCap } from "../adapters/utils.js";
 import { secretService } from "../services/secrets.js";
 
@@ -462,10 +460,6 @@ export function projectRoutes(db: Db) {
     if (result.publication) publishActivity(result.publication);
     if (result.project.env) await secretsSvc.syncEnvBindingsForTarget?.(spaceId, { targetType: "project", targetId: result.project.id }, result.project.env);
     if (result.duplicate) { res.status(200).json(result.project); return; }
-    const telemetryClient = getTelemetryClient();
-    if (telemetryClient) {
-      trackProjectCreated(telemetryClient);
-    }
     res.status(result.duplicate ? 200 : 201).json(result.project);
   });
 

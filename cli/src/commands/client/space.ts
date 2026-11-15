@@ -21,7 +21,6 @@ import {
   type SpaceImportTransferCreated,
   type SpaceImportTransferDeclaration,
 } from "@outpost/shared/space-import-transfer";
-import { getTelemetryClient, trackSpaceImported } from "../../telemetry.js";
 import { ApiRequestError, type OutpostApiClient } from "../../client/http.js";
 import { openUrl } from "../../client/operator-auth.js";
 import {
@@ -1755,12 +1754,6 @@ export function registerSpaceCommands(program: Command): void {
               });
           if (!imported) {
             throw new Error("Import request returned no data.");
-          }
-          const tc = getTelemetryClient();
-          if (tc) {
-            const isPrivate = sourcePayload.type !== "github";
-            const sourceRef = sourcePayload.type === "github" ? sourcePayload.url : from;
-            trackSpaceImported(tc, { sourceType: sourcePayload.type, sourceRef, isPrivate });
           }
           let spaceUrl: string | undefined;
           if (!ctx.json) {

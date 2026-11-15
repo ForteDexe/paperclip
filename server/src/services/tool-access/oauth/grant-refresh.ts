@@ -4,7 +4,6 @@ import type { ActorInfo } from "../types.js";
 import { createOAuthClientProtocol, storedOAuthTokenEndpointAuthMethod } from "./client.js";
 import { oauthConfig, normalizeOauthScopes, resolveGrantedOauthScopes } from "./metadata.js";
 import { googleWorkspaceEffectiveScopes, isGoogleWorkspaceScopeGrant } from "@outpost/shared";
-import { emitConnectionUpdated } from "../../connector-telemetry.js";
 import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "@outpost/db";
 import { connectionGrants, spaceSecrets, toolConnections } from "@outpost/db";
@@ -411,11 +410,6 @@ export function createOAuthGrantRefresh(db: Db, { now, store, leases, currentClo
                 )
                 .returning());
               await syncCredentialBindings(reauthorizationRequired);
-              emitConnectionUpdated(
-                reauthorizationRequired,
-                latestConnection,
-                "credential_refresh",
-              );
             } else {
               const activeGrantRefs = await db
                 .select({

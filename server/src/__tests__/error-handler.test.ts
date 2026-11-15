@@ -18,12 +18,6 @@ vi.mock("../services/responsible-user-denial-run-outcomes.js", () => ({
 }));
 
 vi.mock("../sentry.js", () => ({ captureException: captureExceptionMock }));
-vi.mock("../telemetry.js", () => ({
-  getTelemetryClient: () => telemetryMocks.client,
-}));
-vi.mock("@outpost/shared/telemetry", () => ({
-  trackErrorHandlerCrash: telemetryMocks.trackErrorHandlerCrash,
-}));
 
 function makeReq(): Request {
   return {

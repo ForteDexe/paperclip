@@ -56,7 +56,7 @@ describe.skipIf(!enabled)("skills survive web-server replacement", () => {
       env: { ...process.env, DATABASE_URL: database.connectionString, OUTPOST_HOME: home, OUTPOST_INSTANCE_ID: "default",
         OUTPOST_STORAGE_PROVIDER: "s3", OUTPOST_STORAGE_S3_BUCKET: bucket,
         OUTPOST_STORAGE_S3_ENDPOINT: process.env.OUTPOST_TEST_S3_ENDPOINT, OUTPOST_STORAGE_S3_FORCE_PATH_STYLE: "true",
-        OUTPOST_SKILL_PACKAGE_STORAGE_ENABLED: "true", OUTPOST_LOG_LEVEL: "error", OUTPOST_TELEMETRY_ENABLED: "false" },
+        OUTPOST_SKILL_PACKAGE_STORAGE_ENABLED: "true", OUTPOST_LOG_LEVEL: "error" },
     });
     let logs = "";
     child.stdout?.on("data", data => { logs = (logs + data).slice(-5000); });

@@ -1810,12 +1810,6 @@ export interface WorkerToHostMethods {
     result: void,
   ];
 
-  // Telemetry
-  "telemetry.track": [
-    params: { eventName: string; dimensions?: Record<string, string | number | boolean> },
-    result: void,
-  ];
-
   // Logger
   "log": [
     params: {

@@ -56,7 +56,7 @@ const keys = ["adapter-settings:v1", "cloud-runtime-config:v1", "cloud-configura
       $meta: { version: 1, updatedAt: "2026-10-30T00:00:00.000Z", source: "configure" },
       database: { mode: "postgres" }, logging: { mode: "cloud" },
       storage: { provider: "s3", s3: { bucket: "migration-bucket" } },
-      server: { port: 3199 }, telemetry: { enabled: false },
+      server: { port: 3199 },
     });
     await fs.writeFile(path.join(homeA, "config.json"), JSON.stringify(config));
     await fs.writeFile(path.join(homeA, "adapter-settings.json"), JSON.stringify({ disabledTypes: ["claude_local", "future_adapter"] }));

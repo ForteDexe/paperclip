@@ -54,7 +54,6 @@ type Snapshot = { idle: { active: number; generation: number }; startup: { phase
 export interface MaintenanceConfiguration {
   managedFeatures?: Readonly<Partial<Record<ManagedExperimentalFeatureKey, boolean>>>;
   automaticBackups?: { intervalMinutes: number; idleCheckpoint: boolean };
-  telemetryOrigin?: string;
   otelOrigin?: string;
   serveUi?: boolean;
   managedInstance?: boolean;
@@ -106,7 +105,7 @@ export async function startMaintenanceServer(databaseUrl: string, options: Maint
     'x-outpost-cloud-user-email': options.tenantActor.email, 'x-outpost-cloud-user-name': options.tenantActor.name,
     'x-outpost-cloud-outpost-space-name': 'Configured sleep acceptance',
   } : {};
-  for (const origin of [configuration?.telemetryOrigin, configuration?.otelOrigin]) {
+  for (const origin of [configuration?.otelOrigin]) {
     if (!origin) continue;
     const endpoint = new URL(origin);
     if (endpoint.protocol !== "http:" || endpoint.hostname !== "127.0.0.1" || endpoint.username || endpoint.password || endpoint.search || endpoint.hash) {
@@ -151,7 +150,7 @@ export async function startMaintenanceServer(databaseUrl: string, options: Maint
         : { provider: "local_disk", localDisk: { baseDir: path.join(directory, "storage") } },
       secrets: { provider: "local_encrypted", strictMode: false, localEncrypted: { keyFilePath: path.join(directory, "master.key") } },
       ...(options.tenantActor ? { auth: { baseUrlMode: "explicit", publicBaseUrl: `http://127.0.0.1:${address.port}`, disableSignUp: true } } : {}),
-      telemetry: { enabled: Boolean(configuration?.telemetryOrigin) }, updates: { checkEnabled: false },
+      updates: { checkEnabled: false },
     }), { mode: 0o600 });
     await new Promise<void>(resolve => reservation.close(() => resolve()));
     const captureStartedAt = options.captureIdleWork ? Date.now() : undefined;
@@ -178,7 +177,6 @@ export async function startMaintenanceServer(databaseUrl: string, options: Maint
         CODEX_HOME: path.join(directory, "codex"),
         OUTPOST_DB_BACKUP_ENABLED: String(Boolean(configuration?.automaticBackups)), OUTPOST_UI_DEV_MIDDLEWARE: "false",
         ...(configuration?.automaticBackups ? { OUTPOST_DB_BACKUP_IDLE_CHECKPOINT_ENABLED: configuration.automaticBackups.idleCheckpoint ? "1" : "0" } : {}),
-        ...(configuration?.telemetryOrigin ? { OUTPOST_TELEMETRY_ENDPOINT: configuration.telemetryOrigin } : {}),
         ...(configuration?.otelOrigin ? { OTEL_EXPORTER_OTLP_ENDPOINT: configuration.otelOrigin, OTEL_EXPORTER_OTLP_PROTOCOL: "http/json" } : {}),
         HEARTBEAT_SCHEDULER_ENABLED: String(options.enabled ?? true),
         OUTPOST_MAINTENANCE_FAKE_CLOCK: String(options.clock ?? false),

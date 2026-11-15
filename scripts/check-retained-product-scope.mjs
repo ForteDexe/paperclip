@@ -113,6 +113,13 @@ const retiredInfrastructure = [
   "packages/shared/src/announcements.ts",
   "packages/db/src/schema/announcement_dismissals.ts",
   "ui/src/components/AnnouncementWell.tsx",
+  "packages/shared/src/telemetry",
+  "server/src/telemetry.ts",
+  "cli/src/telemetry.ts",
+  "server/src/services/agent-task-run-telemetry.ts",
+  "server/src/services/connector-telemetry.ts",
+  "doc/TELEMETRY_WORKFLOW.md",
+  "scripts/extract-proposed-events.mjs",
 ];
 
 const retiredCatalogScenarioIds = [

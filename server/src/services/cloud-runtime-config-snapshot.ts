@@ -30,7 +30,6 @@ export const cloudRuntimeConfigSchema = z.object({
   secrets: secretsConfigSchema.extend({
     localEncrypted: secretsLocalEncryptedConfigSchema.strict(),
   }).strict(),
-  telemetry: z.object({ enabled: z.boolean() }).strict(),
   logging: loggingConfigSchema.strict(),
   updates: z.object({ checkEnabled: z.boolean() }).strict().optional(),
   llm: llmConfigSchema.omit({ apiKey: true }).strict().optional(),
@@ -109,7 +108,6 @@ export function projectCloudRuntimeConfig(source: OutpostConfig): CloudRuntimeCo
       strictMode: source.secrets.strictMode,
       localEncrypted: { keyFilePath: source.secrets.localEncrypted.keyFilePath },
     },
-    telemetry: { enabled: source.telemetry.enabled },
     logging: { mode: source.logging.mode, logDir: source.logging.logDir },
     updates: source.updates ? { checkEnabled: source.updates.checkEnabled } : undefined,
     llm: source.llm ? { provider: source.llm.provider } : undefined,

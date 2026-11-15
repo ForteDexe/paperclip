@@ -26,7 +26,7 @@ export async function runOwnedCli(ctx: ChatCatalogContext, args: string[]) {
   // stored auth, run ID, provider credentials or default space.
   const env: NodeJS.ProcessEnv = { PATH: process.env.PATH, HOME: path.join(actor.directory, "home"),
     OUTPOST_HOME: path.join(actor.directory, "home"), OUTPOST_CONTEXT: path.join(actor.directory, "context.json"), OUTPOST_API_KEY: actor.token,
-    OUTPOST_API_URL: ctx.input.api.baseURL, OUTPOST_TELEMETRY_DISABLED: "1", NO_COLOR: "1" };
+    OUTPOST_API_URL: ctx.input.api.baseURL, NO_COLOR: "1" };
   const loader = fileURLToPath(new URL("../../../cli/node_modules/tsx/dist/loader.mjs", import.meta.url));
   const entry = fileURLToPath(new URL("../../../cli/src/index.ts", import.meta.url));
   try {

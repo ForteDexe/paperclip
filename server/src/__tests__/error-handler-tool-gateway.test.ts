@@ -12,10 +12,6 @@ vi.mock("../services/responsible-user-denial-run-outcomes.js", () => ({
   recordResponsibleUserDenialOnActiveRun: vi.fn().mockResolvedValue(null),
 }));
 vi.mock("../sentry.js", () => ({ captureException: captureExceptionMock }));
-vi.mock("../telemetry.js", () => ({ getTelemetryClient: () => ({}) }));
-vi.mock("@outpost/shared/telemetry", () => ({
-  trackErrorHandlerCrash: trackErrorHandlerCrashMock,
-}));
 
 function makeReq(): Request {
   return {

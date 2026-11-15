@@ -144,14 +144,7 @@ const mockRunnerGoalService = vi.hoisted(() => ({
   act: vi.fn(),
 }));
 
-vi.mock("@outpost/shared/telemetry", () => ({
-  trackAgentTaskCompleted: vi.fn(),
-  trackErrorHandlerCrash: vi.fn(),
-}));
 
-vi.mock("../telemetry.js", () => ({
-  getTelemetryClient: vi.fn(() => ({ track: vi.fn() })),
-}));
 
 vi.mock("../services/queued-interaction-response.js", () => ({
   hasQueuedInteractionResponse: vi.fn(async () => false),

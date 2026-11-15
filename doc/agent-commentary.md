@@ -87,8 +87,7 @@ per message; the full body is loaded only on opening a message. Feedback whose
 source task was deleted stays hidden, using the task binding retained on its run.
 
 There is no notification, automatic task creation, or external forwarding.
-This is separate from first-party Telemetry, OpenTelemetry
-Observability, and the run log. Ordinary provider transcripts can still contain
+This is separate from OpenTelemetry Observability and the run log. Ordinary provider transcripts can still contain
 submitted tool arguments; there is no anonymity or ephemeral-storage promise.
 
 Authorized operators inspect the instance database, for example:

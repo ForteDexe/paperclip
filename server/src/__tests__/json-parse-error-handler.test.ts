@@ -10,8 +10,6 @@ const sinks = vi.hoisted(() => ({
   telemetryClient: {},
 }));
 vi.mock("../sentry.js", () => ({ captureException: sinks.captureException }));
-vi.mock("../telemetry.js", () => ({ getTelemetryClient: () => sinks.telemetryClient }));
-vi.mock("@outpost/shared/telemetry", () => ({ trackErrorHandlerCrash: sinks.trackErrorHandlerCrash }));
 
 function createApp(routeError?: Error) {
   const app = express();

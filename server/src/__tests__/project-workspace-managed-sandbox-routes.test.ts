@@ -41,9 +41,6 @@ const mockAccessService = vi.hoisted(() => ({
   decide: vi.fn(),
 }));
 
-vi.mock("../telemetry.js", () => ({
-  getTelemetryClient: mockGetTelemetryClient,
-}));
 
 vi.mock("../services/index.js", () => ({
   accessService: () => mockAccessService,
@@ -76,9 +73,6 @@ function registerModuleMocks() {
     ...await vi.importActual<typeof import("../services/activity-log.js")>("../services/activity-log.js"),
     persistActivity: async (db: unknown, input: unknown) => { await mockLogActivity(db, input); return { activity: { id: "activity" }, publication: null }; },
     publishActivity: vi.fn(),
-  }));
-  vi.doMock("../telemetry.js", () => ({
-    getTelemetryClient: mockGetTelemetryClient,
   }));
 
   vi.doMock("../services/index.js", () => ({

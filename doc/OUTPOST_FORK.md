@@ -20,5 +20,5 @@ Campfire remains the shared group-chat feature. Its persistent native-session id
 ## Removed product behavior
 
 - Dollar-denominated spend and budget surfaces are hidden, and monetary enforcement is disabled. Existing database columns, migrations, and stored rows remain intact.
-- Vendor telemetry, hosted tracing, crash uploads, and feedback export are disabled. Local logs, local feedback votes, audit activity, and functional provider events remain.
+- Vendor telemetry and feedback export are removed. Hosted tracing and crash uploads remain disabled by default. Local logs, local feedback votes, audit activity, and functional provider events remain.
 - Automatic update checks are disabled. Explicit update commands remain available for compatibility.

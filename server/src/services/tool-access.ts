@@ -95,10 +95,6 @@ import { isRemoteMcpConnectorMethod } from "@outpost/shared";
 
 import { githubBotRequest } from "./chat-github-client.js";
 import { syncConnectionCredentialBindings } from "./connection-credential-bindings.js";
-import {
-  emitConnectionCreated,
-  emitConnectionUpdated,
-} from "./connector-telemetry.js";
 import { canBrowseProjectRepositoryGrant, mergeProjectRepository } from "./project-repositories.js";
 
 import { measureRunPhase } from "./execution-preparation-timing.js";
@@ -996,7 +992,6 @@ export function toolAccessService(
         await createToolRuntimeSlots(tx, runtimeSupervisor).ensureRuntimeSlot(updated);
         return updated;
       });
-      emitConnectionUpdated(updated, existing, "example");
       return { row: updated, created: false };
     }
     const connectionId = randomUUID();
@@ -1028,7 +1023,6 @@ export function toolAccessService(
       await createToolRuntimeSlots(tx, runtimeSupervisor).ensureRuntimeSlot(created);
       return created;
     });
-    emitConnectionCreated(created, "example");
     return { row: created, created: true };
   }
 
@@ -2238,13 +2232,7 @@ export function toolAccessService(
           .returning();
       }
       if (revivedConnectionPrevious) {
-        emitConnectionUpdated(
-          connectionRow,
-          revivedConnectionPrevious,
-          "gallery",
-        );
       } else {
-        emitConnectionCreated(connectionRow, "gallery");
       }
       if (personalIdentityUserId) {
         // "Just me" (PAP-17835 seam #4). The credential is committed straight to
@@ -3234,11 +3222,6 @@ export function toolAccessService(
 
       return { profileId, profileBindings, policies, updatedConnection };
     });
-    emitConnectionUpdated(
-      transactionResult.updatedConnection,
-      connection,
-      "gallery",
-    );
 
     const details = await profileDetails(
       transactionResult.profileId,
@@ -4302,7 +4285,6 @@ export function toolAccessService(
         await createToolRuntimeSlots(tx, runtimeSupervisor).ensureRuntimeSlot(row);
         return row;
       });
-      emitConnectionCreated(row, "api");
       return toConnection(row);
     },
 
@@ -4398,7 +4380,6 @@ export function toolAccessService(
             await createToolRuntimeSlots(tx, runtimeSupervisor).ensureRuntimeSlot(rows[0]!);
             return rows;
           });
-      emitConnectionUpdated(row, existing, "api");
       return toConnection(row);
     },
 

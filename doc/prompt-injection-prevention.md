@@ -90,4 +90,4 @@ these service costs have no heartbeat run receipt. Known provider rejection
 releases the hold. Uncertain billing stays unpriced and retains its reservation
 until billing reconciliation. Agent deletion cannot discard unresolved classifier
 holds. Recovery marks invocations running for more than 120 seconds interrupted
-without rerunning the request. This change adds no first-party Telemetry.
+without rerunning the request.

@@ -420,7 +420,7 @@ export async function testDriveCommand(
   },
 ): Promise<void> {
   // Commander has already copied the value into options. Remove it from the
-  // JavaScript argv view before logging, telemetry, diagnostics, or startup.
+  // JavaScript argv view before logging, diagnostics, or startup.
   redactTestDriveArgv(options.apiKey);
   const dataDir = path.resolve(process.env.OUTPOST_HOME ?? resolveTestDriveDataDir(options.dataDir));
   const linkedWorktree = process.env.OUTPOST_IN_WORKTREE === "true";

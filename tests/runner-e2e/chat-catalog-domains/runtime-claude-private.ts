@@ -37,7 +37,7 @@ export async function privateClaudeOperation(input: ClaudePrivateRequest & { spa
     const loader = fileURLToPath(new URL("../../../server/node_modules/tsx/dist/loader.mjs", import.meta.url)), worker = fileURLToPath(new URL("./runtime-claude-private-worker.ts", import.meta.url));
     let output: string;
     try { output = (await promisify(execFile)(process.execPath, ["--import", loader, worker, request], { timeout: 180000, maxBuffer: 32768,
-      env: { PATH: process.env.PATH ?? "", HOME: directory, TMPDIR: directory, NODE_ENV: "test", DO_NOT_TRACK: "1" } })).stdout; }
+      env: { PATH: process.env.PATH ?? "", HOME: directory, TMPDIR: directory, NODE_ENV: "test" } })).stdout; }
     catch { throw new Error("Selected Claude public setup/validation failed; private request and child diagnostics withheld"); }
     if ([scanSecret, encodeURIComponent(scanSecret), Buffer.from(scanSecret).toString("base64")].some(value => output.includes(value))) throw new Error("Claude private child exceeded its secret-free receipt boundary; output withheld");
     let result: unknown; try { result = JSON.parse(output); } catch { throw new Error("Claude private child returned no closed qualification receipt"); }

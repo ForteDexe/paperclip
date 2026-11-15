@@ -7,16 +7,15 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { configuredSleepFeatures, evaluateSleepQualification, observeConfiguredSignals, observeIncomingHttpWindow, sleepConfigurationDigest, finalizeLocalSleepReceipt } from '../../scripts/sleep-qualification/evidence.mjs';
-const configuration = { automaticBackups: { intervalMinutes: 60, idleCheckpoint: true }, announcements: true, telemetryOrigin: 'http://127.0.0.1:4318/telemetry', otelOrigin: 'http://127.0.0.1:4318', serveUi: true };
+const configuration = { automaticBackups: { intervalMinutes: 60, idleCheckpoint: true }, otelOrigin: 'http://127.0.0.1:4318', serveUi: true };
 // Independent preflight contract, not copied from the receipt/digest implementation.
-const configDigest = createHash('sha256').update(JSON.stringify({ automaticBackups: { intervalMinutes: 60, idleCheckpoint: true }, announcements: true, telemetry: true, otel: { enabled: true, protocol: 'http/json' }, serveUi: true, managedInstance: false, deploymentMode: 'local_trusted', storageProvider: 'local_disk' })).digest('hex');
+const configDigest = createHash('sha256').update(JSON.stringify({ automaticBackups: { intervalMinutes: 60, idleCheckpoint: true }, otel: { enabled: true, protocol: 'http/json' }, serveUi: true, managedInstance: false, deploymentMode: 'local_trusted', storageProvider: 'local_disk' })).digest('hex');
 const expected = { appSha: 'a'.repeat(40), cloudSha: 'b'.repeat(40), target: 'owned-fixture', configDigest };
 function fixture() {
-  return { version: 1, ...expected, configuration: structuredClone(configuration), collectorOrigins: { telemetry: configuration.telemetryOrigin, otel: configuration.otelOrigin },
-    announcement: { intercepted: true, requests: ['https://pages.outpost.ing/announcements/v1/current.json'], unmatched: [] },
-    signalObservation: { telemetryRequests: 1, traceRequests: 1, exportedSpans: 1, qualificationSpans: 1, metricRequests: 0, logRequests: 0, malformedTraceRequests: 0, unexpectedRequests: 0 },
+  return { version: 1, ...expected, configuration: structuredClone(configuration), collectorOrigins: { otel: configuration.otelOrigin },
+    signalObservation: { traceRequests: 1, exportedSpans: 1, qualificationSpans: 1, metricRequests: 0, logRequests: 0, malformedTraceRequests: 0, unexpectedRequests: 0 },
     backupCheckpoint: { owner: 'normal-idle-checkpoint', startedAt: '2099-01-01T00:12:31Z', observedAt: '2099-01-01T00:13:00Z', wakeMarkerObserved: true, failureObserved: false, archives: [{ name: 'owned.sql.gz', bytes: 128, sqlBytes: 256, sha256: 'd'.repeat(64), gzipVerified: true, fixtureIdentifierFound: true, createdAt: '2099-01-01T00:12:45Z', createdAtSource: 'birthtime' }] }, startedAt: '2099-01-01T00:00:00Z', finishedAt: '2099-01-01T01:00:00Z',
-    features: { telemetry: true, announcements: true, automaticBackups: true, otel: true, exportedSpans: 1 },
+    features: { automaticBackups: true, otel: true, exportedSpans: 1 },
     quiet: { startedAt: '2099-01-01T00:11:00Z', finishedAt: '2099-01-01T00:12:30Z', elapsedMs: 90_000, clock: 'real', sqlQueries: 0, connectionsOpened: 0, connectionsRemaining: 0, nonDatabaseRequests: 0, nonDatabaseBytes: 0,
       observerRequests: observeIncomingHttpWindow(
         { source: 'node-http-server-events', captureId: '11111111-1111-4111-8111-111111111111', installed: true, valid: true, requests: 12, observedAt: '2099-01-01T00:11:00Z' },
@@ -75,16 +74,13 @@ test('incoming HTTP observation must be installed, intact and cover the whole wi
     assert.equal(evaluateSleepQualification(f, expected).layers.workerQuiet.verdict, 'NOT VERIFIED');
   }
 });
-test('configured feature claims require complete announcement and integer collector observations', () => {
-  const changes = [f => delete f.announcement, f => f.announcement.intercepted = false,
-    f => f.announcement.requests = [], f => f.announcement.requests = ['https://foreign.example/feed'],
-    f => f.announcement.unmatched.push('https://foreign.example/feed'), f => delete f.announcement.unmatched,
-    f => delete f.signalObservation, f => f.signalObservation.telemetryRequests = 0,
+test('configured feature claims require complete integer collector observations', () => {
+  const changes = [f => delete f.signalObservation,
     f => f.signalObservation.traceRequests = 0, f => f.signalObservation.exportedSpans = 0,
     f => f.signalObservation.qualificationSpans = 0, f => f.signalObservation.qualificationSpans = 2,
     f => f.signalObservation.metricRequests = 1, f => f.signalObservation.logRequests = 1,
     f => f.signalObservation.malformedTraceRequests = 1, f => f.signalObservation.unexpectedRequests = 1,
-    f => f.features.telemetry = false, f => f.features.announcements = false, f => f.features.otel = false];
+    f => f.features.otel = false];
   for (const key of Object.keys(fixture().signalObservation)) {
     changes.push(f => delete f.signalObservation[key]);
     for (const value of [-1, 0.5, NaN, Infinity, '1']) changes.push(f => f.signalObservation[key] = value);
@@ -92,11 +88,11 @@ test('configured feature claims require complete announcement and integer collec
   for (const change of changes) { const f = fixture(); change(f); assert.equal(evaluateSleepQualification(f, expected).layers.workerQuiet.verdict, 'NOT VERIFIED'); }
 });
 test('assembled receipts derive coverage from actual named spans and requests, including unwanted exporters', () => {
-  const requests = [{ path: '/telemetry', body: {} }, { path: '/v1/traces', body: { resourceSpans: [{ scopeSpans: [{ spans: [
+  const requests = [{ path: '/v1/traces', body: { resourceSpans: [{ scopeSpans: [{ spans: [
     { name: 'ordinary-http' }, { name: 'sleep-qualification-stimulus' },
   ] }] }] } }];
   const f = fixture(); f.signalObservation = observeConfiguredSignals(requests); f.features = configuredSleepFeatures(f);
-  assert.deepEqual(f.signalObservation, { telemetryRequests: 1, traceRequests: 1, exportedSpans: 2, qualificationSpans: 1,
+  assert.deepEqual(f.signalObservation, { traceRequests: 1, exportedSpans: 2, qualificationSpans: 1,
     metricRequests: 0, logRequests: 0, malformedTraceRequests: 0, unexpectedRequests: 0 });
   assert.equal(f.features.exportedSpans, 2); // One trace request contained two real span records.
   assert.equal(finalizeLocalSleepReceipt(f, expected, () => f.finishedAt).report.layers.workerQuiet.verdict, 'VERIFIED');
@@ -105,7 +101,7 @@ test('assembled receipts derive coverage from actual named spans and requests, i
     const changed = fixture(); changed.signalObservation = observeConfiguredSignals([...requests, extra]); changed.features = configuredSleepFeatures(changed);
     assert.equal(evaluateSleepQualification(changed, expected).layers.workerQuiet.verdict, 'NOT VERIFIED');
   }
-  const noop = fixture(); noop.signalObservation = observeConfiguredSignals([{ path: '/telemetry', body: {} },
+  const noop = fixture(); noop.signalObservation = observeConfiguredSignals([
     { path: '/v1/traces', body: { resourceSpans: [{ scopeSpans: [{ spans: [{ name: 'other', attributes: [{ value: 'sleep-qualification-stimulus' }] }] }] }] } }]);
   noop.features = configuredSleepFeatures(noop); assert.equal(noop.signalObservation.qualificationSpans, 0);
   assert.equal(evaluateSleepQualification(noop, expected).layers.workerQuiet.verdict, 'NOT VERIFIED');
@@ -188,14 +184,14 @@ test('exact observed active providers are negative evidence while unknown identi
 
 test('logical digest is stable across origins and detects changed enabled configuration', () => {
   assert.equal(sleepConfigurationDigest(configuration), configDigest);
-  const f = fixture(); f.configuration.telemetryOrigin = 'http://127.0.0.1:5555/telemetry'; f.configuration.otelOrigin = 'http://127.0.0.1:5555';
-  f.collectorOrigins = { telemetry: f.configuration.telemetryOrigin, otel: f.configuration.otelOrigin };
+  const f = fixture(); f.configuration.otelOrigin = 'http://127.0.0.1:5555';
+  f.collectorOrigins = { otel: f.configuration.otelOrigin };
   assert.equal(evaluateSleepQualification(f, expected).layers.workerQuiet.verdict, 'VERIFIED');
   assert.throws(() => evaluateSleepQualification(f, { ...expected, collectorOrigins: fixture().collectorOrigins }), /collector_origins/);
-  for (const change of [x => x.configuration.announcements = false, x => x.configuration.serveUi = false,
+  for (const change of [x => x.configuration.serveUi = false,
     x => x.configuration.automaticBackups.intervalMinutes = 5, x => x.configuration.automaticBackups.idleCheckpoint = false,
     x => x.configuration.managedInstance = true, x => x.configuration.deploymentMode = 'authenticated', x => x.configuration.storageProvider = 's3',
-    x => x.configuration.otelOrigin = '', x => x.configuration.telemetryOrigin = '']) {
+    x => x.configuration.otelOrigin = '']) {
     const changed = fixture(); change(changed); assert.throws(() => evaluateSleepQualification(changed, expected), /configuration_digest/);
   }
 });

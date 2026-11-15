@@ -148,7 +148,7 @@ async function privateChallenge(ctx: ChatCatalogContext, id: string, token: stri
 async function runCli(ctx: ChatCatalogContext, args: string[], name: string): Promise<{ code: number | null; stdout: string }> {
   const resources = owned.get(ctx); if (!resources) throw new Error("Owned CLI process state missing");
   const environment: NodeJS.ProcessEnv = { PATH: process.env.PATH, HOME: resources.directory, USER: process.env.USER, LANG: process.env.LANG, TMPDIR: process.env.TMPDIR,
-    OUTPOST_HOME: resources.directory, OUTPOST_AUTH_STORE: resources.store, OUTPOST_NO_BROWSER: "1", DO_NOT_TRACK: "1" };
+    OUTPOST_HOME: resources.directory, OUTPOST_AUTH_STORE: resources.store, OUTPOST_NO_BROWSER: "1" };
   const child = spawn(process.execPath, ["--import", path.join(root, "cli/node_modules/tsx/dist/loader.mjs"), path.join(root, "cli/src/index.ts"), ...args,
     "--api-base", ctx.input.api.baseURL, "--json"], { cwd: root, env: environment, stdio: ["ignore", "pipe", "pipe"] });
   resources.processes.add(child); let stdout = ""; let writes = Promise.resolve();

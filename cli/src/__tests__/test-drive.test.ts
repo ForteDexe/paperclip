@@ -101,7 +101,7 @@ describe("test-drive data isolation", () => {
     fs.mkdirSync(path.dirname(configPath), { recursive: true });
     fs.writeFileSync(configPath, JSON.stringify({
       $meta: { version: 1, updatedAt: new Date().toISOString(), source: "onboard" },
-      database: {}, logging: { mode: "file" }, telemetry: { enabled: false },
+      database: {}, logging: { mode: "file" },
       server: { port: savedPort },
     }));
     try {

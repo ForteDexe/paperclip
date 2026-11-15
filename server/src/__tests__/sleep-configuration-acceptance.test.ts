@@ -53,9 +53,9 @@ describe.skipIf(!enabled)('configured assembled sleep qualification (explicit ow
       // Independent intended logical contract; collector ports are observed separately.
       const expected = { target: 'owned-local-assembled', appSha: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(), cloudSha: cloudSha!,
         configDigest: createHash('sha256').update(JSON.stringify({ automaticBackups: { intervalMinutes: 60, idleCheckpoint: true },
-          telemetry: true, otel: { enabled: true, protocol: 'http/json' }, serveUi: process.env.OUTPOST_SLEEP_BROWSER_ACCEPTANCE === '1',
+          otel: { enabled: true, protocol: 'http/json' }, serveUi: process.env.OUTPOST_SLEEP_BROWSER_ACCEPTANCE === '1',
           managedInstance: true, deploymentMode: 'authenticated', storageProvider: 's3' })).digest('hex'),
-        collectorOrigins: { telemetry: `${origin}/telemetry`, otel: origin } };
+        collectorOrigins: { otel: origin } };
       expect(sleepConfigurationDigest(configuration)).toBe(expected.configDigest);
       const startedAt = new Date().toISOString();
       const server = await startMaintenanceServer(databaseUrl!, managedSleepServerOptions(configuration, JSON.stringify({ keys: [jwk] }), s3Origin, broker));
@@ -136,7 +136,6 @@ describe.skipIf(!enabled)('configured assembled sleep qualification (explicit ow
         await server.settled();
         const activeSignals = observeConfiguredSignals(collectorRequests);
         expect(activeSignals.qualificationSpans).toBeGreaterThan(0);
-        expect(activeSignals.telemetryRequests).toBeGreaterThan(0);
         const before = await server.snapshot(), queries = server.proxy.queries.length, transport = server.proxy.transport;
         const wallStart = performance.now(), quietStartedAt = new Date().toISOString();
         phase('first-real-ninety-second-quiet-window');
@@ -154,7 +153,6 @@ describe.skipIf(!enabled)('configured assembled sleep qualification (explicit ow
         const signalObservation = observeConfiguredSignals(collectorRequests);
         await writeFile(path.join(server.directory, 'sleep-first-signal-observation.json'), JSON.stringify(signalObservation, null, 2));
         expect(signalObservation.qualificationSpans).toBeGreaterThan(0);
-        expect(signalObservation.telemetryRequests).toBeGreaterThan(0);
         expect(signalObservation.metricRequests).toBe(0); expect(signalObservation.logRequests).toBe(0);
         expect(signalObservation.malformedTraceRequests).toBe(0); expect(signalObservation.unexpectedRequests).toBe(0);
         expect(quiet.elapsedMs).toBeGreaterThanOrEqual(quietMs);
@@ -243,7 +241,6 @@ describe.skipIf(!enabled)('configured assembled sleep qualification (explicit ow
         const resumedSignals = observeConfiguredSignals(collectorRequests);
         await writeFile(path.join(server.directory, 'sleep-resumed-signal-observation.json'), JSON.stringify(resumedSignals, null, 2));
         expect(resumedSignals.qualificationSpans).toBeGreaterThan(0);
-        expect(resumedSignals.telemetryRequests).toBeGreaterThan(0);
         expect(resumedSignals.metricRequests).toBe(0); expect(resumedSignals.logRequests).toBe(0);
         expect(resumedSignals.malformedTraceRequests).toBe(0); expect(resumedSignals.unexpectedRequests).toBe(0);
         expect(resumedQuiet.elapsedMs).toBeGreaterThanOrEqual(quietMs);

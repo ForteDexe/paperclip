@@ -3,7 +3,6 @@ import { connectionActorUserId } from "../actor.js";
 import { vercelConnectHttpError, vercelCredentialFor, vercelConnectResourcesFor } from "../vercel-credentials.js";
 import type { ActorInfo } from "../types.js";
 import { connectionMethodForConnection, projectedConnectionHeaders } from "../connection-methods.js";
-import { emitConnectionUpdated } from "../../connector-telemetry.js";
 import { and, eq, ne } from "drizzle-orm";
 import type { Db } from "@outpost/db";
 import { connectionGrants, spaceMemberships, toolApplications, toolConnections } from "@outpost/db";
@@ -199,11 +198,6 @@ export function createVercelOAuthCallback(db: Db, dependencies: Dependencies) {
         ),
       )
       .returning());
-    emitConnectionUpdated(
-      connection,
-      preActivationLifecycle,
-      "oauth_callback",
-    );
     await db
       .update(toolApplications)
       .set({ status: "active", updatedAt: now() })

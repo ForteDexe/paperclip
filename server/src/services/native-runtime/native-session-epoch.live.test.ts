@@ -15,7 +15,7 @@ import { closeIdleWarmNativeSessionsForRestart } from "./native-session-executor
 it.skipIf(process.env.OUTPOST_LIVE_SESSION_EPOCH !== "true")("publishes a fresh live Codex session and resumes its saved file", async () => {
   const home = createIsolatedTestHome(), root = home.home;
   const lifecycleMode = process.env.OUTPOST_LIVE_SESSION_LIFECYCLE === "per_turn" ? "per_turn" : "warm";
-  const keys = ["OUTPOST_HOME", "CODEX_HOME", "OUTPOST_API_URL", "OUTPOST_AGENT_JWT_SECRET", "OUTPOST_TELEMETRY_DISABLED"];
+  const keys = ["OUTPOST_HOME", "CODEX_HOME", "OUTPOST_API_URL", "OUTPOST_AGENT_JWT_SECRET"];
   const saved = Object.fromEntries(keys.map(key => [key, process.env[key]]));
   let server: Awaited<ReturnType<typeof startRunnerApiTestServer>> | undefined;
   let heartbeat: ReturnType<typeof heartbeatService> | undefined;
@@ -27,7 +27,6 @@ it.skipIf(process.env.OUTPOST_LIVE_SESSION_EPOCH !== "true")("publishes a fresh 
     process.env.CODEX_HOME = codexHome;
     process.env.OUTPOST_HOME = join(root, "instance");
     process.env.OUTPOST_AGENT_JWT_SECRET = randomUUID();
-    process.env.OUTPOST_TELEMETRY_DISABLED = "1";
     server = await startRunnerApiTestServer({ deploymentMode: "local_trusted" });
     process.env.OUTPOST_API_URL = server.apiUrl;
     const fixture = await server.fixture({ connectionScenario: "fresh" });

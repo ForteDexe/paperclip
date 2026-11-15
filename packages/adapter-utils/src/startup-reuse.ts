@@ -1,6 +1,6 @@
 import type { AdapterRuntimeEvent } from "./types.js";
 
-/** Local run-log evidence; never a first-party Telemetry event. */
+/** Local run-log evidence; never exported as OpenTelemetry. */
 export const STARTUP_REUSE_EVENT = "run.startup.reuse";
 export const STARTUP_REUSE_SCHEMA = "outpost.startup-reuse.v1";
 export const STARTUP_REUSE_LAYERS = [

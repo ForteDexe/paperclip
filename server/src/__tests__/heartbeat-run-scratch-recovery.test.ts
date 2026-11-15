@@ -6,7 +6,6 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { agents, spaces, createDb, heartbeatRunEvents, heartbeatRuns } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 
-vi.mock("../telemetry.ts", () => ({ getTelemetryClient: () => ({ track: vi.fn() }) }));
 vi.mock("../middleware/logger.js", () => ({
   logger: {
     child: vi.fn(function child(this: unknown) {

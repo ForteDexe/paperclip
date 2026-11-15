@@ -118,7 +118,6 @@ export interface Config extends StorageConfig {
   heartbeatSchedulerEnabled: boolean;
   heartbeatSchedulerIntervalMs: number;
   spaceDeletionEnabled: boolean;
-  telemetryEnabled: boolean;
 }
 
 let tailscaleAddressForProcess: { address: string | undefined } | undefined;
@@ -427,7 +426,6 @@ export function loadConfig(override?: OutpostConfig | null): Config {
     heartbeatSchedulerEnabled: process.env.HEARTBEAT_SCHEDULER_ENABLED !== "false",
     heartbeatSchedulerIntervalMs: Math.max(10000, Number(process.env.HEARTBEAT_SCHEDULER_INTERVAL_MS) || 30000),
     spaceDeletionEnabled,
-    telemetryEnabled: false,
   };
 }
 

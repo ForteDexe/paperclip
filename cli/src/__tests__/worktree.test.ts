@@ -260,9 +260,6 @@ function buildSourceConfig(): OutpostConfig {
       publicBaseUrl: "http://127.0.0.1:3100",
       disableSignUp: false,
     },
-    telemetry: {
-      enabled: true,
-    },
     storage: {
       provider: "local_disk",
       localDisk: {

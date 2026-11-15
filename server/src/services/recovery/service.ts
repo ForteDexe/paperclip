@@ -119,7 +119,6 @@ import {
   type ActivityPublication,
 } from "../activity-log.js";
 import { appendHeartbeatRunEvent } from "../heartbeat-run-events.js";
-import { emitAgentTaskRun } from "../agent-task-run-telemetry.js";
 import { budgetService } from "../budgets.js";
 import { isOperatorOwnedBudgetBlock } from "../budget-block-ownership.js";
 import { unadmittedChatWakeupCondition } from "../durable-chat-wakeup.js";
@@ -6397,9 +6396,6 @@ export function recoveryService(
       return { terminalized: false, status: current?.status ?? run.status };
     }
 
-    // Telemetry is best-effort background work; it must not delay clearing
-    // the stale lock below, so fire it and do not await it.
-    void emitAgentTaskRun(db, updated);
     runningProcesses.delete(run.id);
     // The run update above already committed the terminal status. The audit
     // event is best-effort: if the insert fails, the caller must still treat

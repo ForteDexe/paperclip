@@ -441,7 +441,6 @@ Declare in `manifest.capabilities`. Grouped by scope:
 | | `issue.relations.write` |
 | | `activity.log.write` |
 | | `metrics.write` |
-| | `telemetry.track` |
 | | `database.namespace.migrate` |
 | | `database.namespace.write` |
 | | `external.objects.detect` |

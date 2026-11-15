@@ -197,8 +197,7 @@ UI alone does not disconnect existing channels.
 | Missing/reset cursor or history gap | Review the affected period before operator recovery. The service does not silently skip it. |
 | Old poll no longer works | Open the task's current interaction. Completed/expired polls cannot reverse a decision. |
 
-Diagnostics use existing local activity and run records. This change adds no
-first-party Telemetry events. Persisted receipts/checkpoints are required for
+Diagnostics use existing local activity and run records. Persisted receipts/checkpoints are required for
 recovery; do not manually delete provider state to resolve an outage.
 
 ## Qualification and source versions

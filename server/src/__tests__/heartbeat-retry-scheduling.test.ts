@@ -32,23 +32,6 @@ import { registerServerAdapter, unregisterServerAdapter } from "../adapters/inde
 import { createPostgresRunDispatchAdapter } from "../modules/run-dispatch/adapters/postgres.js";
 import { INTERRUPTED_PREPARATION_RETRY_MAX_ATTEMPTS } from "../services/execution-recovery-attempt.js";
 
-const mockTelemetryClient = vi.hoisted(() => ({ track: vi.fn() }));
-const mockTrackAgentTaskRun = vi.hoisted(() => vi.fn());
-
-vi.mock("../telemetry.js", () => ({
-  getTelemetryClient: () => mockTelemetryClient,
-}));
-
-vi.mock("@outpost/shared/telemetry", async () => {
-  const actual = await vi.importActual<typeof import("@outpost/shared/telemetry")>(
-    "@outpost/shared/telemetry",
-  );
-  return {
-    ...actual,
-    trackAgentTaskRun: mockTrackAgentTaskRun,
-  };
-});
-
 // Wraps the real implementation so most tests exercise genuine transactional
 // writes; a test that needs to prove a rollback overrides one call with
 // `mockRejectedValueOnce` and lets every other call fall through untouched.
@@ -1972,19 +1955,6 @@ describeEmbeddedPostgres("heartbeat bounded retry scheduling", () => {
       .then((rows) => rows[0]?.count ?? 0);
     expect(deferredWakeups).toBe(0);
 
-    // The stale-retry cancel runs inside enqueueWakeup's transaction, and
-    // the run's own required lifecycle work never awaits the telemetry
-    // emission, so wait for it here instead of asserting it fired
-    // synchronously.
-    await vi.waitFor(() => {
-      expect(mockTrackAgentTaskRun).toHaveBeenCalledWith(
-        mockTelemetryClient,
-        expect.objectContaining({
-          agentId: oldAgentId,
-          state: "cancelled",
-        }),
-      );
-    });
   });
 
   it("exhausts bounded retries after the hard cap", async () => {

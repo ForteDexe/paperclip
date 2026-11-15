@@ -26,7 +26,7 @@ export async function privateIdentityBrowser(input: PrivateIdentityOperation, ca
     const loader = fileURLToPath(new URL("../../../server/node_modules/tsx/dist/loader.mjs", import.meta.url));
     let output: string;
     try { output = (await promisify(execFile)(process.execPath, ["--import", loader, worker, request], { timeout: (input.kind === "wizard" || input.kind === "new-space-native") ? Math.max(1, Math.min(540_000, input.deadlineAt - Date.now())) : 120_000,
-      maxBuffer: 32_768, env: { PATH: process.env.PATH ?? "", NODE_ENV: "test", DO_NOT_TRACK: "1", HOME: directory, TMPDIR: directory } })).stdout; }
+      maxBuffer: 32_768, env: { PATH: process.env.PATH ?? "", NODE_ENV: "test", HOME: directory, TMPDIR: directory } })).stdout; }
     catch { throw new Error("Private identity browser operation failed; child diagnostics withheld"); }
     let receipt: PrivateIdentityReceipt;
     try { receipt = JSON.parse(output) as PrivateIdentityReceipt; } catch { throw new Error("Invalid closed private identity receipt"); }

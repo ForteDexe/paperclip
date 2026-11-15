@@ -197,7 +197,6 @@ import { abortInFlightMultipartUploads } from "./storage/s3-multipart.js";
 import { printStartupBanner } from "./startup-banner.js";
 import { getOperatorClaimWarningUrl, initializeOperatorClaimChallenge } from "./operator-claim.js";
 import { maybePersistWorktreeRuntimePorts } from "./worktree-config.js";
-import { initTelemetry, getTelemetryClient } from "./telemetry.js";
 import { conflict } from "./errors.js";
 import { ensureDecisionSigningSecret } from "./services/decision-signing.js";
 import { createDecisionRetentionNotifyOriginAgent, createDecisionWakeOriginAgent } from "./services/decision-wakeup.js";
@@ -277,7 +276,6 @@ async function endDatabaseClient(client: unknown, timeoutSeconds: number): Promi
 }
 
 function initializeRuntimeConfigConsumers(config: ReturnType<typeof loadConfig>): void {
-  initTelemetry({ enabled: config.telemetryEnabled });
   if (process.env.OUTPOST_SECRETS_PROVIDER === undefined) {
     process.env.OUTPOST_SECRETS_PROVIDER = config.secretsProvider;
   }
@@ -2137,18 +2135,6 @@ async function startServerWithDatabaseTeardown(
     }
 
     await workspaceRecoveryStop;
-
-    const telemetryClient = getTelemetryClient();
-    if (telemetryClient) {
-      telemetryClient.stop();
-      await runBoundedShutdownStep({
-        step: "telemetry_flush",
-        signal,
-        timeoutMs: 5_000,
-        run: () => telemetryClient.flush(),
-        log: logger,
-      });
-    }
 
     await cancellationDelivery?.stop();
     await runtimeResponseDelivery?.stop();

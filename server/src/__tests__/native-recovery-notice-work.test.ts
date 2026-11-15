@@ -28,8 +28,6 @@ import { idleWorkSnapshot } from "../services/task-admission.js";
 import { CONTROL_PLANE_CONFORMANCE_RESULT, CONTROL_PLANE_CONFORMANCE_TERMINAL } from "../vendor/outpost-runner/testing.js";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
-import { emitAgentTaskRun } from "../services/agent-task-run-telemetry.js";
-vi.mock("../services/agent-task-run-telemetry.js", () => ({ emitAgentTaskRun: vi.fn(async () => undefined) }));
 vi.mock("../services/run-failure-report.js", async importOriginal => ({
   ...await importOriginal<typeof import("../services/run-failure-report.js")>(), reportRunFailure: vi.fn(async () => undefined),
 }));
@@ -53,7 +51,7 @@ describe("committed native recovery notice lifecycle", () => {
     await db.insert(agents).values({ id: agentId, spaceId, name: "Result worker", adapterType: "outpost_runner" });
   }, 30_000);
   beforeEach(() => {
-    admitted = true; errors.length = 0; vi.mocked(emitAgentTaskRun).mockClear();
+    admitted = true; errors.length = 0;
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: true });
   });
   afterEach(async () => {

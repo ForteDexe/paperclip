@@ -62,7 +62,7 @@ export async function startRollingDeploymentProcess(input: {
       ...input.sharedEnvironment, PATH: input.sharedEnvironment.PATH ?? process.env.PATH, HOME: home, TMPDIR: temporary, XDG_CACHE_HOME: path.join(home, "cache"),
       NODE_ENV: "test", OUTPOST_HOME: home, OUTPOST_CONFIG: configPath,
       PORT: String(port), OUTPOST_INSTANCE_ID: "default", DATABASE_URL: input.databaseUrl,
-      OUTPOST_API_URL: input.ingressOrigin, OUTPOST_TELEMETRY_ENABLED: "false",
+      OUTPOST_API_URL: input.ingressOrigin,
       OUTPOST_DISABLE_TELEMETRY: "true", OUTPOST_LOG_LEVEL: "warn",
       HEARTBEAT_SCHEDULER_ENABLED: input.sharedEnvironment.HEARTBEAT_SCHEDULER_ENABLED ?? "false",
     },

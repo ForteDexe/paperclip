@@ -89,7 +89,7 @@ not prove live database filtering or authorization.
 
 ## Gotchas
 
-- Audit/activity events, run-log rows, first-party Telemetry, and operator OpenTelemetry traces are separate data paths.
+- Audit/activity events, run-log rows, and operator OpenTelemetry traces are separate data paths.
 - A healthy stream or dashboard counter alone does not prove task success.
 - Cost and budget reports have their own [recipe](./budgets-costs.md).
 

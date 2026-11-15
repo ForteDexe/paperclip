@@ -84,7 +84,6 @@ import {
   publishActivity,
   type ActivityPublication,
 } from "../activity-log.js";
-import { emitAgentTaskRun } from "../agent-task-run-telemetry.js";
 import { materializeNativeProviderCapacityRetry } from "./native-provider-capacity-retry.js";
 import { NATIVE_PROVIDER_OVERLOADED_CODE } from "./native-provider-failure.js";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "../delivery-work-notifications.js";
@@ -619,8 +618,6 @@ async function materializeDecisionEffect(input: {
   effect: NativeStatusEffect;
   failpoint?: NativeStatusCommitFailpoint;
   preMaterializedEffects?: ReadonlyMap<string, NativeMaterializedStatusEffect>;
-  /** Terminal heartbeat_runs rows this effect wrote. The caller emits agent.task_run for each, after its transaction commits. */
-  terminalRunsToEmit?: (typeof heartbeatRuns.$inferSelect)[];
 }): Promise<NativeMaterializedStatusEffect> {
   const { effect } = input;
   if (effect.kind === "create_interaction") {
@@ -1170,7 +1167,6 @@ async function materializeDecisionEffect(input: {
       )
       .returning();
     if (!run) throw new Error("native_continuation_cancellation_run_missing");
-    input.terminalRunsToEmit?.push(run);
     return {
       effectKind: effect.kind,
       targetType: "heartbeat_run",
@@ -1701,7 +1697,6 @@ export async function commitNativeStatusDecision(input: {
     throw new Error("native_provider_failure_owner_required");
   }
   const publications: ActivityPublication[] = [];
-  const terminalRunsToEmit: (typeof heartbeatRuns.$inferSelect)[] = [];
   const committed = await input.db.transaction(async (tx) => {
     const retiredReview = input.requireReassessmentSource?.retiredAutomaticReview;
     if (retiredReview && !await lockCurrentNativeCompletionContract(tx as unknown as Db, {
@@ -2330,7 +2325,6 @@ export async function commitNativeStatusDecision(input: {
           effect,
           failpoint: input.failpoint,
           preMaterializedEffects,
-          terminalRunsToEmit,
         }),
       );
     }
@@ -2667,7 +2661,5 @@ export async function commitNativeStatusDecision(input: {
   });
 
   for (const publication of publications) publishActivity(publication);
-  for (const terminalRun of terminalRunsToEmit)
-    await emitAgentTaskRun(input.db, terminalRun);
   return committed;
 }

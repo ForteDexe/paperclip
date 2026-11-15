@@ -113,7 +113,7 @@ describeDatabase("assembled maintenance server production wiring", () => {
         wallElapsedMs, realClockElapsedMs: real.now - before.now, qualifiedClockMs: after.now - real.now, stepMs: 30_000, ioSettledBetweenSteps: true,
         measuredQueries: 0, startupQueries: queryCount, startup: receipt(server.proxy.queries), before, real, after,
         frames: { before: frames, real: realFrames, after: server.proxy.frames }, transport: { before: transport, real: realTransport, after: server.proxy.transport },
-        boundary: "actual startServer, real elapsed 90s plus qualified child clock; pool connection housekeeping reported separately; no active provider/native work, Cloud enrollment, installed plugins, telemetry exporter, announcements or database backup; no host or database suspension claim",
+        boundary: "actual startServer, real elapsed 90s plus qualified child clock; pool connection housekeeping reported separately; no active provider/native work, Cloud enrollment, installed plugins or database backup; no host or database suspension claim",
       }, null, 2));
     } finally { await server.stop(); await fixture.$client.end(); }
   });

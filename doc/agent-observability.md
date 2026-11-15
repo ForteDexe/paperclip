@@ -8,8 +8,8 @@ installations can use Custom OTLP with their required routing/authentication
 headers. The receiver must be reachable from every execution environment;
 `localhost` refers to the execution host, including a remote sandbox.
 
-This is separate from Outpost's first-party Telemetry and its content-free
-[infrastructure tracing](observability.md). Configuring it does not change either data path.
+This is separate from Outpost's content-free [infrastructure tracing](observability.md)
+and local run log. Configuring it does not change either data path.
 
 ## Capture and supported runtimes
 

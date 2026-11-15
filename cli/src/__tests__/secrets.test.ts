@@ -108,9 +108,6 @@ function configWithSecretsProvider(provider: OutpostConfig["secrets"]["provider"
       baseUrlMode: "auto",
       disableSignUp: false,
     },
-    telemetry: {
-      enabled: true,
-    },
     storage: {
       provider: "local_disk",
       localDisk: {

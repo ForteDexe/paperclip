@@ -532,7 +532,7 @@ Find Plugins and more at [awesome-outpost](https://github.com/gsxdsm/awesome-out
 
 ## Observability
 
-Outpost keeps local logs, audit activity, and functional run events. Hosted OpenTelemetry exporters, Sentry uploads, anonymous product telemetry, and vendor feedback export are disabled in this fork.
+Outpost keeps local logs, audit activity, and functional run events. Product telemetry and vendor feedback export are removed; hosted OpenTelemetry exporters and Sentry uploads remain disabled by default.
 
 ## Contributing
 

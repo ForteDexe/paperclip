@@ -43,7 +43,6 @@ function legacyConfig() {
     auth: { baseUrlMode: "explicit", publicBaseUrl: "https://saved.example.test", disableSignUp: true },
     storage: { provider: "s3", s3: { bucket: "saved-bucket", region: "eu-west-1", prefix: "saved/", forcePathStyle: true } },
     secrets: { provider: "local_encrypted", strictMode: true, localEncrypted: { keyFilePath: "/tmp/legacy-master.key" } },
-    telemetry: { enabled: false },
     updates: { checkEnabled: false },
     unsupportedSecret: "unknown-secret-value",
   };
@@ -137,7 +136,7 @@ describe("Cloud configuration file boundary", () => {
     vi.stubEnv("OUTPOST_CLOUD_TENANT_SERVER_TOKEN", undefined);
     fs.writeFileSync(configPath, JSON.stringify(legacyConfig()));
     expect(readConfigFile()?.llm?.apiKey).toBe("legacy-openai-secret");
-    expect(loadConfig()).toMatchObject({ port: 3210, telemetryEnabled: false, storageS3Bucket: "saved-bucket" });
+    expect(loadConfig()).toMatchObject({ port: 3210, storageS3Bucket: "saved-bucket" });
   });
 });
 
@@ -177,7 +176,7 @@ describePostgres("Cloud runtime configuration in PostgreSQL", () => {
     vi.stubEnv("OUTPOST_CLOUD_TENANT_SERVER_TOKEN", "test-token");
     vi.stubEnv("OUTPOST_STORAGE_PROVIDER", "s3");
     vi.stubEnv("OUTPOST_STORAGE_S3_BUCKET", "environment-bucket");
-    expect(loadConfig()).toMatchObject({ databaseMode: "postgres", authBaseUrlMode: "explicit", secretsStrictMode: true, telemetryEnabled: true });
+    expect(loadConfig()).toMatchObject({ databaseMode: "postgres", authBaseUrlMode: "explicit", secretsStrictMode: true });
   });
 
   it("loads the saved authenticated mode before validating an environment host bind", async () => {
@@ -196,7 +195,7 @@ describePostgres("Cloud runtime configuration in PostgreSQL", () => {
   it("imports existing choices without credentials and restores them from a second client and new home", async () => {
     fs.writeFileSync(configPath, JSON.stringify(legacyConfig()));
     const initial = await initializeCloudRuntimeConfig(first);
-    expect(loadConfig()).toMatchObject({ port: 3210, telemetryEnabled: false, databaseBackupEnabled: false, storageS3Bucket: "saved-bucket", authDisableSignUp: true });
+    expect(loadConfig()).toMatchObject({ port: 3210, databaseBackupEnabled: false, storageS3Bucket: "saved-bucket", authDisableSignUp: true });
     const [row] = await second.select().from(instanceSettings).where(eq(instanceSettings.singletonKey, CLOUD_RUNTIME_CONFIG_KEY));
     const persisted = JSON.stringify(row.general);
     for (const secret of ["legacy-openai-secret", "database-secret", "unknown-secret-value", "environment-api-secret", database.connectionString]) {
@@ -213,7 +212,7 @@ describePostgres("Cloud runtime configuration in PostgreSQL", () => {
     setCloudRuntimeConfigSnapshot(null);
     const files = vi.spyOn(fs, "readFileSync");
     expect(await initializeCloudRuntimeConfig(second)).toEqual({ seeded: false, current: initial?.current });
-    expect(loadConfig()).toMatchObject({ port: 3210, telemetryEnabled: false, storageS3Bucket: "saved-bucket" });
+    expect(loadConfig()).toMatchObject({ port: 3210, storageS3Bucket: "saved-bucket" });
     expect(files.mock.calls.map(([file]) => String(file)).filter(file => file.startsWith(replacementHome))).toEqual([]);
     files.mockRestore();
     const root = fileURLToPath(new URL("../../../", import.meta.url));
@@ -225,7 +224,7 @@ describePostgres("Cloud runtime configuration in PostgreSQL", () => {
       const db = createDb(process.env.DATABASE_URL);
       await initializeCloudRuntimeConfig(db);
       const config = loadConfig();
-      console.log(JSON.stringify({ port: config.port, telemetryEnabled: config.telemetryEnabled, storageS3Bucket: config.storageS3Bucket,
+      console.log(JSON.stringify({ port: config.port, storageS3Bucket: config.storageS3Bucket,
         envSentinel: process.env.OUTPOST_RUNTIME_CONFIG_ENV_SENTINEL ?? null }));
       await db.$client.end({ timeout: 1 });
     `);
@@ -234,7 +233,7 @@ describePostgres("Cloud runtime configuration in PostgreSQL", () => {
       env: { ...process.env },
       timeout: 30_000,
     });
-    expect(JSON.parse(child.stdout.trim())).toEqual({ port: 3210, telemetryEnabled: false, storageS3Bucket: "saved-bucket", envSentinel: null });
+    expect(JSON.parse(child.stdout.trim())).toEqual({ port: 3210, storageS3Bucket: "saved-bucket", envSentinel: null });
     expect(fs.readFileSync(envPath, "utf8")).toBe(envContents);
   }, 45_000);
 
@@ -246,15 +245,15 @@ describePostgres("Cloud runtime configuration in PostgreSQL", () => {
     vi.stubEnv("OUTPOST_AUTH_DISABLE_SIGN_UP", "false");
     fs.writeFileSync(configPath, "malformed legacy contents");
     await initializeCloudRuntimeConfig(second);
-    expect(loadConfig()).toMatchObject({ port: 4567, storageS3Bucket: "operator-bucket", authDisableSignUp: false, telemetryEnabled: false });
+    expect(loadConfig()).toMatchObject({ port: 4567, storageS3Bucket: "operator-bucket", authDisableSignUp: false });
     expect((await cloudRuntimeConfigService(first).inspectStored())?.config).toMatchObject({ server: { port: 3210 }, storage: { s3: { bucket: "saved-bucket" } }, auth: { disableSignUp: true } });
   });
 
   it("keeps one committed seed when two clients propose different initial values", async () => {
     const config = projectCloudRuntimeConfig(outpostConfigSchema.parse(legacyConfig()));
     const results = await Promise.all([
-      cloudRuntimeConfigService(first).seedIfAbsent({ ...config, telemetry: { enabled: true } }),
-      cloudRuntimeConfigService(second).seedIfAbsent({ ...config, telemetry: { enabled: false } }),
+      cloudRuntimeConfigService(first).seedIfAbsent({ ...config, updates: { checkEnabled: true } }),
+      cloudRuntimeConfigService(second).seedIfAbsent({ ...config, updates: { checkEnabled: false } }),
     ]);
     expect(results.filter(result => result.seeded)).toHaveLength(1);
     expect(results[0].current).toEqual(results[1].current);
@@ -272,8 +271,8 @@ describePostgres("Cloud runtime configuration in PostgreSQL", () => {
     const config = projectCloudRuntimeConfig(outpostConfigSchema.parse(legacyConfig()));
     await cloudRuntimeConfigService(first).seedIfAbsent(config);
     const results = await Promise.allSettled([
-      cloudRuntimeConfigService(first).replace({ ...config, telemetry: { enabled: true } }, 0),
-      cloudRuntimeConfigService(second).replace({ ...config, telemetry: { enabled: false } }, 0),
+      cloudRuntimeConfigService(first).replace({ ...config, updates: { checkEnabled: true } }, 0),
+      cloudRuntimeConfigService(second).replace({ ...config, updates: { checkEnabled: false } }, 0),
     ]);
     expect(results.filter(result => result.status === "fulfilled")).toHaveLength(1);
     expect(results.filter(result => result.status === "rejected")).toHaveLength(1);

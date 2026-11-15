@@ -17,8 +17,8 @@ it. Arguments, results, operation names and raw call IDs are excluded.
 The existing diagnostic path also writes this message to sidecar stderr.
 A controller that has already stopped may not ingest the frame. Stdin EOF
 identifies a closed controller pipe, not the upstream reason for that closure.
-This is local run evidence; no first-party Telemetry event or OpenTelemetry
-span is added. Retry, cancellation and authorization behavior stay unchanged.
+This is local run evidence; no OpenTelemetry span is added. Retry,
+cancellation and authorization behavior stay unchanged.
 
 ## Startup reuse evidence
 
@@ -50,7 +50,7 @@ applicable layers to be fresh. Some reuse with other fresh or missing evidence
 is `partial_reuse`; otherwise the label is `unknown`. Fresh decisions dominate
 later reuse receipts within a run. Legacy runs without receipts retain unknown
 layers and a null launch count. Session IDs and follow-up turns never establish
-warmth. These events stay in the local run log; they add no first-party Telemetry.
+warmth. These events stay in the local run log.
 
 ## Ordinary event persistence
 
@@ -75,7 +75,7 @@ These controller receipts are cleanup bookkeeping, not evidence of agent task
 progress, and are excluded from run-liveness action counts.
 The controller authors both events on the system stream. Adapter ingestion
 rejects the reserved `legacy.case_handoff_` namespace. These events stay in the
-instance run log and add no first-party Telemetry or OpenTelemetry export.
+instance run log and add no OpenTelemetry export.
 
 ## Provider-pack preparation timing
 
@@ -187,7 +187,7 @@ startup/turn phase, and available status, code, request ID, or retry time. Provi
 adapters extract these fields; arbitrary exception objects, request bodies,
 headers, environment variables, and stacks are excluded. Unknown categories retain
 their explanation. The cause stays in space-scoped run records and the run log;
-it is not added to first-party Telemetry, Observability attributes, or Sentry
+it is not added to Observability attributes or Sentry
 failure reports. The reportable run error keeps its existing generic text, except
 that an ACPX startup rejection keeps Runner's closed rejection text and its
 classification. Startup receipts retain the cause across controller restart before
@@ -858,7 +858,7 @@ The task chat shows these notices as inline status chips. A retry chip fades
 after later provider work. A final provider error shows the real provider
 message. Generic warnings stay out of chat as before.
 
-Recovery lifecycle events retain the original structured failure code, retry attempt, next retry time, and predecessor/successor identifiers. Durable status delivery uses an idempotency marker; delivery grants no provider authority. Failed publication is retried without repeating provider work. These records are not first-party Telemetry.
+Recovery lifecycle events retain the original structured failure code, retry attempt, next retry time, and predecessor/successor identifiers. Durable status delivery uses an idempotency marker; delivery grants no provider authority. Failed publication is retried without repeating provider work. These records stay local.
 
 An unstarted legacy conversation retry waiting for execution cleanup retains
 `resultJson.executionWait` with the issue, blocking run, and

@@ -2,9 +2,7 @@
 
 This document is the Observability contract. It covers the OpenTelemetry
 trace path, the opt-in Sentry error-monitoring path, and two local
-instrumentation contracts; see the
-[Telemetry Data Contract](../packages/shared/src/telemetry/README.md) for the
-separate first-party event system.
+instrumentation contracts. Product-usage telemetry is not part of this fork.
 
 Outpost ships with **opt-in** OpenTelemetry auto-instrumentation for the
 server process. When activated it produces **traces only** — no metrics and no
@@ -66,8 +64,7 @@ The closed attribute list is `budget.policy_count` (applicable policy count),
 `budget.accounting.owner` (`run`, `decision`, `classifier`, `fast_response`,
 `browser`). The owner tag identifies the shared settlement span's emitter.
 These spans contain no prompts, usage receipt bodies, credentials or provider
-error bodies. They remain gated by the operator OTLP endpoint and do not change
-Outpost's separate first-party Telemetry contract.
+error bodies. They remain gated by the operator OTLP endpoint.
 
 ## Slack receipt reactions
 
@@ -287,7 +284,7 @@ without recording exception messages, paths, inputs, or returned content.
 Search by that hash without a root-name filter to include these preparation
 traces; the provider lifecycle trace is created later and can have a different
 trace ID. Without an endpoint, tracing remains a no-op. These spans add no
-first-party Telemetry events or database run-log writes.
+database run-log writes.
 
 Workspace preparation also records `heartbeat.prepare.workspace_<step>` spans
 for source resolution, provisioning policy, base validation, source access,
@@ -1990,7 +1987,7 @@ daytona provider emits these spans today, so the segment is the literal
 The worker invocation carries nested, monotonic timing receipts for lease work.
 The host also admits the following fixed `lease.*` names and prefixes them with
 `sandbox.daytona.`. These use the existing opt-in endpoint and host-owned parent
-context; they do not create an exporter or first-party Telemetry events.
+context; they do not create a separate exporter.
 
 ```text
 execution.plugin_dispatch
@@ -2206,8 +2203,7 @@ inside `task.prepare`. It is also contained in the broader
 `heartbeat.prepare_before_environment` interval; do not add those two durations.
 Preparation failures emit a failed span even when no native session starts.
 It carries no skill contents, identifiers, locations, or credentials. It uses the
-existing run performance events and operator-configured OpenTelemetry endpoint;
-no first-party Telemetry event is added.
+existing run performance events and operator-configured OpenTelemetry endpoint.
 
 The `skills.*` detail spans above distinguish inventory reconciliation and lock
 acquisition from repository transfer and file validation. A repository-backed

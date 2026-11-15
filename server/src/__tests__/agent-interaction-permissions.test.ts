@@ -144,7 +144,7 @@ describe("individual agent interaction permissions", () => {
       const result = await execute(process.execPath, ["--import", `${repo}cli/node_modules/tsx/dist/loader.mjs`, `${repo}cli/src/index.ts`,
         "agent", command, f.agentId, "--api-base", `http://127.0.0.1:${address.port}`, "--api-key", "fixture-operator-token", "--json",
         ...(payload ? ["--payload-json", JSON.stringify(payload)] : [])], {
-        cwd: repo, env: { ...process.env, OUTPOST_TELEMETRY_DISABLED: "1" }, timeout: 60000,
+        cwd: repo, env: { ...process.env }, timeout: 60000,
       });
       return JSON.parse(result.stdout);
     };

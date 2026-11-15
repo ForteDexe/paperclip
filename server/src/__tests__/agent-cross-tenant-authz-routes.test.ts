@@ -110,14 +110,7 @@ const mockWorkspaceOperationService = vi.hoisted(() => ({}));
 const mockLogActivity = vi.hoisted(() => vi.fn());
 const mockGetTelemetryClient = vi.hoisted(() => vi.fn());
 
-vi.mock("@outpost/shared/telemetry", () => ({
-  trackAgentCreated: vi.fn(),
-  trackErrorHandlerCrash: vi.fn(),
-}));
 
-vi.mock("../telemetry.js", () => ({
-  getTelemetryClient: mockGetTelemetryClient,
-}));
 
 vi.mock("../routes/authz.js", async () => {
   const { forbidden, unauthorized } = await vi.importActual<typeof import("../errors.js")>("../errors.js");

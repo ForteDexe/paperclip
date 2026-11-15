@@ -10,12 +10,6 @@ import { pendingNativePolicy } from "../services/native-runtime/native-run-final
 import { getConversationConfirmationContext } from "../services/conversation-confirmation-context.js";
 
 const { resolvedTelemetry } = vi.hoisted(() => ({ resolvedTelemetry: vi.fn() }));
-vi.mock("@outpost/shared/telemetry", async importOriginal => ({
-  ...await importOriginal<Record<string, unknown>>(), trackInteractionResolved: resolvedTelemetry, trackInteractionCreated: vi.fn(),
-}));
-vi.mock("../telemetry.js", async importOriginal => ({
-  ...await importOriginal<Record<string, unknown>>(), getTelemetryClient: () => ({}),
-}));
 
 const support = await getEmbeddedPostgresTestSupport();
 (support.supported ? describe : describe.skip)("conversational confirmation resolution", () => {

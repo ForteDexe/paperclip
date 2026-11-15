@@ -34,7 +34,7 @@ export async function runOwnedDockerInfrastructureHealth() {
     const port = await reserveRunnerE2EServerPort(), home = path.join(root, "outpost-home"), instance = `runner-e2e-docker-health-${randomBytes(6).toString("hex")}`;
     const configPath = path.join(home, "instances", instance, "config.json");
     const env: NodeJS.ProcessEnv = Object.fromEntries(["PATH", "HOME", "TMPDIR", "DOCKER_CONFIG", "DOCKER_CONTEXT", "DOCKER_HOST"].filter(key => process.env[key]).map(key => [key, process.env[key]]));
-    Object.assign(env, { NODE_ENV: "test", DO_NOT_TRACK: "1", OUTPOST_HOME: home, OUTPOST_CONFIG: configPath, OUTPOST_INSTANCE_ID: instance,
+    Object.assign(env, { NODE_ENV: "test", OUTPOST_HOME: home, OUTPOST_CONFIG: configPath, OUTPOST_INSTANCE_ID: instance,
       OUTPOST_RUNNER_E2E_SOURCE_SHA: source.sha, OUTPOST_RUNNER_E2E_TEMP_ROOT: root, OUTPOST_RUNNER_E2E_PORT: String(port), OUTPOST_RUNNER_E2E_EXECUTION_IDS: "[]", OUTPOST_RUNNER_E2E_SERVER_LOG: path.join(privateDir, "supervisor.log"),
       [DATABASE_LANE_ENV]: "owned-docker-postgres", [DOCKER_DATABASE_ENV]: database.filename });
     for (const name of ["OUTPOST_AGENT_JWT_SECRET", "OUTPOST_DECISION_SIGNING_SECRET", "OUTPOST_TOOL_ACTION_SIGNING_SECRET", "BETTER_AUTH_SECRET"]) { const value = randomBytes(48).toString("hex"); secrets.push(value); env[name] = value; }

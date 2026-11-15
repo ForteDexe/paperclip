@@ -14,7 +14,7 @@ export async function finishPrivateWebhook(input: { baseURL: string; route: stri
     await writeFile(request, JSON.stringify({ ...input, channel, executablePath: process.env.OUTPOST_RUNNER_E2E_CHROMIUM_EXECUTABLE ?? (channel ? undefined : chromium.executablePath()) }), { mode: 0o600 });
     const worker = fileURLToPath(new URL("./integrator-webhook-private-worker.ts", import.meta.url)); const loader = fileURLToPath(new URL("../../../server/node_modules/tsx/dist/loader.mjs", import.meta.url));
     let output: string;
-    try { output = (await promisify(execFile)(process.execPath, ["--import", loader, worker, request], { timeout: 120_000, maxBuffer: 8192, env: { PATH: process.env.PATH ?? "", NODE_ENV: "test", DO_NOT_TRACK: "1", HOME: dir, TMPDIR: dir } })).stdout; }
+    try { output = (await promisify(execFile)(process.execPath, ["--import", loader, worker, request], { timeout: 120_000, maxBuffer: 8192, env: { PATH: process.env.PATH ?? "", NODE_ENV: "test", HOME: dir, TMPDIR: dir } })).stdout; }
     catch { throw new Error("Private routine webhook setup failed; credential-bearing child diagnostics withheld"); }
     const secret = await readFile(path.join(dir, "secret.txt"), "utf8"); if (!/^[a-f0-9]{48}$/i.test(secret)) throw new Error("Invalid private one-time webhook credential handoff"); registerSecret(secret);
     const receipt = JSON.parse(output) as WebhookHumanReceipt;

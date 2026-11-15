@@ -14,7 +14,6 @@ if (!process.argv.includes("--run")) throw new Error("Pass --run to authorize th
 const root = await mkdtemp(join(tmpdir(), "outpost-live-task-monitor-"));
 process.env.OUTPOST_HOME = join(root, "outpost");
 process.env.OUTPOST_INSTANCE_ID = "monitor-smoke";
-process.env.OUTPOST_TELEMETRY_ENABLED = "false";
 const { createDb, spaces, agents, authUsers, spaceMemberships, issues, heartbeatRuns, agentWakeupRequests, nativeRunResults, statusDecisions } = await import("@outpost/db");
 const { startEmbeddedPostgresTestDatabase } = await import("../src/__tests__/helpers/embedded-postgres.js");
 const { createAgentLifecycle, startAgentLifecycle } = await import("../src/services/agent-lifecycle.js");

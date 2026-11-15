@@ -56,7 +56,6 @@ vi.mock("node:child_process", async () => ({
   spawn: mockSpawn,
 }));
 
-vi.mock("../telemetry.js", () => ({ getTelemetryClient: mockGetTelemetryClient }));
 
 vi.mock("../services/index.js", () => ({
   accessService: () => mockAccessService,

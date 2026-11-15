@@ -7,7 +7,6 @@ import { errorHandler } from "../middleware/error-handler.js";
 const captureExceptionMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../sentry.js", () => ({ captureException: captureExceptionMock }));
-vi.mock("../telemetry.js", () => ({ getTelemetryClient: () => null }));
 
 // The S3 client rejects an aborted GetObject with this error.
 function storageAbortError() {

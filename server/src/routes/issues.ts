@@ -199,8 +199,6 @@ import {
   type IssueWriteDenialCode,
   type IssueWriteDenialContext,
 } from "@outpost/shared";
-import { trackAgentTaskCompleted } from "@outpost/shared/telemetry";
-import { getTelemetryClient } from "../telemetry.js";
 import { isUniqueViolation } from "../db-errors.js";
 import type { StorageService } from "../storage/types.js";
 import { validate, validateIssueMutationBody } from "../middleware/validate.js";
@@ -246,7 +244,6 @@ import { ContextCompactionError, contextCompactionService } from "../services/co
 import { issueContextUsage } from "../services/issue-context-usage.js";
 import { queueLiveRunnerPrpCommand } from "../realtime/runner-orp-ws.js";
 import { questionResponseDeliveryService } from "../services/question-response-delivery.js";
-import { emitAgentTaskRunById } from "../services/agent-task-run-telemetry.js";
 import {
   createQueuedCommentQueue,
   QueuedCommentMutationError,
@@ -16430,26 +16427,6 @@ export function issueRoutes(
         });
       }
 
-      if (issue.status === "done" && existing.status !== "done") {
-        const tc = getTelemetryClient();
-        if (tc && actor.agentId) {
-          const actorAgent = await agentsSvc.getById(actor.agentId);
-          if (actorAgent) {
-            const model =
-              typeof actorAgent.adapterConfig?.model === "string"
-                ? actorAgent.adapterConfig.model
-                : undefined;
-            trackAgentTaskCompleted(tc, {
-              agentRole: actorAgent.role,
-              agentId: actorAgent.id,
-              adapterType: actorAgent.adapterType,
-              model,
-              taskId: issue.id,
-            });
-          }
-        }
-      }
-
       if (
         issue.harnessKind === "skill_test" &&
         existing.status !== issue.status &&
@@ -18093,11 +18070,6 @@ export function issueRoutes(
         }),
       );
       publishActivity(result.activityPublication as ActivityPublication);
-      // Telemetry is best-effort background work; it must not delay the
-      // response with a slow lookup, so fire it and do not await it.
-      if (result.cancelledRun) {
-        void emitAgentTaskRunById(db, { runId: result.cancelledRun.id, spaceId: issue.spaceId });
-      }
       res.json(await runRedactions.redactForIssue(issue.spaceId, issue.id, result.queue));
     },
   );

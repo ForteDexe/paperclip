@@ -134,14 +134,7 @@ function registerModuleMocks() {
     runSshCommand: mockRunSshCommand,
   }));
 
-  vi.doMock("@outpost/shared/telemetry", () => ({
-    trackAgentCreated: mockTrackAgentCreated,
-    trackErrorHandlerCrash: vi.fn(),
-  }));
 
-  vi.doMock("../telemetry.js", () => ({
-    getTelemetryClient: mockGetTelemetryClient,
-  }));
 
   vi.doMock("../services/agents.js", () => ({
     agentService: () => mockAgentService,

@@ -307,7 +307,6 @@ export type {
   PluginStreamsClient,
   PluginToolsClient,
   PluginMetricsClient,
-  PluginTelemetryClient,
   PluginLogger,
   PluginTracer,
   PluginSpan,

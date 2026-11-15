@@ -264,7 +264,7 @@ revised-source live onboarding and follow-up proof.
   `/space/settings/connections` configures decision/fast-response models,
   not the general model-account library.
 
-- Structured run events stay in the instance database. Optional stdout/stderr and raw trace payload storage can use S3; see [run evidence storage](../../doc/run-evidence-storage.md). Both are separate from first-party Telemetry and operator OpenTelemetry export.
+- Structured run events stay in the instance database. Optional stdout/stderr and raw trace payload storage can use S3; see [run evidence storage](../../doc/run-evidence-storage.md). Both are separate from operator-configured OpenTelemetry export.
 - Authentication/model discovery does not establish tool, image, steering, or resumption capability parity.
 - Use [recovery](./recovery.md) for interrupted runs and [execution environments](./execution-environments.md) for local/SSH/sandbox differences.
 

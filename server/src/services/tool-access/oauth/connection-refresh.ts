@@ -2,7 +2,6 @@ import { writeToolConnectionHealthChange } from "../../tool-connection-health-no
 import type { ActorInfo } from "../types.js";
 import { createOAuthClientProtocol, storedOAuthTokenEndpointAuthMethod } from "./client.js";
 import { oauthConfig, normalizeOauthScopes } from "./metadata.js";
-import { emitConnectionUpdated } from "../../connector-telemetry.js";
 import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "@outpost/db";
 import { spaceSecrets, toolConnections } from "@outpost/db";
@@ -91,7 +90,6 @@ const oauthRefreshFlights = new Map<string, Promise<unknown>>();
       .returning());
     if (updated) {
       await syncCredentialBindings(updated);
-      emitConnectionUpdated(updated, connection, "credential_refresh");
     }
     return updated ?? null;
   }

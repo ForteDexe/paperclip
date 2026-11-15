@@ -19,7 +19,6 @@ import {
 } from "./helpers/embedded-postgres.js";
 
 const mockTelemetryClient = vi.hoisted(() => ({ track: vi.fn() }));
-vi.mock("../telemetry.ts", () => ({ getTelemetryClient: () => mockTelemetryClient }));
 
 // A test can hold every caller of the shared owner proof until N callers
 // arrive, so overlapping sweeps all read a claim before any of them updates it.

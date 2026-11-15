@@ -73,9 +73,6 @@ function defaultConfig(): OutpostConfig {
       baseUrlMode: "auto",
       disableSignUp: false,
     },
-    telemetry: {
-      enabled: false,
-    },
     storage: defaultStorageConfig(),
     secrets: defaultSecretsConfig(),
   };

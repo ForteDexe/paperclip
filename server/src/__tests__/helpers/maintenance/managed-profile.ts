@@ -7,7 +7,7 @@ import type { MaintenanceConfiguration, MaintenanceServerOptions, startMaintenan
 export const managedTenantActor = { userId: 'local-operator', email: 'sleep-owner@example.test', name: 'Owned sleep operator' };
 export function managedSleepConfiguration(collectorOrigin: string, serveUi: boolean): MaintenanceConfiguration {
   return { automaticBackups: { intervalMinutes: 60, idleCheckpoint: true },
-    telemetryOrigin: `${collectorOrigin}/telemetry`, otelOrigin: collectorOrigin, serveUi,
+    otelOrigin: collectorOrigin, serveUi,
     managedInstance: true, deploymentMode: 'authenticated', storageProvider: 's3' };
 }
 export function managedSleepServerOptions(configuration: MaintenanceConfiguration, jwks: string, s3Origin: string,

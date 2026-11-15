@@ -13,7 +13,7 @@ import { closeIdleWarmNativeSessionsForRestart } from "./native-session-executor
 
 it.skipIf(process.env.OUTPOST_LIVE_REFUSED_RETRY !== "true")("completes work through HTTP Retry after a refused automatic attempt", async () => {
   const home = createIsolatedTestHome();
-  const keys = ["OUTPOST_HOME", "CODEX_HOME", "OUTPOST_API_URL", "OUTPOST_AGENT_JWT_SECRET", "OUTPOST_TELEMETRY_DISABLED", "OUTPOST_RUNNER_STATE_DIR"];
+  const keys = ["OUTPOST_HOME", "CODEX_HOME", "OUTPOST_API_URL", "OUTPOST_AGENT_JWT_SECRET", "OUTPOST_RUNNER_STATE_DIR"];
   const saved = Object.fromEntries(keys.map(key => [key, process.env[key]]));
   let server: Awaited<ReturnType<typeof startRunnerApiTestServer>> | undefined;
   let heartbeat: ReturnType<typeof heartbeatService> | undefined;
@@ -26,7 +26,6 @@ it.skipIf(process.env.OUTPOST_LIVE_REFUSED_RETRY !== "true")("completes work thr
     process.env.OUTPOST_HOME = join(home.home, "instance");
     process.env.OUTPOST_RUNNER_STATE_DIR = join(home.home, "runner-state");
     process.env.OUTPOST_AGENT_JWT_SECRET = randomUUID();
-    process.env.OUTPOST_TELEMETRY_DISABLED = "1";
     server = await startRunnerApiTestServer({ deploymentMode: "authenticated", humanSessions: true });
     process.env.OUTPOST_API_URL = server.apiUrl;
     const f = await server.fixture({ connectionScenario: "fresh" }), db = server.db;

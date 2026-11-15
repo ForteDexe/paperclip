@@ -12,7 +12,6 @@ import { removeSlackRegistration } from "../../chat-slack-registration-cleanup.j
 import { chatEndpoints } from "@outpost/db";
 import { isBrowserUseConnection } from "../../browser-use-client.js";
 import { browserUseService } from "../../browser-use.js";
-import { emitConnectionUpdated } from "../../connector-telemetry.js";
 import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import type { Db } from "@outpost/db";
 import { connectionGrants, connectionTokenIssuances, spaceSecretBindings, spaceSecrets, userSecretDefinitions, userSecretDeclarations, toolApplications, toolCatalogEntries, toolConnectionInstalls, toolConnections, toolOauthStates, toolGatewaySessions, toolMcpGateways, toolMcpGatewayTokens, toolProfileBindings, toolProfileEntries, toolProfiles, toolRuntimeSlots } from "@outpost/db";
@@ -587,7 +586,6 @@ async function removeConnection(
 
       return { connection: updatedConnection, applicationArchived };
     });
-    emitConnectionUpdated(archived.connection, connection, "archive");
 
     // Hosted work needs its credential to stop. Agent/viewer access is already
     // revoked above; retain cleanup authority until provider shutdown confirms.

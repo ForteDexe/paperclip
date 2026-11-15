@@ -118,11 +118,11 @@ suite when it resolves a remaining local/platform-specific gap or is explicitly
 required for qualification. See `AGENTS.md` and `doc/DEVELOPING.md` for result reuse
 and coverage requirements.
 
-### Telemetry Changes
+### Diagnostics Changes
 
-This repo has three separate data paths: Telemetry, Observability, and the run log. See [`rules/data-paths.mdc`](rules/data-paths.mdc) for the full definitions and the review level each path needs.
+This repo has two separate diagnostic data paths: operator-configured OpenTelemetry and the local run log. See [`rules/data-paths.mdc`](rules/data-paths.mdc) for the full definitions and the review level each path needs.
 
-If your change adds, removes, or modifies emitted telemetry events, update the [Telemetry Data Contract](packages/shared/src/telemetry/README.md) in the same PR. Keep clients emitting raw dimension values and avoid documenting or relying on private delivery details. If your change adds, removes, or modifies an OpenTelemetry span or span attribute, keep the change inside the closed span-attribute allowlist in `packages/adapter-utils/src/acpx-engine/startup-timing.ts`. If your change adds or modifies a run-log event, update `doc/run-log-events.md` in the same PR.
+If your change adds, removes, or modifies an OpenTelemetry span or span attribute, keep the change inside the closed span-attribute allowlist in `packages/adapter-utils/src/acpx-engine/startup-timing.ts`. If your change adds or modifies a run-log event, update `doc/run-log-events.md` in the same PR.
 
 ### Outpost Gates Must Pass
 

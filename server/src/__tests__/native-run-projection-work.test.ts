@@ -30,8 +30,6 @@ import { idleWorkSnapshot } from "../services/task-admission.js";
 import { CONTROL_PLANE_CONFORMANCE_RESULT, CONTROL_PLANE_CONFORMANCE_TERMINAL } from "../vendor/outpost-runner/testing.js";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
-import { emitAgentTaskRun } from "../services/agent-task-run-telemetry.js";
-vi.mock("../services/agent-task-run-telemetry.js", () => ({ emitAgentTaskRun: vi.fn(async () => undefined) }));
 vi.mock("../services/run-failure-report.js", async importOriginal => ({
   ...await importOriginal<typeof import("../services/run-failure-report.js")>(), reportRunFailure: vi.fn(async () => undefined),
 }));
@@ -55,7 +53,7 @@ describe("committed native run projection lifecycle", () => {
     await db.insert(agents).values({ id: agentId, spaceId, name: "Result worker", adapterType: "outpost_runner" });
   }, 30_000);
   beforeEach(() => {
-    admitted = true; errors.length = 0; vi.mocked(emitAgentTaskRun).mockClear();
+    admitted = true; errors.length = 0;
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: true });
   });
   afterEach(async () => {
@@ -429,11 +427,10 @@ describe("committed native run projection lifecycle", () => {
     expect((await read(binding.runId)).status).toBe("running");
     await start(); await flush();
     expect((await read(binding.runId)).status).toBe("succeeded");
-    expect(emitAgentTaskRun).toHaveBeenCalledTimes(1); await quiet();
+    await quiet();
     const settled = await read(binding.runId);
     await coordinator!.stop(); await start(); await flush(); await quiet();
     expect((await read(binding.runId)).executionStatusDeliveryId).toBe(settled.executionStatusDeliveryId);
-    expect(emitAgentTaskRun).toHaveBeenCalledTimes(1);
   });
   it("explains a failed accepted result when the finalizer projects the run", async () => {
     const binding = await accepted("failed");
@@ -472,7 +469,6 @@ describe("committed native run projection lifecycle", () => {
     await finalizeNativeRun({ db, runId: binding.runId, workspaceFinalizeStatus: "succeeded" });
     await flush();
     expect((await read(binding.runId)).status).toBe("succeeded");
-    expect(emitAgentTaskRun).toHaveBeenCalledTimes(1);
     await quiet();
   });
 
@@ -507,7 +503,6 @@ describe("committed native run projection lifecycle", () => {
     });
     await finalizeNativeRun({ db, runId: binding.runId, workspaceFinalizeStatus: "succeeded", projectRunStatus: true });
     expect(hook).toHaveBeenCalled();
-    expect(emitAgentTaskRun).toHaveBeenCalledTimes(1);
   });
   it("uses fresh completion time when the caller's projection snapshot is stale", async () => {
     const binding = await accepted();
@@ -523,10 +518,8 @@ describe("committed native run projection lifecycle", () => {
     await finalizeNativeRun({ db, runId: binding.runId, workspaceFinalizeStatus: "succeeded", projectRunStatus: true });
     const before = await read(binding.runId);
     expect(before.status).toBe(status);
-    const calls = vi.mocked(emitAgentTaskRun).mock.calls.length;
     await start(); await flush(); await quiet();
     expect(await read(binding.runId)).toEqual(before);
-    expect(emitAgentTaskRun).toHaveBeenCalledTimes(calls);
   });
   it("serializes competing recovery projections without duplicate terminal events", async () => {
     const binding = await accepted();
@@ -534,7 +527,6 @@ describe("committed native run projection lifecycle", () => {
     const input = { db, run: await read(binding.runId), coordinator: await state(binding.runId) };
     await Promise.all(Array.from({ length: 4 }, () => projectCommittedRun(input)));
     expect((await read(binding.runId)).status).toBe("succeeded");
-    expect(emitAgentTaskRun).toHaveBeenCalledTimes(1);
   });
   it("repairs projection metadata and preserves unrelated diagnostics", async () => {
     const binding = await accepted();
@@ -543,12 +535,11 @@ describe("committed native run projection lifecycle", () => {
     await db.update(heartbeatRuns).set({ nativePhase: "retryable_failure", error: "old failure", errorCode: "transport_error",
       resultJson: { ...before.resultJson, failureCode: "old", nextAttemptAt: "old", unrelatedReceipt: { key: "preserve" } },
     }).where(eq(heartbeatRuns.id, binding.runId));
-    const calls = vi.mocked(emitAgentTaskRun).mock.calls.length;
     await start(); await flush();
     expect(await read(binding.runId)).toMatchObject({ status: "succeeded", nativePhase: "committed", error: null, errorCode: null,
       finishedAt: before.finishedAt, resultJson: { failureCode: null, nextAttemptAt: null,
         unrelatedReceipt: { key: "preserve" }, recoveredExecutionFailure: { error: "old failure", errorCode: "transport_error" } } });
-    expect(emitAgentTaskRun).toHaveBeenCalledTimes(calls); await quiet();
+    await quiet();
   });
   it.each(["restore", "worktree"])("respects %s suppression through the public heartbeat registration", async mode => {
     const binding = await accepted();
@@ -619,7 +610,7 @@ describe("committed native run projection lifecycle", () => {
       return projectCommittedRun(input);
     };
     await start(project); await flush();
-    expect((await read(binding.runId)).status).toBe("running"); expect(emitAgentTaskRun).not.toHaveBeenCalled(); await quiet();
+    expect((await read(binding.runId)).status).toBe("running"); await quiet();
   });
   it("waits for real pending-effect settlement before projection", async () => {
     const binding = await accepted();

@@ -30,7 +30,6 @@ import path from "node:path";
 const cloudRuntimeStartupMocks = vi.hoisted(() => ({
   initialize: vi.fn(async () => null),
   bootstrap: vi.fn(),
-  telemetry: vi.fn(),
 }));
 
 vi.mock("../services/adapter-settings.js", async () => ({
@@ -45,7 +44,6 @@ const managedEnvironmentMocks = vi.hoisted(() => {
 const cloudMigrationMocks = vi.hoisted(() => ({ migrate: vi.fn(async () => null), qualify: vi.fn(async () => null) }));
 vi.mock("../services/cloud-configuration-migration.js", () => ({ migrateCloudConfiguration: cloudMigrationMocks.migrate }));
 vi.mock("../services/cloud-configuration-qualification.js", () => ({ qualifyCloudConfigurationForCurrentImage: cloudMigrationMocks.qualify }));
-vi.mock("../telemetry.js", () => ({ initTelemetry: cloudRuntimeStartupMocks.telemetry, getTelemetryClient: vi.fn(() => null) }));
 
 // Producer transaction/notification behavior is covered by the real PostgreSQL
 // GitHub worker suite; this startup seam supplies a lightweight database mock.
@@ -725,7 +723,6 @@ describe("startServer wiring", () => {
       await expect(startServer()).rejects.toThrow(/OUTPOST_STORAGE_S3_BUCKET/);
       expect(createDbMock).toHaveBeenCalled();
       expect(cloudRuntimeStartupMocks.initialize).toHaveBeenCalledOnce();
-      expect(cloudRuntimeStartupMocks.telemetry).not.toHaveBeenCalled();
       expect(createAppMock).not.toHaveBeenCalled();
       expect(existsSync(path.join(tempHome, "instances"))).toBe(false);
     } finally {
@@ -735,7 +732,7 @@ describe("startServer wiring", () => {
     }
   });
 
-  it("awaits saved Cloud configuration before telemetry, authentication and app construction", async () => {
+  it("awaits saved Cloud configuration before authentication and app construction", async () => {
     vi.stubEnv("OUTPOST_CLOUD_TENANT_SERVER_TOKEN", "startup-test-token");
     vi.stubEnv("HOST", "0.0.0.0");
     vi.stubEnv("OUTPOST_DEPLOYMENT_MODE", undefined);
@@ -743,7 +740,7 @@ describe("startServer wiring", () => {
     let release: (() => void) | undefined;
     cloudRuntimeStartupMocks.initialize.mockImplementationOnce(() => new Promise<null>(resolve => {
       release = () => {
-        loadConfigMock.mockReturnValue(buildTestConfig({ telemetryEnabled: false, authDisableSignUp: true, port: 4321, host: "0.0.0.0", bind: "all" }));
+        loadConfigMock.mockReturnValue(buildTestConfig({ authDisableSignUp: true, port: 4321, host: "0.0.0.0", bind: "all" }));
         resolve(null);
       };
     }));
@@ -752,14 +749,12 @@ describe("startServer wiring", () => {
       for (let index = 0; index < 30 && !release; index += 1) await new Promise<void>(resolve => setImmediate(resolve));
       expect(release).toBeTypeOf("function");
       expect(cloudMigrationMocks.migrate.mock.invocationCallOrder[0]).toBeLessThan(cloudRuntimeStartupMocks.initialize.mock.invocationCallOrder[0]!);
-      expect(cloudRuntimeStartupMocks.telemetry).not.toHaveBeenCalled();
       expect(createBetterAuthInstanceMock).not.toHaveBeenCalled();
       expect(createAppMock).not.toHaveBeenCalled();
       expect(loadConfigMock).not.toHaveBeenCalled();
       release!();
       const started = await starting;
       await settleStartupHousekeeping();
-      expect(cloudRuntimeStartupMocks.telemetry).toHaveBeenCalledExactlyOnceWith({ enabled: false });
       expect(createBetterAuthInstanceMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ authDisableSignUp: true, port: 4321 }), expect.anything());
       expect(started.listenPort).toBe(4321);
       expect(cloudMigrationMocks.qualify.mock.invocationCallOrder[0]).toBeLessThan(createAppMock.mock.invocationCallOrder[0]!);
@@ -769,12 +764,11 @@ describe("startServer wiring", () => {
     }
   });
 
-  it("does not create telemetry or the app when saved Cloud configuration fails", async () => {
+  it("does not create the app when saved Cloud configuration fails", async () => {
     vi.stubEnv("OUTPOST_CLOUD_TENANT_SERVER_TOKEN", "startup-test-token");
     cloudRuntimeStartupMocks.initialize.mockRejectedValueOnce(new Error("persisted config unavailable"));
     try {
       await expect(startServer()).rejects.toThrow("persisted config unavailable");
-      expect(cloudRuntimeStartupMocks.telemetry).not.toHaveBeenCalled();
       expect(createBetterAuthInstanceMock).not.toHaveBeenCalled();
       expect(createAppMock).not.toHaveBeenCalled();
     } finally {
@@ -788,7 +782,6 @@ describe("startServer wiring", () => {
     try {
       await expect(startServer()).rejects.toThrow("migration did not commit");
       expect(cloudRuntimeStartupMocks.initialize).not.toHaveBeenCalled();
-      expect(cloudRuntimeStartupMocks.telemetry).not.toHaveBeenCalled();
       expect(createAppMock).not.toHaveBeenCalled();
     } finally { vi.unstubAllEnvs(); }
   });

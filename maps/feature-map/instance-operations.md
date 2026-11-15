@@ -124,7 +124,7 @@ checks do not establish authenticated task execution.
 
 - A successful backup write does not prove restoration works.
 - Settings visibility and mutability differ for cloud-managed and self-hosted instances.
-- Keep the three data paths distinct: first-party Telemetry, operator-configured OpenTelemetry, and local run logs.
+- Keep operator-configured OpenTelemetry distinct from local run logs.
 
 ### Storybook verification
 

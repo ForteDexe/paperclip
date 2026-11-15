@@ -110,7 +110,6 @@ import {
   readOutpostSkillSyncPreference,
   writeOutpostSkillSyncPreference,
 } from "@outpost/adapter-utils/server-utils";
-import { trackAgentCreated } from "@outpost/shared/telemetry";
 import { validate } from "../middleware/validate.js";
 import { registerAgentProjectAccessRoutes } from "./agent-project-access.js";
 import { inheritNativeRunnerAdapterConfig } from "../services/native-runtime/native-agent-runtime-inheritance.js";
@@ -274,7 +273,6 @@ import {
   resolveDefaultAgentInstructionsBundleRole,
 } from "../services/default-agent-instructions.js";
 import { buildOnboardingFirstAgentInstructionsBundle } from "../services/onboarding-first-task-assets.js";
-import { getTelemetryClient } from "../telemetry.js";
 import { assertEnvironmentSelectionForSpace } from "./environment-selection.js";
 import { recoveryService } from "../services/recovery/service.js";
 import { resolveCoreTrustPreset } from "../services/trust-preset-resolver.js";
@@ -4638,11 +4636,6 @@ export function agentRoutes(
           ...(managedCreateConnection?.memberConnectionIds ? { aiConnectionPoolId: managedCreateConnection.connectionId, aiConnectionMemberInstallIds: managedCreateConnection.memberConnectionIds } : {}),
         },
       });
-      const telemetryClient = getTelemetryClient();
-      if (telemetryClient) {
-        trackAgentCreated(telemetryClient, { agentRole: agent.role, agentId: agent.id });
-      }
-
       await applyDefaultAgentTaskAssignGrant(
         spaceId,
         agent.id,
@@ -4861,11 +4854,6 @@ export function agentRoutes(
         ...(managedConnection?.memberConnectionIds ? { aiConnectionPoolId: managedConnection.connectionId, aiConnectionMemberInstallIds: managedConnection.memberConnectionIds } : {}),
       },
     });
-    const telemetryClient = getTelemetryClient();
-    if (telemetryClient) {
-      trackAgentCreated(telemetryClient, { agentRole: agent.role, agentId: agent.id });
-    }
-
     await applyDefaultAgentTaskAssignGrant(
       spaceId,
       agent.id,

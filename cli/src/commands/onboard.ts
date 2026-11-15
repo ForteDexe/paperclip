@@ -48,11 +48,6 @@ import {
 import { bootstrapDefaultAgentInvite } from "./auth-bootstrap-default-agent.js";
 import { printOutpostCliBanner } from "../utils/banner.js";
 import {
-  getTelemetryClient,
-  trackInstallStarted,
-  trackInstallCompleted,
-} from "../telemetry.js";
-import {
   handleOnboardService,
   handoffToOnboardedService,
   shouldOfferForegroundStart,
@@ -549,9 +544,6 @@ export async function onboard(opts: OnboardOptions): Promise<void> {
     setupMode = setupModeChoice as SetupMode;
   }
 
-  const tc = getTelemetryClient();
-  if (tc) trackInstallStarted(tc);
-
   let llm: OutpostConfig["llm"] | undefined;
   const { defaults: derivedDefaults, usedEnvKeys, ignoredEnvKeys } = quickstartDefaultsFromEnv({
     preferTrustedLocal: opts.yes === true && !opts.bind,
@@ -709,9 +701,6 @@ export async function onboard(opts: OnboardOptions): Promise<void> {
     logging,
     server,
     auth,
-    telemetry: {
-      enabled: false,
-    },
     storage,
     secrets,
   };
@@ -725,10 +714,6 @@ export async function onboard(opts: OnboardOptions): Promise<void> {
 
   writeConfig(config, opts.config, {
     invalidBackupPath,
-  });
-
-  if (tc) trackInstallCompleted(tc, {
-    adapterType: server.deploymentMode,
   });
 
   p.note(

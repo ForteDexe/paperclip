@@ -7,7 +7,7 @@ const finite = value => typeof value === 'number' && Number.isFinite(value) && v
 const stamp = value => typeof value === 'string' && Number.isFinite(Date.parse(value));
 const layers = ['workerQuiet', 'eligibility', 'databaseSuspension', 'hostSuspension', 'backupPersistence', 'inboundWake', 'timedWake', 'returnToIdle'];
 const result = (verdict, reason) => ({ verdict, reason });
-const signalKeys = ['telemetryRequests', 'traceRequests', 'exportedSpans', 'qualificationSpans', 'metricRequests', 'logRequests', 'malformedTraceRequests', 'unexpectedRequests'];
+const signalKeys = ['traceRequests', 'exportedSpans', 'qualificationSpans', 'metricRequests', 'logRequests', 'malformedTraceRequests', 'unexpectedRequests'];
 const knownSignalCounts = signal => signal && signalKeys.every(key => Number.isSafeInteger(signal[key]) && signal[key] >= 0);
 
 /** Preserve actual cumulative app-server snapshots; IPC reads create no HTTP traffic. */
@@ -32,7 +32,6 @@ export function observeConfiguredSignals(requests) {
   for (const request of requests) {
     if (typeof request?.path !== 'string' || !request.path.startsWith('/') || request.path.startsWith('//')) { observed.unexpectedRequests++; continue; }
     const pathname = new URL(request.path, 'http://owned-collector').pathname;
-    if (pathname === '/telemetry') { observed.telemetryRequests++; continue; }
     if (pathname === '/v1/metrics') { observed.metricRequests++; continue; }
     if (pathname === '/v1/logs') { observed.logRequests++; continue; }
     if (pathname !== '/v1/traces') { observed.unexpectedRequests++; continue; }
@@ -59,8 +58,7 @@ export function observeConfiguredSignals(requests) {
 /** Coverage booleans come from recorded activity; the evaluator also checks their provenance. */
 export function configuredSleepFeatures({ signalObservation, backupCheckpoint }) {
   const known = knownSignalCounts(signalObservation);
-  return { telemetry: Boolean(known && signalObservation.telemetryRequests > 0),
-    automaticBackups: backupCheckpoint?.owner === 'normal-idle-checkpoint' && backupCheckpoint.wakeMarkerObserved === true
+  return { automaticBackups: backupCheckpoint?.owner === 'normal-idle-checkpoint' && backupCheckpoint.wakeMarkerObserved === true
       && backupCheckpoint.failureObserved === false && Array.isArray(backupCheckpoint.archives) && backupCheckpoint.archives.length > 0,
     otel: Boolean(known && signalObservation.traceRequests > 0 && signalObservation.exportedSpans > 0
       && signalObservation.qualificationSpans > 0 && signalObservation.qualificationSpans <= signalObservation.exportedSpans
@@ -80,7 +78,7 @@ const validBackupCheckpoint = (backup, inRun, quietFinishedAt) => backup?.owner 
 /** Canonical logical configuration: ephemeral collector addresses are bound separately. */
 export function logicalSleepConfiguration(configuration) {
   if (!configuration || typeof configuration.serveUi !== 'boolean'
-    || typeof configuration.telemetryOrigin !== 'string' || typeof configuration.otelOrigin !== 'string'
+    || typeof configuration.otelOrigin !== 'string'
     || (configuration.managedInstance !== undefined && typeof configuration.managedInstance !== 'boolean')
     || (configuration.deploymentMode !== undefined && !['authenticated', 'local_trusted'].includes(configuration.deploymentMode))
     || (configuration.storageProvider !== undefined && !['s3', 'local_disk'].includes(configuration.storageProvider))
@@ -90,7 +88,7 @@ export function logicalSleepConfiguration(configuration) {
   }
   return { automaticBackups: { intervalMinutes: configuration.automaticBackups.intervalMinutes,
     idleCheckpoint: configuration.automaticBackups.idleCheckpoint },
-    telemetry: Boolean(configuration.telemetryOrigin), otel: { enabled: Boolean(configuration.otelOrigin), protocol: 'http/json' }, serveUi: configuration.serveUi, managedInstance: configuration.managedInstance ?? false,
+    otel: { enabled: Boolean(configuration.otelOrigin), protocol: 'http/json' }, serveUi: configuration.serveUi, managedInstance: configuration.managedInstance ?? false,
     deploymentMode: configuration.deploymentMode ?? 'local_trusted', storageProvider: configuration.storageProvider ?? 'local_disk' };
 }
 export const sleepConfigurationDigest = configuration => createHash('sha256').update(JSON.stringify(logicalSleepConfiguration(configuration))).digest('hex');
@@ -117,8 +115,8 @@ export function evaluateSleepQualification(receipt, expected) {
   }
   if (sleepConfigurationDigest(receipt.configuration) !== expected.configDigest) throw new Error('sleep_qualification_configuration_digest_invalid');
   const origins = receipt.collectorOrigins;
-  if (!origins || origins.telemetry !== receipt.configuration.telemetryOrigin || origins.otel !== receipt.configuration.otelOrigin
-    || (expected.collectorOrigins && (origins.telemetry !== expected.collectorOrigins.telemetry || origins.otel !== expected.collectorOrigins.otel))) {
+  if (!origins || origins.otel !== receipt.configuration.otelOrigin
+    || (expected.collectorOrigins && origins.otel !== expected.collectorOrigins.otel)) {
     throw new Error('sleep_qualification_collector_origins_invalid');
   }
   const output = Object.fromEntries(layers.map(layer => [layer, result('INCONCLUSIVE', 'No evidence for this layer')]));
@@ -132,9 +130,8 @@ export function evaluateSleepQualification(receipt, expected) {
       && finite(quiet.connectionsRemaining) && finite(quiet.nonDatabaseRequests) && finite(quiet.nonDatabaseBytes)
       && observedNoIncomingHttp(quiet.observerRequests, quiet)
       && inRun(quiet.observerRequests.before.observedAt) && inRun(quiet.observerRequests.after.observedAt)
-      && observedFeatures.telemetry && observedFeatures.otel
+      && observedFeatures.otel
       && Object.entries(observedFeatures).every(([key, value]) => receipt.features?.[key] === value)
-      && receipt.features?.telemetry === true
       && receipt.features?.automaticBackups === true && validBackupCheckpoint(receipt.backupCheckpoint, inRun, quiet.finishedAt)
       && receipt.features?.otel === true && receipt.features?.exportedSpans > 0;
     const idle = valid && quiet.sqlQueries === 0 && quiet.connectionsOpened === 0 && quiet.connectionsRemaining === 0

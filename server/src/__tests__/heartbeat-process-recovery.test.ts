@@ -148,11 +148,6 @@ import {
   commitNativeStatusDecision,
   NativeStatusRaceError,
 } from "../services/native-runtime/status-decision-committer.js";
-const mockTelemetryClient = vi.hoisted(() => ({
-  track: vi.fn(),
-  hashPrivateRef: vi.fn(() => "test-private-reference"),
-}));
-const mockTrackAgentFirstHeartbeat = vi.hoisted(() => vi.fn());
 const mockTerminateLocalService = vi.hoisted(() => vi.fn());
 const mockDetachNativeSessionsForRestart = vi.hoisted(() => vi.fn());
 const mockCloseIdleWarmNativeSessionsForRestart = vi.hoisted(() => vi.fn());
@@ -177,10 +172,6 @@ const mockAdapterExecute = vi.hoisted(() =>
     model: "test-model",
   })),
 );
-
-vi.mock("../telemetry.ts", () => ({
-  getTelemetryClient: () => mockTelemetryClient,
-}));
 
 const mockCaptureRunFailure = vi.hoisted(() => vi.fn());
 vi.mock("../sentry.ts", async () => {
@@ -220,16 +211,6 @@ vi.mock("../services/local-service-supervisor.js", async () => {
   return {
     ...actual,
     terminateLocalService: mockTerminateLocalService,
-  };
-});
-
-vi.mock("@outpost/shared/telemetry", async () => {
-  const actual = await vi.importActual<
-    typeof import("@outpost/shared/telemetry")
-  >("@outpost/shared/telemetry");
-  return {
-    ...actual,
-    trackAgentFirstHeartbeat: mockTrackAgentFirstHeartbeat,
   };
 });
 
@@ -9508,47 +9489,6 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     const run = await heartbeat.getRun(runId);
     expect(run?.errorCode).toBeNull();
     expect(run?.error).toBeNull();
-  });
-
-  it("tracks the first heartbeat with the agent role instead of adapter type", async () => {
-    const { agentId, runId } = await seedRunFixture({
-      agentStatus: "running",
-      includeIssue: false,
-    });
-    const heartbeat = heartbeatService(db);
-
-    await heartbeat.cancelRun(runId);
-
-    expect(mockTrackAgentFirstHeartbeat).toHaveBeenCalledWith(
-      mockTelemetryClient,
-      expect.objectContaining({
-        agentRole: "engineer",
-        agentId,
-      }),
-    );
-  });
-
-  it("preserves first-heartbeat telemetry after a timer interval claim", async () => {
-    const { agentId, runId } = await seedRunFixture({
-      agentStatus: "running",
-      includeIssue: false,
-      contextSnapshot: { timerClaimWasFirstHeartbeat: true },
-    });
-    await db
-      .update(agents)
-      .set({ lastHeartbeatAt: new Date("2026-03-19T00:00:00.000Z") })
-      .where(eq(agents.id, agentId));
-    const heartbeat = heartbeatService(db);
-
-    await heartbeat.cancelRun(runId);
-
-    expect(mockTrackAgentFirstHeartbeat).toHaveBeenCalledWith(
-      mockTelemetryClient,
-      expect.objectContaining({
-        agentRole: "engineer",
-        agentId,
-      }),
-    );
   });
 
   it.each(([

@@ -9,7 +9,6 @@ import { normalizeOAuthProviderError, oauthProviderErrorMessage } from "./provid
 import { oauthConfig, normalizeOauthScopes, resolveGrantedOauthScopes } from "./metadata.js";
 import { connectionMethodForConnection } from "../connection-methods.js";
 import { googleWorkspaceEffectiveScopes, isGoogleWorkspaceScopeGrant } from "@outpost/shared";
-import { emitConnectionUpdated } from "../../connector-telemetry.js";
 import { and, eq, ne } from "drizzle-orm";
 import type { Db } from "@outpost/db";
 import { connectionGrants, spaceMemberships, principalPermissionGrants, issueThreadInteractions, toolApplications, toolConnections } from "@outpost/db";
@@ -412,11 +411,6 @@ export function createDirectOAuthCallback(db: Db, dependencies: Dependencies) {
           tx,
         );
       });
-      emitConnectionUpdated(
-        connection,
-        preCallbackLifecycle,
-        "oauth_callback",
-      );
 
       // Personal OAuth used to return immediately after saving the grant. That
       // left the connection draft/paused and its catalog empty, so the person
@@ -659,11 +653,6 @@ export function createDirectOAuthCallback(db: Db, dependencies: Dependencies) {
       });
       await syncCredentialBindings(connection, [], tx);
     });
-    emitConnectionUpdated(
-      connection,
-      preCallbackLifecycle,
-      "oauth_callback",
-    );
 
     await checkConnectionHealth(connection.id, input.actor);
     const refresh = await refreshCatalog(connection.id, input.actor, {

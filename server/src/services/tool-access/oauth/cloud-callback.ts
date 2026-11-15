@@ -9,7 +9,6 @@ import { oauthConfig, normalizeOauthScopes } from "./metadata.js";
 import { connectionMethodForConnection } from "../connection-methods.js";
 import { loadGitHubGrantMetadata } from "../github-access-discovery.js";
 import { googleWorkspaceEffectiveScopes, isGoogleWorkspaceScopeGrant } from "@outpost/shared";
-import { emitConnectionUpdated } from "../../connector-telemetry.js";
 import { and, eq, gte, ne } from "drizzle-orm";
 import type { Db } from "@outpost/db";
 import { connectionGrants, spaceMemberships, principalPermissionGrants, issueThreadInteractions, toolApplications, toolConnections, toolOauthStates } from "@outpost/db";
@@ -447,7 +446,6 @@ export function createCloudOAuthCallback(db: Db, dependencies: Dependencies) {
     // The transaction above committed the connection's lifecycle write; a
     // Outpost Cloud connector callback is the managed variant of an OAuth
     // callback completion.
-    emitConnectionUpdated(connection, preCloudCallbackLifecycle, "oauth_callback");
     // Binding registration is saved above before Cloud I/O. The continuity
     // worker drains it after activation, including after a callback/server crash.
     const refresh = await refreshCatalog(connection.id, input.actor, {
