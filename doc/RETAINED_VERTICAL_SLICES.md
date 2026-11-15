@@ -284,6 +284,13 @@ controls used by the retained New Agent flow remain. CLI/server bootstrap and
 the historical first-task runtime are separate follow-up slices. The old seed
 database migration remains only as immutable migration history.
 
+### Upstream GitHub Star Prompt
+
+Outpost no longer interrupts local users after a task-count threshold to ask
+them to star the upstream Paperclip repository. The prompt, its task-count
+query, browser-local seen marker, and focused tests are removed. Normal GitHub
+task and source-control integrations are unchanged.
+
 ## Scope guard
 
 `scripts/check-retained-product-scope.mjs` verifies that the required Codex,

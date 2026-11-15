@@ -247,8 +247,6 @@ export const queryKeys = {
     list: (spaceId: string) => ["issues", spaceId] as const,
     onboardingFirstTask: (spaceId: string) =>
       ["issues", spaceId, "onboarding-first-task"] as const,
-    starPromptDone: (spaceId: string) =>
-      ["issues", spaceId, "star-prompt-done"] as const,
     mentionPool: (spaceId: string) =>
       ["issues", spaceId, "mention-pool"] as const,
     search: (

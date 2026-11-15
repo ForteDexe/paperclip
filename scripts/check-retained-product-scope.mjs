@@ -104,6 +104,7 @@ const retiredInfrastructure = [
   "server/src/services/onboarding-seed.ts",
   "packages/shared/src/validators/onboarding-seed.ts",
   "packages/db/src/schema/space_onboarding_seeds.ts",
+  "ui/src/components/GitHubStarPrompt.tsx",
 ];
 
 const retiredCatalogScenarioIds = [
