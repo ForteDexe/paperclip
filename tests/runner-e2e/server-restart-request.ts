@@ -1,10 +1,6 @@
 import { isRollingWebDeployment } from "./controller-rolling-deployment.js";
 import { readFile } from "node:fs/promises";
 import { runnerMatrix } from "./catalog.js";
-import { parseAcpxCandidateAdmission, type AcpxCandidateAdmission } from "../../packages/outpost-runner/src/drivers/acpx/candidate-admission.js";
-import { QUALIFIED_ACPX_PROFILES } from "../../packages/outpost-runner/src/drivers/acpx/qualified-profiles.js";
-import { KIMI_DISTRIBUTION_CLOSURE_SHA256 } from "../../packages/outpost-runner/src/drivers/acpx/kimi-closure-pins.js";
-import type { MatrixExecution } from "./types.js";
 import { controllerOutageForExecution, parseControllerOutage, type ControllerOutage } from "./controller-outage.js";
 import { parseRecoveryBinding, type RecoveryBinding } from "./controller-recovery-observer.js";
 import { parseFinalizationCrashBinding, type FinalizationCrashBinding } from "./finalization-crash-boundary.js";
@@ -12,7 +8,6 @@ import { parseRestartRunnerIdentity, type RestartRunnerIdentity } from "./proces
 
 export interface RestartRequest {
   requestId: string;
-  kimiCandidateAdmission?: AcpxCandidateAdmission;
   controllerDowntimeMs?: number;
   preserveRunner?: RestartRunnerIdentity;
   discardControllerCache?: boolean;
@@ -20,36 +15,6 @@ export interface RestartRequest {
   controllerOutage?: ControllerOutage;
   rollingDeployment?: true;
   recoveryBinding?: RecoveryBinding;
-}
-
-export function kimiCandidateAdmissionForExecution(execution: MatrixExecution, spaceId: string, now = Date.now()): AcpxCandidateAdmission | undefined {
-  if (execution.suite.id !== "kimi-qualification" || execution.profile.qualificationCandidate !== "kimi"
-    || QUALIFIED_ACPX_PROFILES.kimi.qualificationStatus !== "pending") return undefined;
-  if (!execution.suite.manualOnly || execution.profile.id !== "runner-acpx-kimi" || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(spaceId)) {
-    throw new Error("Kimi qualification requires an exact disposable space and manual profile");
-  }
-  const target = execution.environment.expectedExecutionTarget.kind === "remote" ? "linux-x64" : `${process.platform}-${process.arch}`;
-  if (target !== "darwin-arm64" && target !== "linux-x64") throw new Error("Kimi fixture host is unsupported");
-  const [platform, architecture] = target.split("-");
-  return parseAcpxCandidateAdmission({ schema: "outpost.acpx-candidate-admission.v1", spaceId, agent: "kimi",
-    model: execution.profile.model, profileDigest: QUALIFIED_ACPX_PROFILES.kimi.commandDigest,
-    nativeClosureDigest: `sha256:${KIMI_DISTRIBUTION_CLOSURE_SHA256[target]}`, platform, architecture,
-    expiresAt: now + 60 * 60 * 1000 }, { spaceId, agent: "kimi", model: execution.profile.model }, now);
-}
-
-function selectedKimiCandidateAdmission(value: unknown, executionIds: readonly string[]): AcpxCandidateAdmission {
-  const executions = executionIds.map(id => runnerMatrix.find(row => row.id === id));
-  if (!executions.length || executions.some(row => !row || row.suite.id !== "kimi-qualification"
-    || !row.suite.manualOnly || row.profile.id !== "runner-acpx-kimi" || row.profile.qualificationCandidate !== "kimi")) {
-    throw new Error("Kimi authority staging requires an explicit Kimi qualification selection");
-  }
-  const record = value as Partial<AcpxCandidateAdmission> | null;
-  if (!record || typeof record.spaceId !== "string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(record.spaceId)) throw new Error("Invalid Kimi fixture space");
-  const admission = parseAcpxCandidateAdmission(value, { spaceId: record.spaceId, agent: "kimi", model: executions[0]!.profile.model });
-  if (!executions.some(row => row!.environment.expectedExecutionTarget.kind === "remote"
-    ? admission.platform === "linux" && admission.architecture === "x64"
-    : admission.platform === process.platform && admission.architecture === process.arch)) throw new Error("Kimi fixture target does not match the selected execution");
-  return admission;
 }
 
 export async function readRestartRequest(restartRequestPath: string, executionIds: readonly string[]): Promise<RestartRequest | null> {
@@ -74,14 +39,6 @@ export async function readRestartRequest(restartRequestPath: string, executionId
     !/^[A-Za-z0-9._:-]{1,200}$/.test(requestId)
   ) {
     return null;
-  }
-  const kimiAuthority = (value as { kimiCandidateAdmission?: unknown }).kimiCandidateAdmission;
-  const kimiCandidateAdmission = kimiAuthority === undefined ? undefined : selectedKimiCandidateAdmission(kimiAuthority, executionIds);
-  if (kimiCandidateAdmission && Object.keys(value).some(key => !["requestId", "kimiCandidateAdmission", "discardControllerCache"].includes(key))) {
-    throw new Error("Kimi startup authority staging cannot combine another restart operation");
-  }
-  if (kimiCandidateAdmission && (value as { discardControllerCache?: unknown }).discardControllerCache === true) {
-    throw new Error("Kimi startup authority staging cannot replace controller state");
   }
   const preserveRunner = (value as { preserveRunner?: unknown }).preserveRunner;
   const controllerDowntimeMs = (value as { controllerDowntimeMs?: unknown }).controllerDowntimeMs;
@@ -111,7 +68,7 @@ export async function readRestartRequest(restartRequestPath: string, executionId
   if (crashAfterResult !== undefined && (preserveRunner !== undefined || discardControllerCache)) {
     throw new Error("A finalization crash cannot preserve a running provider or discard its controller cache");
   }
-  return { requestId, discardControllerCache, ...(rollingDeployment ? { rollingDeployment: true as const } : {}), ...(kimiCandidateAdmission ? { kimiCandidateAdmission } : {}), ...(controllerDowntimeMs === undefined ? {} : { controllerDowntimeMs: Number(controllerDowntimeMs) }),
+  return { requestId, discardControllerCache, ...(rollingDeployment ? { rollingDeployment: true as const } : {}), ...(controllerDowntimeMs === undefined ? {} : { controllerDowntimeMs: Number(controllerDowntimeMs) }),
     ...(recoveryBinding === undefined ? {} : { recoveryBinding: parseRecoveryBinding(recoveryBinding) }),
     ...(controllerOutage === undefined ? {} : { controllerOutage: parseControllerOutage(controllerOutage) }),
     ...(preserveRunner === undefined ? {} : { preserveRunner: parseRestartRunnerIdentity(preserveRunner) }),

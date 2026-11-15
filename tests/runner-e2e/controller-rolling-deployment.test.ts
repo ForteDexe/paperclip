@@ -4,7 +4,7 @@ import { rollController, validControllerRollingDeploymentReceipt } from "./contr
 import { validControllerReplacementReceipt } from "./controller-replacement.js";
 import { controllerOutageForExecution, validControllerOutageReceipt } from "./controller-outage.js";
 import { parseRunnerSelectors, selectRunnerExecutions } from "./selectors.js";
-import { runnerProfiles, extendedHarnessProfiles, kimiRunnerProfile, runnerSuites } from "./catalog.js";
+import { runnerProfiles, extendedHarnessProfiles, runnerSuites } from "./catalog.js";
 
 function fixture() {
   const order: string[] = [];
@@ -60,7 +60,7 @@ describe("rolling controller qualification", () => {
   it("covers every qualified native profile per turn and each supported warm profile", () => {
     const executions = ["rolling-web-deployment", "rolling-web-deployment-warm"]
       .flatMap(suite => selectRunnerExecutions(parseRunnerSelectors(["--suite", suite])));
-    const native = [...runnerProfiles, ...extendedHarnessProfiles, kimiRunnerProfile]
+    const native = [...runnerProfiles, ...extendedHarnessProfiles]
       .filter(profile => profile.generation === "native" && profile.supportedEnvironments.includes("daytona")
         && (!profile.qualificationCandidate || QUALIFIED_ACPX_PROFILES[profile.qualificationCandidate].qualificationStatus !== "pending"));
     const kind = (profile: (typeof native)[number]) => {
@@ -69,8 +69,10 @@ describe("rolling controller qualification", () => {
         : provider === "acpx" && profile.provider !== "acpx" ? profile.provider : "";
       return `${provider}:${harness}`;
     };
+    const nativeIds = new Set(native.map(profile => profile.id));
     const registeredKinds = new Set(runnerSuites.flatMap(suite => suite.profiles)
       .filter(profile => profile.generation === "native" && profile.supportedEnvironments.includes("daytona")
+        && nativeIds.has(profile.id)
         && (!profile.qualificationCandidate || QUALIFIED_ACPX_PROFILES[profile.qualificationCandidate].qualificationStatus !== "pending"))
       .map(kind));
     expect(new Set(native.map(kind))).toEqual(registeredKinds);

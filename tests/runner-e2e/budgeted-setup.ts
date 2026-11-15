@@ -2,7 +2,6 @@ import type { RunnerEnvironmentId } from "./types.js";
 import type { Agent } from "../../packages/shared/src/types/agent.js";
 import { pollUntil, type RunnerApi } from "./api.js";
 import { beginEvalAgentPhase } from "./attempt-phase.js";
-import { runnerE2EPlaywrightCaseTimeoutMs } from "./web-server-command.js";
 
 type SetupState = Pick<Agent, "id" | "spaceId" | "status" | "lifecycleState" | "lifecycleError"> & { lifecycleHolds?: string[] };
 export type EvalSetupObservation = SetupState & { observedAt: string };
@@ -48,18 +47,4 @@ export async function waitForEvalAgentReady(input: Omit<EvalAgentSetupInput, "ex
 export async function finishBudgetedEvalSetup(input: EvalAgentSetupInput, env: NodeJS.ProcessEnv = process.env) {
   if (env.OUTPOST_E2E_GATEWAY_BASE_URL) await waitForEvalAgentReady(input);
   await beginEvalAgentPhase(input.executionId, env);
-}
-
-export function createKimiLifecycleTiming(input: { startedAt: number; deadlineMs: number }) {
-  const setupDeadlineAt = input.startedAt + input.deadlineMs;
-  let workStarted = false;
-  return { setupDeadlineAt, playwrightTimeoutMs: runnerE2EPlaywrightCaseTimeoutMs("kimi_native_lifecycle", input.deadlineMs),
-    cleanupDeadlineAt: input.startedAt + 2 * input.deadlineMs + 60_000,
-    beginWork(readyAt: number) {
-      if (workStarted) throw new Error("Kimi lifecycle work window already started");
-      if (readyAt < input.startedAt || readyAt >= setupDeadlineAt) throw new Error("Kimi lifecycle setup deadline expired");
-      workStarted = true;
-      return readyAt + input.deadlineMs;
-    },
-  };
 }

@@ -174,9 +174,7 @@ export function buildRunnerE2EProcessEnvironment(
   for (const execution of executions) {
     const agent = execution.profile.qualificationCandidate;
     if (!agent) continue;
-    const admittedSuite = agent === "kimi"
-      ? execution.suite.id === "kimi-qualification" && execution.profile.id === "runner-acpx-kimi"
-      : execution.suite.id === "extended-harnesses"
+    const admittedSuite = execution.suite.id === "extended-harnesses"
       || execution.suite.id === "rich-acp-warm-continuity"
       || (execution.suite.id === "pi-native" && agent === "pi")
       || (execution.suite.id === "pi-controls" && agent === "pi")
@@ -189,7 +187,6 @@ export function buildRunnerE2EProcessEnvironment(
     if (QUALIFIED_ACPX_PROFILES[agent].qualificationStatus !== "pending") {
       continue;
     }
-    if (agent === "kimi") continue;
     const prior = candidates.get(agent);
     if (prior !== undefined && prior !== execution.profile.model) throw new Error("Conflicting candidate models");
     candidates.set(agent, execution.profile.model);

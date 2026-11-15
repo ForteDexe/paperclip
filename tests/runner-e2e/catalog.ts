@@ -14,7 +14,6 @@ import { repositoryProofTasks, repositoryProofProfile, repositoryProofDigest } f
 import { automaticRepositoryTask, automaticRepositoryDigest } from "./automatic-repository.js";
 import { nativeActiveStopTasks } from "./native-active-stop-tasks.js";
 import { CURSOR_CLOUD_SUITE, cursorCloudArtifactTask, cursorCloudStopTask, CURSOR_CLOUD_QUIET_WINDOW_MS, cursorCloudDefinitionDigest } from "./cursor-cloud-cases.js";
-import { kimiLifecycleTasks } from "./kimi-lifecycle-tasks.js";
 import { piControlTasks } from "./pi-controls-cases.js";
 import { cursorNativeTasks } from "./cursor-native-cases.js";
 import { copilotProtectionTasks } from "./copilot-protection-tasks.js";
@@ -157,7 +156,7 @@ function commonAgent(
 function legacyProfile(input: {
   id: string;
   label: string;
-  adapterType: "codex_local" | "claude_local" | "opencode_local" | "kimi_local" | "grok_local";
+  adapterType: "codex_local" | "claude_local" | "opencode_local";
   provider: string;
   model: string;
   credential: RunnerProfileFixture["credential"];
@@ -206,7 +205,7 @@ function nativeProfile(input: {
   provider: "codex" | "opencode" | "acpx";
   model: string;
   credential: RunnerProfileFixture["credential"];
-  acpxAgent?: "claude" | "codex" | "grok" | "cursor" | "copilot" | "pi" | "kimi";
+  acpxAgent?: "claude" | "codex" | "cursor" | "copilot" | "pi";
   qualificationCandidate?: RunnerProfileFixture["qualificationCandidate"];
   supportedEnvironments?: readonly (typeof ENVIRONMENT_IDS)[number][];
   modelQualification?: RunnerProfileFixture["modelQualification"];
@@ -1215,20 +1214,13 @@ const remoteWorkspaceStorageSuite: RunnerSuiteFixture = {
       source: "projectless-synthetic-files-and-model-created-git", authentication: "api-key", stagingQualification: false },
   };
 
-export const kimiRunnerProfile = nativeProfile({
-  id: "runner-acpx-kimi", label: "Runner Kimi Code",
-  provider: "acpx", acpxAgent: "kimi", qualificationCandidate: "kimi",
-  credential: "KIMI_API_KEY", model: "kimi-for-coding",
-  modelQualification: { source: "qualified_runner_profile", qualificationId: "kimi:2.3.3:native-qualified-profile17" },
-});
-
 /**
  * ACPX facades admitted only for the reliability long-silent-command case. Like the
  * rolling-deployment matrix, they run as ordinary released profiles: a pending
  * candidate needs its own qualification suite and is rejected here.
  */
 const everydayFacadeProfiles = RELIABILITY_FACADE_PROFILE_IDS
-  .map(id => [...runnerProfiles, ...extendedHarnessProfiles, kimiRunnerProfile].find(profile => profile.id === id)!)
+  .map(id => [...runnerProfiles, ...extendedHarnessProfiles].find(profile => profile.id === id)!)
   .filter(original => !original.qualificationCandidate || QUALIFIED_ACPX_PROFILES[original.qualificationCandidate].qualificationStatus !== "pending")
   .map(original => {
     const { qualificationCandidate: _candidate, ...profile } = productionStoryProfile(original);
@@ -1259,7 +1251,7 @@ function everydayReliabilityExcludedIds(suiteId: string): string[] {
 }
 
 
-const rollingDeploymentProfiles = [...runnerProfiles, ...extendedHarnessProfiles, kimiRunnerProfile]
+const rollingDeploymentProfiles = [...runnerProfiles, ...extendedHarnessProfiles]
   .filter(profile => profile.generation === "native" && profile.supportedEnvironments.includes("daytona")
     && (!profile.qualificationCandidate || QUALIFIED_ACPX_PROFILES[profile.qualificationCandidate].qualificationStatus !== "pending"))
   .map(original => {

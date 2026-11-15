@@ -156,9 +156,9 @@ it("rejects incomplete, cross-scope or unrecovered final proof without treating 
 it("keeps the actual chat provider-count assertion at three and preserves raw admission rows", () => {
   const { final } = admissionFixture();
   const wait = verifyChatAdmissionWaitCoverage(final);
-  expect(() => assertChatFlowRunCount({ suiteId: "kimi-qualification", task: { expectedRunCount: 3 },
+  expect(() => assertChatFlowRunCount({ suiteId: "core-compatibility", task: { expectedRunCount: 3 },
     runs: final.runs.filter(row => row.runtimeMode !== "legacy" || row.status === "cancelled") as any })).toThrow("Declared total provider-run bounds");
-  expect(() => assertChatFlowRunCount({ suiteId: "kimi-qualification", task: { expectedRunCount: 3 },
+  expect(() => assertChatFlowRunCount({ suiteId: "core-compatibility", task: { expectedRunCount: 3 },
     runs: chatProviderRuns(final.runs as any, wait) })).not.toThrow();
   expect(final.runs).toHaveLength(5);
 });

@@ -14,7 +14,7 @@ import { TASK_TITLE_BUDGET_CENTS } from "./task-titles.js";
 import { CHAT_FEATURE_SUITE, CHAT_FEATURE_BUDGET_CENTS } from "./chat-feature-cases.js";
 import { codexSubscriptionAgentConfig, stageCodexSubscriptionFixture } from "./codex-subscription-fixture.js";
 import { caseReceiptTask, CASE_RECEIPT_BUDGET_CENTS, CASE_RECEIPT_RUN_TIMEOUT_MS } from "./case-receipt-cases.js";
-import { pollUntil, RunnerApiHttpError, type RunnerApi } from "./api.js";
+import type { RunnerApi } from "./api.js";
 import { assertCursorCloudQualificationBudgetOptIn, configureCursorCloudQualificationBudget, type CursorCloudQualificationBudget } from "./cursor-cloud-budget.js";
 import type {
   CredentialName,
@@ -144,42 +144,6 @@ export async function installFixtureDaytonaProvider(api: Pick<RunnerApi, "post">
     packageName: installed?.packageRoot ?? path.resolve(import.meta.dirname, "../../packages/plugins/sandbox-providers/daytona"),
     isLocalPath: true,
   }, { timeout: 120_000 });
-}
-
-/** HTTP liveness after a restart does not imply the provider worker is ready. */
-export async function waitForFixtureDaytonaProvider(
-  api: Pick<RunnerApi, "get">,
-  input: { spaceId: string; deadlineAt: number },
-): Promise<void> {
-  const pluginKey = "outpost.daytona-sandbox-provider";
-  const timeout = () => {
-    const remaining = input.deadlineAt - Date.now();
-    if (remaining <= 0) throw new Error("Daytona fixture readiness deadline expired");
-    return Math.min(5_000, remaining);
-  };
-  await pollUntil({
-    label: "Daytona fixture provider readiness",
-    deadlineAt: input.deadlineAt,
-    intervalMs: 250,
-    retryOnError: error => error instanceof RunnerApiHttpError && [404, 502, 503, 504].includes(error.status),
-    load: async () => {
-      const dashboard = await api.get<{ pluginId: string; worker: { status: string } | null }>(
-        `/api/plugins/${pluginKey}/dashboard`, { timeout: timeout() },
-      );
-      const capabilities = await api.get<{ sandboxProviders?: Record<string, {
-        status?: string; source?: string; pluginKey?: string; pluginId?: string; supportsRunExecution?: boolean;
-      }> }>(`/api/spaces/${input.spaceId}/environments/capabilities`, { timeout: timeout() });
-      return { dashboard, provider: capabilities.sandboxProviders?.daytona };
-    },
-    accept: ({ dashboard, provider }) => dashboard.worker?.status === "running"
-      && typeof dashboard.pluginId === "string" && dashboard.pluginId.length > 0
-      && provider?.status === "supported" && provider.source === "plugin"
-      && provider.pluginKey === pluginKey && provider.pluginId === dashboard.pluginId
-      && provider.supportsRunExecution === true,
-    reject: ({ dashboard, provider }) => provider?.status === "supported"
-      && (provider.source !== "plugin" || provider.pluginKey !== pluginKey || provider.pluginId !== dashboard.pluginId)
-      ? "advertised plugin identity does not match the running provider" : undefined,
-  });
 }
 
 export async function setupLiveFixtures(input: {
@@ -465,7 +429,7 @@ export async function setupLiveFixtures(input: {
     || execution.task.flow === "finalization_recovery"
     || execution.task.flow === "followup_stop_resume"
     || execution.task.flow === "warm_three_turn"
-    || (["extended-harnesses", "kimi-qualification"].includes(execution.suite.id) && execution.task.id === "file-edit-validate")) {
+    || (execution.suite.id === "extended-harnesses" && execution.task.id === "file-edit-validate")) {
     registry.register<ProjectRecord>({
       id: "project",
       dependencies: ["space", "environment"],

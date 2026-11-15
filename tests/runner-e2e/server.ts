@@ -55,7 +55,6 @@ const outpostCli = path.join(repositoryRoot, "tests/runner-e2e/server-entry.ts")
 const executionIds: string[] = JSON.parse(process.env.OUTPOST_RUNNER_E2E_EXECUTION_IDS ?? "[]");
 const upgradeArtifacts = await readUpgradeArtifacts(process.env[upgradeArtifactKey]);
 let artifactIndex = 0;
-let kimiCandidateAdmission: RestartRequest["kimiCandidateAdmission"];
 const selectedExecutions = usesInstalledCli(process.env) || upgradeArtifacts ? executionIds.map(id => {
   const execution = runnerMatrix.find(row => row.id === id);
   if (!execution) throw new Error("Unknown installed CLI proof execution");
@@ -230,7 +229,6 @@ async function startServer() {
   const launch = installed ? installedReleaseLaunch(installed.entry) : null;
   // The serving process must report its baked-in revision, never a test-supplied SHA.
   const environment = { ...definedServerEnvironment };
-  if (kimiCandidateAdmission) environment.OUTPOST_ACPX_CANDIDATE_ADMISSION = JSON.stringify(kimiCandidateAdmission);
   if (upgradeArtifacts) {
     delete environment.OUTPOST_BUILD_COMMIT;
     delete environment[upgradeArtifactKey];
@@ -386,7 +384,7 @@ async function writeRestartAck(
   await rename(temporaryAckPath, restartAckPath);
 }
 
-async function restartServer({ requestId, kimiCandidateAdmission: stagedKimiAdmission, preserveRunner, discardControllerCache, crashAfterResult, controllerOutage, recoveryBinding, controllerDowntimeMs = 0 }: RestartRequest) {
+async function restartServer({ requestId, preserveRunner, discardControllerCache, crashAfterResult, controllerOutage, recoveryBinding, controllerDowntimeMs = 0 }: RestartRequest) {
   activeRestartRequestId = requestId;
   appendLog(`\nRestart request ${requestId}: stopping Outpost\n`);
   const previous = child;
@@ -448,7 +446,6 @@ async function restartServer({ requestId, kimiCandidateAdmission: stagedKimiAdmi
     throw new Error("Wrapper shutdown interrupted the Outpost restart");
   }
 
-  if (stagedKimiAdmission) kimiCandidateAdmission = stagedKimiAdmission;
   appendLog(`Restart request ${requestId}: starting Outpost\n`);
   const replacement = await startServer();
   await waitForHealth(replacement);

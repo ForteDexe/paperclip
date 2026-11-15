@@ -2,7 +2,7 @@ import path from "node:path";
 import type { MatrixExecution, RunnerTaskFlow } from "./types.js";
 
 export function runnerE2EPlaywrightCaseTimeoutMs(flow: RunnerTaskFlow, deadlineMs: number) {
-  return (flow === "kimi_native_lifecycle" ? 2 * deadlineMs : deadlineMs) + 90_000;
+  return deadlineMs + 90_000;
 }
 
 export function runnerE2EPlaywrightWatchdogMs(executions: readonly MatrixExecution[]) {
