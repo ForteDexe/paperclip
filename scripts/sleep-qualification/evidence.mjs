@@ -7,11 +7,6 @@ const finite = value => typeof value === 'number' && Number.isFinite(value) && v
 const stamp = value => typeof value === 'string' && Number.isFinite(Date.parse(value));
 const layers = ['workerQuiet', 'eligibility', 'databaseSuspension', 'hostSuspension', 'backupPersistence', 'inboundWake', 'timedWake', 'returnToIdle'];
 const result = (verdict, reason) => ({ verdict, reason });
-const announcementFeed = 'https://pages.outpost.ing/announcements/v1/current.json';
-const observedAnnouncement = announcement => announcement?.intercepted === true
-  && Array.isArray(announcement.requests) && announcement.requests.length > 0
-  && announcement.requests.every(url => url === announcementFeed)
-  && Array.isArray(announcement.unmatched) && announcement.unmatched.length === 0;
 const signalKeys = ['telemetryRequests', 'traceRequests', 'exportedSpans', 'qualificationSpans', 'metricRequests', 'logRequests', 'malformedTraceRequests', 'unexpectedRequests'];
 const knownSignalCounts = signal => signal && signalKeys.every(key => Number.isSafeInteger(signal[key]) && signal[key] >= 0);
 
@@ -62,9 +57,9 @@ export function observeConfiguredSignals(requests) {
 }
 
 /** Coverage booleans come from recorded activity; the evaluator also checks their provenance. */
-export function configuredSleepFeatures({ announcement, signalObservation, backupCheckpoint }) {
+export function configuredSleepFeatures({ signalObservation, backupCheckpoint }) {
   const known = knownSignalCounts(signalObservation);
-  return { telemetry: Boolean(known && signalObservation.telemetryRequests > 0), announcements: Boolean(observedAnnouncement(announcement)),
+  return { telemetry: Boolean(known && signalObservation.telemetryRequests > 0),
     automaticBackups: backupCheckpoint?.owner === 'normal-idle-checkpoint' && backupCheckpoint.wakeMarkerObserved === true
       && backupCheckpoint.failureObserved === false && Array.isArray(backupCheckpoint.archives) && backupCheckpoint.archives.length > 0,
     otel: Boolean(known && signalObservation.traceRequests > 0 && signalObservation.exportedSpans > 0
@@ -84,7 +79,7 @@ const validBackupCheckpoint = (backup, inRun, quietFinishedAt) => backup?.owner 
 
 /** Canonical logical configuration: ephemeral collector addresses are bound separately. */
 export function logicalSleepConfiguration(configuration) {
-  if (!configuration || typeof configuration.announcements !== 'boolean' || typeof configuration.serveUi !== 'boolean'
+  if (!configuration || typeof configuration.serveUi !== 'boolean'
     || typeof configuration.telemetryOrigin !== 'string' || typeof configuration.otelOrigin !== 'string'
     || (configuration.managedInstance !== undefined && typeof configuration.managedInstance !== 'boolean')
     || (configuration.deploymentMode !== undefined && !['authenticated', 'local_trusted'].includes(configuration.deploymentMode))
@@ -94,7 +89,7 @@ export function logicalSleepConfiguration(configuration) {
     throw new Error('sleep_qualification_configuration_invalid');
   }
   return { automaticBackups: { intervalMinutes: configuration.automaticBackups.intervalMinutes,
-    idleCheckpoint: configuration.automaticBackups.idleCheckpoint }, announcements: configuration.announcements,
+    idleCheckpoint: configuration.automaticBackups.idleCheckpoint },
     telemetry: Boolean(configuration.telemetryOrigin), otel: { enabled: Boolean(configuration.otelOrigin), protocol: 'http/json' }, serveUi: configuration.serveUi, managedInstance: configuration.managedInstance ?? false,
     deploymentMode: configuration.deploymentMode ?? 'local_trusted', storageProvider: configuration.storageProvider ?? 'local_disk' };
 }
@@ -137,9 +132,9 @@ export function evaluateSleepQualification(receipt, expected) {
       && finite(quiet.connectionsRemaining) && finite(quiet.nonDatabaseRequests) && finite(quiet.nonDatabaseBytes)
       && observedNoIncomingHttp(quiet.observerRequests, quiet)
       && inRun(quiet.observerRequests.before.observedAt) && inRun(quiet.observerRequests.after.observedAt)
-      && observedFeatures.telemetry && observedFeatures.announcements && observedFeatures.otel
+      && observedFeatures.telemetry && observedFeatures.otel
       && Object.entries(observedFeatures).every(([key, value]) => receipt.features?.[key] === value)
-      && receipt.features?.telemetry === true && receipt.features?.announcements === true
+      && receipt.features?.telemetry === true
       && receipt.features?.automaticBackups === true && validBackupCheckpoint(receipt.backupCheckpoint, inRun, quiet.finishedAt)
       && receipt.features?.otel === true && receipt.features?.exportedSpans > 0;
     const idle = valid && quiet.sqlQueries === 0 && quiet.connectionsOpened === 0 && quiet.connectionsRemaining === 0

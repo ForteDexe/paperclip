@@ -119,8 +119,6 @@ export interface Config extends StorageConfig {
   heartbeatSchedulerIntervalMs: number;
   spaceDeletionEnabled: boolean;
   telemetryEnabled: boolean;
-  announcementsEnabled: boolean;
-  announcementsFeedUrl: string;
 }
 
 let tailscaleAddressForProcess: { address: string | undefined } | undefined;
@@ -430,8 +428,6 @@ export function loadConfig(override?: OutpostConfig | null): Config {
     heartbeatSchedulerIntervalMs: Math.max(10000, Number(process.env.HEARTBEAT_SCHEDULER_INTERVAL_MS) || 30000),
     spaceDeletionEnabled,
     telemetryEnabled: false,
-    announcementsEnabled: false,
-    announcementsFeedUrl: process.env.OUTPOST_ANNOUNCEMENTS_FEED_URL?.trim() || "https://pages.outpost.ing/announcements/v1/current.json",
   };
 }
 

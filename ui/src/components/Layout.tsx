@@ -20,7 +20,6 @@ import { PropertiesPanel } from "./PropertiesPanel";
 import { CommandPalette } from "./CommandPalette";
 import { KeyboardShortcutsCheatsheet } from "./KeyboardShortcutsCheatsheet";
 import { ToastViewport } from "./ToastViewport";
-import { AnnouncementWell } from "./AnnouncementWell";
 import { PluginAppShellOverlays } from "./PluginAppShellOverlays";
 import { MobileBottomNav } from "./MobileBottomNav";
 import { WorktreeBanner } from "./WorktreeBanner";
@@ -636,12 +635,6 @@ export function Layout({ sidebarSections }: { sidebarSections?: ReactNode }) {
                   <Sidebar>{sidebarSections}</Sidebar>
                 )}
               </div>
-              {/* Dock optional announcements in the sidebar column so they never
-                  cover the task thread or composer. While the sidebar is a rail
-                  the card waits until the sidebar is expanded again. */}
-              {sidebarOpen && (replacesPrimarySidebar || !collapsed) ? (
-                <AnnouncementWell health={health} placement="sidebar" />
-              ) : null}
               <SidebarAccountMenu
                 deploymentMode={health?.deploymentMode}
                 forceExpanded={replacesPrimarySidebar}
@@ -750,7 +743,6 @@ export function Layout({ sidebarSections }: { sidebarSections?: ReactNode }) {
       <OperatorDialogs />
       <KeyboardShortcutsCheatsheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
       <ToastViewport />
-      {isMobile ? <AnnouncementWell health={health} placement="floating" /> : null}
       <PluginAppShellOverlays localTrusted={health?.deploymentMode === "local_trusted"} />
       </div>
     </ChatSetupSidebarProvider>

@@ -92,7 +92,7 @@ export async function startConnectionTarget(config: ConnectionConfig, executions
       OUTPOST_HOME: home, OUTPOST_INSTANCE_ID: instance, OUTPOST_CONFIG: path.join(home, "instances", instance, "config.json"),
       OUTPOST_RUNNER_E2E_TEMP_ROOT: root, OUTPOST_RUNNER_E2E_PORT: String(port), OUTPOST_RUNNER_E2E_SERVER_LOG: path.join(root, "server.log"),
       OUTPOST_RUNNER_BINARY: resolveOutpostRunnerBinaryForHarness(executions, repositoryRoot),
-      OUTPOST_VITE_CACHE_DIR: path.join(root, "vite-cache"), OUTPOST_ANNOUNCEMENTS_ENABLED: "false",
+      OUTPOST_VITE_CACHE_DIR: path.join(root, "vite-cache"),
       OUTPOST_AGENT_JWT_SECRET: randomBytes(48).toString("hex"), OUTPOST_DECISION_SIGNING_SECRET: randomBytes(48).toString("hex"),
       OUTPOST_TOOL_ACTION_SIGNING_SECRET: randomBytes(48).toString("hex"), BETTER_AUTH_SECRET: randomBytes(48).toString("hex"),
     });

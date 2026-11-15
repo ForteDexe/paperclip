@@ -147,7 +147,7 @@ These are separate qualification inputs. The local reason report does not preten
 
 | Traffic owner | Current source behavior | Trigger / quiet condition and required evidence |
 | --- | --- | --- |
-| [Announcements](../../server/src/services/announcement-feed.ts), [UI hook](../../ui/src/hooks/useAnnouncement.ts) | Feed refresh on demand with cache/failure cooldown; UI visibility/online events, no periodic server feed scan. | Accepted request uses normal HTTP tracking. Hidden tab suspends hook fetch; visible return requests content. Confirm actual browser/probe traffic during acceptance. |
+| Upstream product announcements (retired) | The remote feed, proxy, and browser hook were removed from Outpost. | No announcement-feed traffic remains to qualify. Historical evidence in this plan records the retired behavior only. |
 | [Telemetry](../../server/src/telemetry.ts), [client](../../packages/shared/src/telemetry/client.ts) | First-party opt-out event path; 60-second flush timer, empty queue makes no send, queued events/retries can send. | Measure actual outbound sends and pending retry effects; an unref timer alone is not evidence of traffic or quiet. No telemetry policy change here. |
 | [Observability](../../server/src/instrumentation.ts) | OpenTelemetry SDK/exporters only behind operator OTLP endpoint; absent endpoint is no-op. | With endpoint configured, measure exporter/buffer effects. Do not confuse this with first-party Telemetry or local run-log rows. |
 | [Live-event WebSocket](../../server/src/realtime/live-events-ws.ts) | 30-second pings on existing clients; no clients means no ping traffic. Authentication work is tracked to settlement. | Measure provider socket policy and actual clients; active use may legitimately stay awake. |

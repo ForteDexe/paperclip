@@ -105,6 +105,14 @@ const retiredInfrastructure = [
   "packages/shared/src/validators/onboarding-seed.ts",
   "packages/db/src/schema/space_onboarding_seeds.ts",
   "ui/src/components/GitHubStarPrompt.tsx",
+  "announcements",
+  "doc/ANNOUNCEMENTS.md",
+  "scripts/publish-announcements.ts",
+  "server/src/routes/announcements.ts",
+  "server/src/services/announcement-feed.ts",
+  "packages/shared/src/announcements.ts",
+  "packages/db/src/schema/announcement_dismissals.ts",
+  "ui/src/components/AnnouncementWell.tsx",
 ];
 
 const retiredCatalogScenarioIds = [

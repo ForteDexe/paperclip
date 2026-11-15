@@ -133,7 +133,6 @@ import { decisionQueueRoutes } from "./routes/decision-queues.js";
 import type { DecisionServiceOptions } from "./services/decisions.js";
 import { sidebarBadgeRoutes } from "./routes/sidebar-badges.js";
 import { sidebarPreferenceRoutes } from "./routes/sidebar-preferences.js";
-import { announcementRoutes } from "./routes/announcements.js";
 import { serverVersion } from "./version.js";
 import { workspacePreferenceRoutes } from "./routes/workspace-preferences.js";
 import { defaultAgentRoutes } from "./routes/default-agent.js";
@@ -430,7 +429,6 @@ export async function createApp(
     chatWebhookPublicBaseUrl?: string;
     authReady: boolean;
     spaceDeletionEnabled: boolean;
-    announcements?: { enabled: boolean; feedUrl: string };
     instanceId?: string;
     hostVersion?: string;
     localPluginDir?: string;
@@ -807,7 +805,6 @@ export async function createApp(
   api.use(decisionQueueRoutes(db));
   api.use(sidebarBadgeRoutes(db));
   api.use(sidebarPreferenceRoutes(db));
-  api.use(announcementRoutes(db, { ...opts.announcements, version: opts.hostVersion ?? serverVersion }));
   api.use(resourceMembershipRoutes(db));
   api.use(defaultAgentRoutes(db));
   api.use(workspacePreferenceRoutes(db));

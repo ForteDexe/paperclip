@@ -28,9 +28,6 @@ test.afterEach(async ({ request }, testInfo) => {
 
 test("browses passive cases and rolled-up task documents without starting work or editing", async ({ page }, testInfo) => {
   page.setDefaultTimeout(10_000);
-  await page.route("**/api/announcements/current", async (route) => {
-    await route.fulfill({ json: null });
-  });
   const api = page.request;
   const original = await json(await api.get("/api/instance/settings/experimental"));
   const space = await json(await api.post("/api/spaces", { data: { name: `Read-only cases ${randomUUID()}` } }));

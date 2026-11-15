@@ -1,4 +1,4 @@
-# Navigation, profile, and announcements — agent access
+# Navigation and preferences — agent access
 
 Product map: [Navigation, profile, and announcements](../feature-map/navigation-preferences.md).
 
@@ -102,32 +102,6 @@ Evidence: `source-only` — [agent routes](../../server/src/routes/agents.ts).
 Verification: `not-run` — verify agent persona pages independently of removed human-profile routes.
 
 Gaps: This capability intentionally excludes public human profiles and human profile editing.
-
-## `announcements`
-
-Capability ID: `navigation-preferences/announcements`.
-
-Review: `baseline`.
-
-API: `present` — representative operation IDs:
-
-- `GET /api/announcements/current`.
-- `POST /api/announcements/{id}/dismiss`.
-
-Agent access: `restricted` — Board-user announcement API.
-
-Policy: Persisted user preferences require board user context; resource reads still
-apply space visibility.
-
-Evidence: `source-only` —
-[implementation](../../server/src/routes/sidebar-preferences.ts#L8) at the reviewed
-commit above.
-
-Verification: `not-run` — assert the documented agent denial with an owned test fixture;
-verify any listed agent request/result path separately. A delegated operation needs its
-own policy and access review.
-
-Gaps: User-specific instance-wide dismissal has no agent delegation path today.
 
 ## `fallbacks`
 

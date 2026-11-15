@@ -65,8 +65,6 @@
     "packages/shared/src/ai-connection-usage.ts": "4b51573ee92f8a2ae0f80dd15288a0e59b4dddc7",
     "packages/shared/src/ai-connections.ts": "d16164c63068884655993ba3b92e1817d8651e7c",
     "packages/shared/src/ai-provider-routing.ts": "519c93bd489100125e9a4ad096611f25fd60af4e",
-    "packages/shared/src/announcements.test.ts": "121ed97b560e0dd271fe6602c97e2415ee4e4bf7",
-    "packages/shared/src/announcements.ts": "1405e849eeeeb67239bacc1bbb3903385a5faa6f",
     "packages/shared/src/antigravity-runtime.test.ts": "f9ebcc9430be51c342b42644b735f1434b405ec7",
     "packages/shared/src/api.ts": "1d61cdff51433c4136368d52ee7cf2f16aa820ed",
     "packages/shared/src/app-definitions-url.test.ts": "7378d29fd8428e4807dd234b495aa9043f40e6d7",

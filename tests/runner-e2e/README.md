@@ -583,10 +583,6 @@ The browser creates and assigns the task; fixtures use public APIs. The
 `accept-while-running` case additionally holds the committed card’s creation
 response in the test server until browser acceptance, to exercise real overlap.
 
-The launcher always sets `OUTPOST_ANNOUNCEMENTS_ENABLED=false` for its isolated
-instances so announcement panels do not obscure screenshot evidence. No shell
-or workflow configuration is needed, including for Daytona cells.
-
 ## Pi controls (explicit only)
 
 `--suite pi-controls` selects four candidate Pi cells: pending-permission Stop

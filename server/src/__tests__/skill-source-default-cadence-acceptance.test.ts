@@ -67,7 +67,7 @@ describe.skipIf(!enabled)('default skill cadence actual signed host handoff', ()
           childPreload: new URL('../../../scripts/fixtures/skill-default-cadence-network-guard.cjs', import.meta.url),
           databasePoolMax: 2, artifactRoot: evidence, githubOrigin, clock: false, controlJwks: jwks,
           cloud: { jwks, s3Origin, standby: false }, tenantActor: managedTenantActor,
-          configuration: { managedInstance: true, deploymentMode: 'authenticated', storageProvider: 's3', announcements: false },
+          configuration: { managedInstance: true, deploymentMode: 'authenticated', storageProvider: 's3' },
           });
           assert(started.pid); childPids.push(started.pid);
           const guard = started.childGuard as ReturnType<typeof defaultCadenceNetwork>;

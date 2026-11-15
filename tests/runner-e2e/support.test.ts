@@ -234,7 +234,7 @@ describe("runner E2E provider environment", () => {
           { KEEP_ME: "yes", OPENCODE_ALLOW_ALL_MODELS: "ambient" },
           [execution],
         ),
-      ).toEqual({ KEEP_ME: "yes", OPENCODE_ALLOW_ALL_MODELS: "true", OUTPOST_ANNOUNCEMENTS_ENABLED: "false" });
+      ).toEqual({ KEEP_ME: "yes", OPENCODE_ALLOW_ALL_MODELS: "true" });
     }
 
     for (const execution of [nativeOpenCode, breadthOpenCode]) {
@@ -243,18 +243,10 @@ describe("runner E2E provider environment", () => {
           { KEEP_ME: "yes", OPENCODE_ALLOW_ALL_MODELS: "ambient" },
           [execution],
         ),
-      ).toEqual({ KEEP_ME: "yes", OUTPOST_ANNOUNCEMENTS_ENABLED: "false" });
+      ).toEqual({ KEEP_ME: "yes" });
     }
   });
 
-  it("disables announcements through the server boundary", () => {
-    for (const execution of runnerMatrix) {
-      const source = { OUTPOST_ANNOUNCEMENTS_ENABLED: "true" };
-      const env = buildRunnerE2EProcessEnvironment(source, [execution]);
-      expect(buildOutpostServerEnvironment(env).OUTPOST_ANNOUNCEMENTS_ENABLED).toBe("false");
-      expect(source.OUTPOST_ANNOUNCEMENTS_ENABLED).toBe("true");
-    }
-  });
 });
 
 describe("creation capability opt-in", () => {

@@ -460,13 +460,6 @@ The `create_project` runtime tool uses the normal project API with durable idemp
 
 Confirmed project creation appears as a durable card in the shared task transcript, including selected repository links. Tasks are linked inline. Failed creation never produces a success card. Tool evals cover planning/handoff, project/repository selection, retries, permission and mode denials, and ordinary delegation regressions using the production chat directive.
 
-### In-app announcements
-
-An optional announcement card shares product news with operators on opening
-or returning to Outpost. Dismissals persist per user across Spaces and
-browsers within an instance. Operators can disable fetching independently of
-telemetry. See [Announcements](ANNOUNCEMENTS.md).
-
 ### Agent chat discovery
 
 With Agent Chat enabled, Chat is the first row of the Work section and opens a

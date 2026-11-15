@@ -108,7 +108,7 @@ export const prerequisiteMembershipScenarioIds = Object.freeze([
   "assistant-connections.consent-read-only", "connection-setup.wrong-person-resolves",
   "documents-artifacts.private-download", "documents-artifacts.restore-document",
   "inbox-search.archive-done", "inbox-search.notification-audience", "inbox-search.restore-archive", "inbox-search.show-decisions",
-  "navigation-preferences.broken-link", "navigation-preferences.dismiss-announcement", "navigation-preferences.edit-profile", "navigation-preferences.quick-search", "navigation-preferences.sidebar-order",
+  "navigation-preferences.broken-link", "navigation-preferences.edit-profile", "navigation-preferences.quick-search", "navigation-preferences.sidebar-order",
   "projects.private-project", "projects.share-project", "questions-and-approvals.wrong-reviewer", "secrets.personal-secret",
   "tasks.completion-with-gate", "tasks.private-task", "tasks.share-private-task",
 ]);

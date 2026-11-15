@@ -158,9 +158,6 @@ export function buildRunnerE2EProcessEnvironment(
   delete result.OUTPOST_E2E_GATEWAY_PHASE_PATH;
   delete result.OUTPOST_E2E_OTLP_RELAY_URL;
   delete result.OUTPOST_E2E_REMOTE_GATEWAY_ORIGIN;
-  // Ambient announcements never participate in retained catalog evidence.
-  result.OUTPOST_ANNOUNCEMENTS_ENABLED = "false";
-  delete result.OUTPOST_ANNOUNCEMENTS_FEED_URL;
   delete result.OPENCODE_ALLOW_ALL_MODELS;
   // Discard ambient admission. Only explicit candidate cells authorize the
   // exact model in their isolated server; credentials still use space secrets.

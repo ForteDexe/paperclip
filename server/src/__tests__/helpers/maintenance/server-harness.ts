@@ -49,12 +49,11 @@ type Snapshot = { idle: { active: number; generation: number }; startup: { phase
   incomingHttp: IncomingHttpSnapshot;
   managed?: { isCloudManaged: boolean; deploymentMode: string; storageProvider: string; apiActivityActive: boolean };
   workCapture?: IdleWorkCaptureSnapshot;
-  announcement?: { intercepted: boolean; requests: string[]; unmatched: string[]; boundary: string } };
+};
 
 export interface MaintenanceConfiguration {
   managedFeatures?: Readonly<Partial<Record<ManagedExperimentalFeatureKey, boolean>>>;
   automaticBackups?: { intervalMinutes: number; idleCheckpoint: boolean };
-  announcements?: boolean;
   telemetryOrigin?: string;
   otelOrigin?: string;
   serveUi?: boolean;
@@ -160,7 +159,7 @@ export async function startMaintenanceServer(databaseUrl: string, options: Maint
     let settledDiagnosticId = 0;
     const child = fork(fileURLToPath(options.childEntry ?? new URL("./server-child.ts", import.meta.url)), [], {
       cwd: fileURLToPath(new URL("../../../../..", import.meta.url)),
-      execArgv: [...(options.childPreload ? ["--require", fileURLToPath(options.childPreload)] : []), ...((configuration?.announcements || options.captureIdleWork || options.childEntry) ? ['--experimental-test-module-mocks'] : []), "--import", fileURLToPath(new URL("../../../../node_modules/tsx/dist/loader.mjs", import.meta.url))],
+      execArgv: [...(options.childPreload ? ["--require", fileURLToPath(options.childPreload)] : []), ...((options.captureIdleWork || options.childEntry) ? ['--experimental-test-module-mocks'] : []), "--import", fileURLToPath(new URL("../../../../node_modules/tsx/dist/loader.mjs", import.meta.url))],
       env: {
         ...(captureStartedAt === undefined ? {} : {
           OUTPOST_MAINTENANCE_IDLE_WORK_CAPTURE: '1',
@@ -176,8 +175,7 @@ export async function startMaintenanceServer(databaseUrl: string, options: Maint
         DATABASE_URL: proxy.url, DATABASE_POOL_MAX: options.databasePoolMax === undefined ? (configuration ? "4" : "6") : String(options.databasePoolMax), DATABASE_APPLICATION_NAME: "maintenance-integration-test",
         OUTPOST_AGENT_JWT_SECRET: runtimeSecrets?.OUTPOST_AGENT_JWT_SECRET ?? randomUUID(), OUTPOST_DECISION_SIGNING_SECRET: runtimeSecrets?.OUTPOST_DECISION_SIGNING_SECRET ?? randomUUID(),
         OUTPOST_TOOL_ACTION_SIGNING_SECRET: runtimeSecrets?.OUTPOST_TOOL_ACTION_SIGNING_SECRET ?? randomUUID(), BETTER_AUTH_SECRET: runtimeSecrets?.BETTER_AUTH_SECRET ?? randomUUID(),
-        CODEX_HOME: path.join(directory, "codex"), OUTPOST_ANNOUNCEMENTS_ENABLED: String(configuration?.announcements ?? false),
-        ...(configuration?.announcements ? { OUTPOST_MAINTENANCE_ANNOUNCEMENT_FIXTURE: '1' } : {}),
+        CODEX_HOME: path.join(directory, "codex"),
         OUTPOST_DB_BACKUP_ENABLED: String(Boolean(configuration?.automaticBackups)), OUTPOST_UI_DEV_MIDDLEWARE: "false",
         ...(configuration?.automaticBackups ? { OUTPOST_DB_BACKUP_IDLE_CHECKPOINT_ENABLED: configuration.automaticBackups.idleCheckpoint ? "1" : "0" } : {}),
         ...(configuration?.telemetryOrigin ? { OUTPOST_TELEMETRY_ENDPOINT: configuration.telemetryOrigin } : {}),

@@ -52,7 +52,7 @@ describe.skipIf(!enabled)('configured assembled sleep qualification (explicit ow
       const configuration = managedSleepConfiguration(origin, process.env.OUTPOST_SLEEP_BROWSER_ACCEPTANCE === '1');
       // Independent intended logical contract; collector ports are observed separately.
       const expected = { target: 'owned-local-assembled', appSha: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(), cloudSha: cloudSha!,
-        configDigest: createHash('sha256').update(JSON.stringify({ automaticBackups: { intervalMinutes: 60, idleCheckpoint: true }, announcements: true,
+        configDigest: createHash('sha256').update(JSON.stringify({ automaticBackups: { intervalMinutes: 60, idleCheckpoint: true },
           telemetry: true, otel: { enabled: true, protocol: 'http/json' }, serveUi: process.env.OUTPOST_SLEEP_BROWSER_ACCEPTANCE === '1',
           managedInstance: true, deploymentMode: 'authenticated', storageProvider: 's3' })).digest('hex'),
         collectorOrigins: { telemetry: `${origin}/telemetry`, otel: origin } };
@@ -72,11 +72,6 @@ describe.skipIf(!enabled)('configured assembled sleep qualification (explicit ow
       try {
         await writeFile(path.join(server.directory, 'sleep-managed-startup.json'), JSON.stringify(await server.snapshot(), null, 2));
         const space = await provisionManagedSleepSpace(server, fixture);
-        expect(await server.api('GET', '/announcements/current')).toMatchObject({ id: 'new-projects' });
-        const announcement = (await server.snapshot()).announcement;
-        expect(announcement?.intercepted).toBe(true);
-        expect(announcement?.requests).toEqual(['https://pages.outpost.ing/announcements/v1/current.json']);
-        expect(announcement?.unmatched).toEqual([]);
         const agent = await server.api<{ id: string }>('POST', `/spaces/${space.id}/agents`, { name: 'Owned process worker', role: 'general', adapterType: 'process',
           adapterConfig: { command: process.execPath, args: ['-e', "console.log('sleep-acceptance-useful-work')"], cwd: server.directory }, runtimeConfig: { heartbeat: { enabled: true, intervalSec: 0, wakeOnDemand: true } } });
         const chatHistory = await server.produceChatHistory();
@@ -107,13 +102,13 @@ describe.skipIf(!enabled)('configured assembled sleep qualification (explicit ow
         await server.api('GET', '/agents/me', undefined, { Authorization: `Bearer ${key.token}` });
         const lastAuthenticatedApiAt = performance.now();
         await writeFile(path.join(server.directory, 'sleep-setup-receipt.json'), JSON.stringify({ ...expected, configuration, space,
-          agentId: agent.id, keyId: key.id, announcement, chatHistory, toolHistory, githubContinuity, brokerBinding,
+          agentId: agent.id, keyId: key.id, chatHistory, toolHistory, githubContinuity, brokerBinding,
           brokerBoundary: broker.boundary, s3: s3.snapshot(), snapshot: await server.snapshot(),
           boundary: 'Actual managed startup/tenant provisioning/producers; Cloud front door, GitHub HTTP and S3 service are owned simulated transports' }, null, 2));
         expect(s3.snapshot().errors).toEqual([]);
         let browser;
         try {
-          browser = process.env.OUTPOST_SLEEP_BROWSER_ACCEPTANCE === '1' ? await observeMaintenanceBrowser(`http://127.0.0.1:${server.port}`, 'Organize your work.', server.tenantHeaders) : undefined;
+          browser = process.env.OUTPOST_SLEEP_BROWSER_ACCEPTANCE === '1' ? await observeMaintenanceBrowser(`http://127.0.0.1:${server.port}`, server.tenantHeaders) : undefined;
           await writeFile(path.join(server.directory, 'sleep-browser-receipt.json'), JSON.stringify({ browser, observedAt: new Date().toISOString() }, null, 2));
         } catch (error) {
           await writeFile(path.join(server.directory, 'sleep-browser-error.json'), JSON.stringify({ observedAt: new Date().toISOString(), error: error instanceof Error ? error.message : String(error) }, null, 2));
@@ -155,7 +150,7 @@ describe.skipIf(!enabled)('configured assembled sleep qualification (explicit ow
           nonDatabaseRequests: after.outgoingHttpRequests - before.outgoingHttpRequests,
           nonDatabaseBytes: after.network.nonDatabaseBytesWritten - before.network.nonDatabaseBytesWritten,
           observerRequests: observeIncomingHttpWindow(before.incomingHttp, after.incomingHttp) };
-        await writeFile(path.join(server.directory, 'sleep-first-frozen-quiet.json'), JSON.stringify({ quiet, announcementBefore: before.announcement, announcementAfter: after.announcement }, null, 2));
+        await writeFile(path.join(server.directory, 'sleep-first-frozen-quiet.json'), JSON.stringify({ quiet }, null, 2));
         const signalObservation = observeConfiguredSignals(collectorRequests);
         await writeFile(path.join(server.directory, 'sleep-first-signal-observation.json'), JSON.stringify(signalObservation, null, 2));
         expect(signalObservation.qualificationSpans).toBeGreaterThan(0);
@@ -171,7 +166,6 @@ describe.skipIf(!enabled)('configured assembled sleep qualification (explicit ow
         // The installed listener must have observed the actual setup HTTP traffic.
         expect(quiet.observerRequests.before.requests).toBeGreaterThan(0);
         expect(observedNoIncomingHttp(quiet.observerRequests, quiet)).toBe(true);
-        expect(after.announcement).toEqual(before.announcement);
         const backupNamesBefore = await idleBackupArchiveNames(server.directory);
         const checkpointStartedAt = new Date().toISOString();
         const drain = await server.api<{ ownerId: string }>('POST', '/instance/task-drain', { purpose: 'idle', ttlMs: 240_000 }, control('task-drain:start'));
@@ -201,13 +195,13 @@ describe.skipIf(!enabled)('configured assembled sleep qualification (explicit ow
         const proof = final.idleSleepSafety;
         const backupCheckpoint = await observeIdleBackupCheckpoint(server.directory, backupNamesBefore, checkpointStartedAt, space.id);
         const observations = { version: 1, ...expected, startedAt,
-          configuration, browser, s3: s3.snapshot(), announcement: after.announcement, chatHistory, toolHistory, githubContinuity, brokerBinding, brokerBoundary: broker.boundary, backupCheckpoint,
-          signalObservation, features: configuredSleepFeatures({ announcement: after.announcement, signalObservation, backupCheckpoint }),
+          configuration, browser, s3: s3.snapshot(), chatHistory, toolHistory, githubContinuity, brokerBinding, brokerBoundary: broker.boundary, backupCheckpoint,
+          signalObservation, features: configuredSleepFeatures({ signalObservation, backupCheckpoint }),
           quiet,
           eligibility: { observedAt: new Date().toISOString(), backgroundWork: proof.backgroundWork, ownedHold: final.ownerId === drain.ownerId, apiCooldownElapsedMs: performance.now() - lastApiActivity,
             unchangedGeneration: /^[a-f0-9]{64}$/.test(proof.deadlineProof?.generation ?? '') && initial.idleSleepSafety.deadlineProof?.generation === proof.deadlineProof?.generation }, initial, final,
           live: { databaseSuspension: 'INCONCLUSIVE', hostSuspension: 'INCONCLUSIVE', backupPersistence: 'INCONCLUSIVE', reason: 'Local actual server with simulated Cloud signer; no deployed provider target authorized' },
-          coverage: { announcements: 'Actual route, validated feed/cache and UI with one named injected provider transport fetch; DNS/HTTPS guard covered separately, not exercised here.', browser: browser ? 'Actual Chromium foreground/background measured, then closed before server quiet window' : 'Closed; set OUTPOST_SLEEP_BROWSER_ACCEPTANCE=1 with built UI and headed Chromium for background/active evidence', broker: 'Retained enabled connection, actual encrypted OAuth vault, actual continuity/binding owners and signed/sealed production broker delivery; host capability from actual ConnectorStore', history: 'Normal task/credential/routine, actual tool review rejection/outbox retirement, actual signed chat ingress completion and endpoint archival' } };
+          coverage: { browser: browser ? 'Actual Chromium foreground/background measured, then closed before server quiet window' : 'Closed; set OUTPOST_SLEEP_BROWSER_ACCEPTANCE=1 with built UI and headed Chromium for background/active evidence', broker: 'Retained enabled connection, actual encrypted OAuth vault, actual continuity/binding owners and signed/sealed production broker delivery; host capability from actual ConnectorStore', history: 'Normal task/credential/routine, actual tool review rejection/outbox retirement, actual signed chat ingress completion and endpoint archival' } };
         await writeFile(path.join(server.directory, 'sleep-configuration-observations.json'), JSON.stringify(observations, null, 2));
         const { receipt, report } = finalizeLocalSleepReceipt(observations, expected);
         await writeFile(path.join(server.directory, 'sleep-configuration-receipt.json'), JSON.stringify(receipt, null, 2));
@@ -245,7 +239,7 @@ describe.skipIf(!enabled)('configured assembled sleep qualification (explicit ow
           nonDatabaseRequests: resumedEnd.outgoingHttpRequests - resumed.outgoingHttpRequests,
           nonDatabaseBytes: resumedEnd.network.nonDatabaseBytesWritten - resumed.network.nonDatabaseBytesWritten,
           observerRequests: observeIncomingHttpWindow(resumed.incomingHttp, resumedEnd.incomingHttp) };
-        await writeFile(path.join(server.directory, 'sleep-resumed-frozen-quiet.json'), JSON.stringify({ quiet: resumedQuiet, announcementBefore: resumed.announcement, announcementAfter: resumedEnd.announcement }, null, 2));
+        await writeFile(path.join(server.directory, 'sleep-resumed-frozen-quiet.json'), JSON.stringify({ quiet: resumedQuiet }, null, 2));
         const resumedSignals = observeConfiguredSignals(collectorRequests);
         await writeFile(path.join(server.directory, 'sleep-resumed-signal-observation.json'), JSON.stringify(resumedSignals, null, 2));
         expect(resumedSignals.qualificationSpans).toBeGreaterThan(0);
@@ -260,8 +254,6 @@ describe.skipIf(!enabled)('configured assembled sleep qualification (explicit ow
         expect(resumedQuiet.nonDatabaseBytes).toBe(0);
         expect(resumedQuiet.observerRequests.before.requests).toBeGreaterThan(0);
         expect(observedNoIncomingHttp(resumedQuiet.observerRequests, resumedQuiet)).toBe(true);
-        expect(resumedEnd.announcement).toEqual(resumed.announcement);
-        expect(resumedEnd.announcement?.unmatched).toEqual([]);
         const resumedDrain = await server.api<{ ownerId: string }>('POST', '/instance/task-drain', { purpose: 'idle', ttlMs: 240_000 }, control('task-drain:start'));
         const resumedCapabilities = { incomingWake: await broker.capability(resumedDrain.ownerId), deadlineCatalog: 'domain_deadlines_v1' };
         const readResumed = () => server.api<any>('GET', `/instance/task-drain?idleSleepSafety=1&scheduledWake=domain-deadlines-v1&ownerId=${resumedDrain.ownerId}`, undefined, control('task-drain:read', resumedCapabilities));

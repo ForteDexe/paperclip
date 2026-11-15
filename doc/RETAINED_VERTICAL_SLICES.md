@@ -291,6 +291,14 @@ them to star the upstream Paperclip repository. The prompt, its task-count
 query, browser-local seen marker, and focused tests are removed. Normal GitHub
 task and source-control integrations are unchanged.
 
+### Upstream Product Announcements
+
+Outpost no longer fetches product-news manifests or media from an upstream
+announcement feed. The server proxy, dismissal persistence, browser card,
+publisher tooling, authoring assets, OpenAPI surface, and focused tests are
+removed. Historical migrations remain unchanged. This does not affect runtime
+tool-event announcements or messages agents write as normal task content.
+
 ## Scope guard
 
 `scripts/check-retained-product-scope.mjs` verifies that the required Codex,

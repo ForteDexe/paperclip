@@ -45,12 +45,9 @@ let workCapture: Awaited<ReturnType<typeof import('./idle-work-capture.js')['ins
 let databaseCapture: ReturnType<typeof import('@outpost/db/response-capture')['databaseResponseCaptureFromEnv']>;
 let incomingHttp: ReturnType<typeof observeMaintenanceIncomingHttp> | undefined;
 try {
-  // Must precede the announcement wrapper's first import of the real app graph.
   if (process.env.OUTPOST_MAINTENANCE_IDLE_WORK_CAPTURE === '1') {
     workCapture = await (await import('./idle-work-capture.js')).installMaintenanceIdleWorkCapture();
   }
-  const announcement = process.env.OUTPOST_MAINTENANCE_ANNOUNCEMENT_FIXTURE === '1'
-    ? await (await import('./announcement-boundary.js')).installMaintenanceAnnouncementBoundary() : undefined;
   const { startServer } = await import("../../../index.js");
   const { idleWorkSnapshot, startTaskDrain, stopTaskDrain } = await import("../../../services/task-admission.js");
   const { getStartupRecoveryState } = await import("../../../startup-recovery-state.js");
@@ -74,7 +71,6 @@ try {
   async function shutdownServer() {
     try { await server.shutdown(); } finally { incomingHttp?.dispose(); }
   }
-  try { announcement?.assertIntercepted(); } catch (error) { await shutdownServer(); throw error; }
   process.send?.({ kind: "ready", port: server.listenPort });
   process.on("message", async (message: { id: number; command: string; ms?: number; issueUpdate?: { id: string; status: "done" }; orphanLease?: { spaceId: string }; publication?: { spaceId: string; scopeDigest: string; backupRoot: string; pendingRoot: string }; github?: { spaceId?: string; connectionId?: string; grantId?: string } }) => {
     try {
@@ -88,7 +84,7 @@ try {
         if (message.command === "drain") startTaskDrain({ purpose: "idle" });
         if (message.command === "resume") stopTaskDrain();
         if (fakeClock) mock.timers.tick(0);
-        process.send?.({ id: message.id, kind: "snapshot", idle: idleWorkSnapshot(), startup: getStartupRecoveryState(), outgoingHttpRequests, network: network(), incomingHttp: incomingHttp?.snapshot(), now: Date.now(), announcement: announcement?.snapshot(), managed: managedObservation?.(), workCapture: workCapture?.snapshot() });
+        process.send?.({ id: message.id, kind: "snapshot", idle: idleWorkSnapshot(), startup: getStartupRecoveryState(), outgoingHttpRequests, network: network(), incomingHttp: incomingHttp?.snapshot(), now: Date.now(), managed: managedObservation?.(), workCapture: workCapture?.snapshot() });
       } else if (message.command === "prepareGitHub" || message.command === "settleGitHub") {
         const { prepareGitHubConfiguration, settleGitHubConfiguration } = await import("./github-configuration-producer.js");
         const input = message.github;

@@ -27,7 +27,6 @@ const apiPrefixes: Record<string, string> = {
   "agent-chat-messages.ts": "/api",
   "agent-avatars.ts": "/api",
   "agent-profile-avatar.ts": "/api",
-  "announcements.ts": "/api",
   "ai-connections.ts": "/api",
   "decision-models.ts": "/api",
   "fast-responses.ts": "/api",
@@ -538,26 +537,6 @@ describe("openapi routes", () => {
       properties: { expectedRevision: { type: "integer", minimum: 0, exclusiveMinimum: true } },
     });
     expect(Object.keys(remove.responses)).toEqual(expect.arrayContaining(["200", "400", "401", "403", "404", "409"]));
-  });
-
-  it("documents personal operator-only announcements and private responses", () => {
-    const { spec } = loadSpecRoutes();
-    const current = spec.paths["/api/announcements/current"].get;
-    const image = spec.paths["/api/announcements/{id}/image"].get;
-    const animation = spec.paths["/api/announcements/{id}/animation"].get;
-    const dismiss = spec.paths["/api/announcements/{id}/dismiss"].post;
-    for (const operation of [current, image, animation, dismiss]) {
-      expect(operation.security).toEqual([{ OperatorSessionAuth: [] }, { OperatorApiKeyAuth: [] }]);
-      expect(operation["x-outpost-authorization"]).toEqual({ actor: "operator" });
-      const success = operation.responses["200"] ?? operation.responses["204"];
-      expect(success.headers["Cache-Control"].schema.enum).toEqual(["private, no-store"]);
-    }
-    expect(current.responses["200"].content["application/json"].schema.nullable).toBe(true);
-    expect(Object.keys(image.responses["200"].content)).toEqual(["image/png", "image/jpeg", "image/webp"]);
-    expect(dismiss.requestBody.content["application/json"].schema).toMatchObject({
-      required: ["spaceId"], additionalProperties: false,
-    });
-    expect(dismiss.description).toContain("viewers may dismiss their own");
   });
 
   it("tells agents that Agent Chat is always on instead of advertising a retired toggle", async () => {

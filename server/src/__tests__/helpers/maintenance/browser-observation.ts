@@ -2,7 +2,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { withNativeMaintenanceBrowser } from './native-browser.js';
 
 /** Actual Chromium visibility; never substitutes a fake document or frozen lifecycle. */
-export async function observeMaintenanceBrowser(origin: string, announcementDescription?: string, tenantHeaders?: Record<string, string>) {
+export async function observeMaintenanceBrowser(origin: string, tenantHeaders?: Record<string, string>) {
   return withNativeMaintenanceBrowser(async (browser, context) => {
     const unmatchedOrigins: string[] = [];
     if (tenantHeaders) {
@@ -22,7 +22,6 @@ export async function observeMaintenanceBrowser(origin: string, announcementDesc
     const requests: Array<{ at: number; path: string }> = [];
     page.on('request', request => { const url = new URL(request.url()); if (url.origin === origin) requests.push({ at: performance.now(), path: url.pathname }); });
     await page.goto(origin, { waitUntil: 'networkidle' });
-    if (announcementDescription) await page.getByText(announcementDescription, { exact: true }).waitFor({ state: 'visible' });
     await page.bringToFront();
     if (await page.evaluate(() => document.visibilityState) !== 'visible') throw new Error('Browser active-use observation requires a visible page');
     const beforeActive = requests.length;
@@ -77,6 +76,6 @@ export async function observeMaintenanceBrowser(origin: string, announcementDesc
     if (!visibilityEvents.some(event => event.state === 'visible' && event.rendererAt >= finalHidden.rendererAt)) throw new Error('Native visible restoration event was not observed');
     return { activeRequests: requests.slice(beforeActive, hiddenRequests).length, hiddenRealElapsedMs,
       hiddenRequests: hidden, unmatchedOrigins, visibility: 'Native Chromium default context with no Playwright focus override', initialVisibility, initialHidden, finalHidden,
-      intervalVisibilityEvents, visibilityEvents, restoredVisibility, appWindow, foregroundWindow, announcementRendered: Boolean(announcementDescription), authBoundary: tenantHeaders ? 'Owned Cloud front-door headers; actual tenant resolver/membership' : 'Legacy local operator', closed: true };
+      intervalVisibilityEvents, visibilityEvents, restoredVisibility, appWindow, foregroundWindow, authBoundary: tenantHeaders ? 'Owned Cloud front-door headers; actual tenant resolver/membership' : 'Legacy local operator', closed: true };
   });
 }

@@ -15,7 +15,6 @@ export interface SleepQualificationReport {
 }
 export function logicalSleepConfiguration(configuration: unknown): {
   automaticBackups: { intervalMinutes: number; idleCheckpoint: boolean };
-  announcements: boolean;
   telemetry: boolean;
   otel: { enabled: boolean; protocol: 'http/json' };
   serveUi: boolean;
@@ -45,7 +44,7 @@ export function observeIncomingHttpWindow(before: IncomingHttpSnapshot, after: I
 export function observedNoIncomingHttp(observation: unknown, quiet: { startedAt: string; finishedAt: string }): boolean;
 export function observeConfiguredSignals(requests: ReadonlyArray<{ path: string; body: unknown }>): SleepSignalObservation;
 export function configuredSleepFeatures(observations: Record<string, unknown>): {
-  telemetry: boolean; announcements: boolean; automaticBackups: boolean; otel: boolean; exportedSpans: number;
+  telemetry: boolean; automaticBackups: boolean; otel: boolean; exportedSpans: number;
 };
 export function evaluateSleepQualification(receipt: unknown, expected: SleepQualificationIdentity): SleepQualificationReport;
 export function finalizeLocalSleepReceipt<T extends Record<string, unknown>>(observations: T, expected: SleepQualificationIdentity, now?: () => string): {

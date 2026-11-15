@@ -49,12 +49,6 @@ test.beforeAll(async ({ request }) => {
   fixture = await longChatFixture(request);
   const preference = await request.put(`/api/spaces/${fixture.space.id}/workspace-preferences/me`, { data: { coordinatorWorkspaceEnabled: true } });
   expect(preference.ok()).toBeTruthy();
-  const announcementResponse = await request.get("/api/announcements/current");
-  const announcement = await announcementResponse.json();
-  if (announcement) {
-    const dismissed = await request.post(`/api/announcements/${announcement.id}/dismiss`, { data: { spaceId: fixture.space.id } });
-    expect(dismissed.ok()).toBeTruthy();
-  }
   chatPath = `/${fixture.space.issuePrefix}/chats/${fixture.agent.id}`;
 });
 

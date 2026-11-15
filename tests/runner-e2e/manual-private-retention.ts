@@ -6,7 +6,6 @@ export const MANUAL_PRIVATE_EXECUTIONS = Object.freeze([
   "activity.agent-feedback",
   "activity.work-timeline",
   "spaces.import-preview",
-  "navigation-preferences.dismiss-announcement",
   "tasks.completion-with-gate",
   "tasks.private-task",
   "secrets.personal-secret",
