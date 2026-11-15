@@ -68,7 +68,7 @@ export async function setupConnectionReview(input: {
       await page.getByRole("button", { name: "Continue", exact: true }).click();
       // #14811 made connector setup one screen: Continue now leads straight to
       // Check link. Accept the older intermediate "Save and continue" step too,
-      // as connection-flow.ts does, so either layout reaches the link check.
+      // so either supported layout reaches the link check.
       const next = page
         .getByRole("button", { name: CONNECTOR_SETUP_NEXT_STEP })
         .first();

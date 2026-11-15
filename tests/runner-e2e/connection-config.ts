@@ -1,7 +1,5 @@
 import { readFile, lstat, realpath } from "node:fs/promises";
 import path from "node:path";
-import { connectionCell, type ConnectionMode } from "./connection-cases.js";
-import type { MatrixExecution } from "./types.js";
 
 export interface ConnectionRoute {
   model: string; credentialEnv?: string; baseURL?: string; region?: string; auth: "bearer" | "api_key" | "none";
@@ -122,31 +120,6 @@ export async function resolveConnectionSecret(config: ConnectionConfig, name?: s
     if (value) return value;
   }
   throw new ConnectionBlock("missing_credential", `missing_${name}`);
-}
-
-export function resolveConnectionSettings(execution: MatrixExecution, config: ConnectionConfig) {
-  const { harness, mode } = connectionCell(execution);
-  const route = config.routes[`${harness.id}.${mode}`] ?? config.routes[mode];
-  const advanced = mode !== "subscription" && mode !== "api-key";
-  if (advanced && !route) throw new ConnectionBlock("missing_credential", "route_configuration_required");
-  const selectedModel = route?.model ?? config.models[harness.id] ?? execution.profile.model;
-  if (selectedModel === "configured-in-connection-file") throw new ConnectionBlock("blocked_target", "explicit_model_required");
-  if (["responses", "messages", "chat"].includes(mode)) {
-    if (!route?.baseURL) throw new ConnectionBlock("blocked_target", "gateway_url_required");
-    const url = new URL(route.baseURL);
-    if (url.username || url.password || url.search || url.hash || !["https:", "http:"].includes(url.protocol)) throw new ConnectionBlock("blocked_target", "invalid_gateway_url");
-  }
-  if (mode === "bedrock" && (!route?.region || route.auth !== "bearer")) throw new ConnectionBlock("blocked_target", "bedrock_region_and_bearer_required");
-  if (route?.auth === "api_key" && mode !== "messages") throw new ConnectionBlock("blocked_target", "api_key_header_requires_messages");
-  if (mode === "openrouter" && route?.auth !== "bearer") throw new ConnectionBlock("blocked_target", "openrouter_requires_bearer");
-  const defaultKey = mode === "bedrock" ? "AWS_BEARER_TOKEN_BEDROCK" : mode === "openrouter" ? "OPENROUTER_API_KEY" : harness.key;
-  const credentialEnv = mode === "subscription" || route?.auth === "none" ? undefined : route?.credentialEnv ?? config.credentials[harness.id] ?? (advanced && !["bedrock", "openrouter"].includes(mode) ? undefined : defaultKey);
-  if (mode !== "subscription" && route?.auth !== "none" && !credentialEnv) throw new ConnectionBlock("missing_credential", "gateway_credential_reference_required");
-  return { model: selectedModel, route, credentialEnv };
-}
-
-export function connectionCatalogSource(mode: ConnectionMode, provider: string) {
-  return ({ responses: "responses-api", messages: "messages-api", chat: "chat-completions-api", bedrock: "bedrock", openrouter: "openrouter" } as Record<string, string>)[mode] ?? provider;
 }
 
 export async function assertOutsideRepository(file: string, repositoryRoot: string) {

@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { createConnectionProof } from "../connection-evidence.js";
+import { createArtifactProof } from "../artifact-proof.js";
 import { retainOnboardingArtifact, validateOnboardingArtifact } from "./artifact-evidence.js";
 import type { OnboardingArtifactEvidence } from "./types.js";
 
 function fixture() {
-  const proof = createConnectionProof();
+  const proof = createArtifactProof();
   const bytes = Buffer.from(`${JSON.stringify(proof.expected, null, 2)}\n`);
   return retainOnboardingArtifact({ id: "attachment-1", originatingRunId: "run-1", bytes, proof });
 }

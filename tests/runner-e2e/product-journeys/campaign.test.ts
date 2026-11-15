@@ -3,7 +3,7 @@ import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { pathToFileURL } from "node:url";
-import { createConnectionProof } from "../connection-evidence.js";
+import { createArtifactProof } from "../artifact-proof.js";
 import { retainOnboardingArtifact, validateOnboardingArtifact } from "./artifact-evidence.js";
 import { validateOnboardingPreAcceptanceEvidence, type OnboardingPreAcceptanceEvidence } from "./onboarding-pre-acceptance.js";
 const preAcceptanceEvidence: OnboardingPreAcceptanceEvidence = { version: 1, checkpoint: "awaiting-proposal", violations: ["attachment_present"],
@@ -41,7 +41,7 @@ type Hook = "collect" | "release" | "stop" | "finalizeEvidence" | "checkpointEvi
 async function run(options:{search?:boolean;authFailure?:boolean;onboardingFailure?:boolean;preAcceptanceFailure?:boolean;missingArtifact?:boolean;drift?:boolean;cleanupFailure?:boolean;cleanupCode?:string;stopCode?:string;collectionFailure?:boolean;mini?:boolean;missingReceipt?:boolean;zeroRequests?:boolean;missingCheck?:boolean;finalizationFailure?:boolean;persistenceFailure?:"write"|"rename";persistenceAfter?:"collection"|"release";stallHook?:Hook;onHook?:(hook:Hook,signal?:AbortSignal)=>void}={}) {
   const root=await mkdtemp(path.join(os.tmpdir(),"journey-campaign-test-")); roots.push(root);
   const module=path.join(root,"provider.mjs");
-  const proof = createConnectionProof();
+  const proof = createArtifactProof();
   const artifact = retainOnboardingArtifact({ id: "artifact-1", originatingRunId: "run-1", bytes: Buffer.from(`${JSON.stringify(proof.expected, null, 2)}\n`), proof });
   await writeFile(module, `import {readFile,writeFile} from 'node:fs/promises';
 const identity={kind:'cloud',targetId:'qa',origin:'https://qa.example.test',commit:'${"a".repeat(40)}',cloudRelease:'v1',runtimeImage:'image',configurationHash:'config'};

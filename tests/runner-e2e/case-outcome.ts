@@ -1,5 +1,4 @@
 import type { RunnerE2EResult } from "./types.js";
-import { isBlockedConnectionResult } from "./connection-evidence.js";
 import { validateOnboardingConnectEvidence } from "./product-journeys/onboarding-connect.js";
 import { validateOnboardingPreAcceptanceEvidence } from "./product-journeys/onboarding-pre-acceptance.js";
 const html = (value: unknown) =>
@@ -52,7 +51,6 @@ export function isIncompleteFirstTaskResult(
   errors: readonly string[] = [],
 ) {
   if (result.productJourney && ["blocked", "unsupported"].includes(result.productJourney.outcome)) return result.cleanup === "passed" && errors.length === 0;
-  if (isBlockedConnectionResult(result)) return result.cleanup === "passed" && result.failureClass !== "secret_leak" && errors.length === 0;
   const checks = result.firstTask?.checks ?? [];
   return result.status === "failed" &&
     result.failureClass === "candidate_failure" &&
@@ -71,7 +69,7 @@ export function renderCaseOutcome(
     (result.matcherResults ?? []).map((m) => ({
       id: m.matcher.kind === "json_path" ? m.matcher.path : m.matcher.kind,
       passed: m.passed,
-      notReached: isBlockedConnectionResult(result) && !m.passed ? "Blocked before this checkpoint" : undefined as string | undefined,
+      notReached: undefined as string | undefined,
       detail: m.detail,
     }));
   const failures = checks.filter((c) => !c.passed && !c.notReached);
@@ -95,7 +93,7 @@ export function renderCaseOutcome(
     ),
   ];
   return `<section class="case-outcome ${failed ? "outcome-failed" : "outcome-passed"}" aria-label="Case result explanation">
-    <strong>${result.productJourney ? html(result.productJourney.outcome) : isBlockedConnectionResult(result) ? `Blocked: ${html(result.providerConnection!.outcome.replaceAll("_", " "))}` : incomplete ? "Incomplete journey" : failed ? "Overall failed" : "Overall passed"} · ${checks.length ? `${passed}/${evaluated} behavioral checks passed${notReached.length ? ` · ${notReached.length} not reached` : ""}` : "No behavioral checks recorded"}</strong>
+    <strong>${result.productJourney ? html(result.productJourney.outcome) : incomplete ? "Incomplete journey" : failed ? "Overall failed" : "Overall passed"} · ${checks.length ? `${passed}/${evaluated} behavioral checks passed${notReached.length ? ` · ${notReached.length} not reached` : ""}` : "No behavioral checks recorded"}</strong>
     ${result.productJourney ? `<p>Deployment: ${html(result.productJourney.deployment?.kind ?? "unavailable")} · ${html(result.productJourney.deployment?.targetId ?? "unavailable")} · ${html(result.productJourney.deployment?.commit ?? "revision unavailable")} · starting state: ${html(result.productJourney.startingState)} · resources: ${html(result.productJourney.resourceDisposition)}</p><ul>${result.productJourney.phases.map(p => `<li>${html(p.phase)}: ${html(p.outcome)}${p.code ? ` (${html(p.code)})` : ""}</li>`).join("")}</ul>` : ""}
     ${result.productJourney ? `<details class="case-context"><summary>Deployment and setup evidence</summary><dl>${[
       ["Campaign", result.productJourney.campaignId], ["Attempt", result.productJourney.attemptId],
@@ -109,7 +107,6 @@ export function renderCaseOutcome(
     ${result.productJourney?.operations?.traceIds.length ? `<details><summary>Trace correlation IDs</summary><ul>${result.productJourney.operations.traceIds.map(id => `<li><code>${html(id)}</code></li>`).join("")}</ul></details>` : ""}
     ${renderOnboardingConnect(result)}
     ${renderOnboardingPreAcceptance(result)}
-    ${result.providerConnection ? `<p>Target: ${html(result.providerConnection.target.origin)} · ${html(result.providerConnection.target.commit ?? "revision unavailable")} · ${result.providerConnection.assisted ? "Assisted login" : "Unassisted"} · ${html(result.providerConnection.authFreshness)} browser · ${html(result.providerConnection.entry)} / ${html(result.providerConnection.method)} · stopped at ${html(result.providerConnection.phase)}</p>` : ""}
     ${failures.length ? `<p>Failed checks:</p><ul>${failures.map((c) => `<li><strong>${html(c.id)}</strong> — ${html(c.detail)}</li>`).join("")}</ul>` : checks.length ? `<p>No behavioral matcher failed.${notReached.length ? " The journey is incomplete; unexercised checks are not passes." : failed ? " The overall failure came from a separate run, cleanup, or evidence check." : ""}</p>` : ""}
     ${notReached.length ? `<p>Not reached:</p><ul>${notReached.map((c) => `<li><strong>${html(c.id)}</strong> — ${html(c.notReached)}</li>`).join("")}</ul>` : ""}
     ${checks.length ? `<details><summary>See all behavioral checks (${checks.length})</summary><table class="matchers"><thead><tr><th>Result</th><th>Check</th><th>Detail</th></tr></thead><tbody>${checks.map((c) => `<tr class="matcher-${c.notReached ? "not-reached" : c.passed ? "passed" : "failed"}"><td>${c.notReached ? "Not reached" : c.passed ? "Pass" : "Fail"}</td><td><code>${html(c.id)}</code></td><td>${html(c.detail)}${c.notReached ? ` — ${html(c.notReached)}` : ""}</td></tr>`).join("")}</tbody></table></details>` : ""}

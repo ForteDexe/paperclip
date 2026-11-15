@@ -17,7 +17,6 @@ export interface RunnerSelectorOptions {
   debug: boolean;
   maxParallel: number;
   maxAutomaticRetries: number;
-  connectionConfig?: string;
   githubReviewConfig?: string;
   provisionGitHubRepository?: boolean;
   antigravityJourneyConfig?: string;
@@ -76,10 +75,6 @@ export function parseRunnerSelectors(
     else if (flag === "--headed") options.headed = true;
     else if (flag === "--ui") options.ui = true;
     else if (flag === "--debug") options.debug = true;
-    else if (flag === "--connection-config") {
-      options.connectionConfig = valueFor(args, index, flag);
-      index += 1;
-    }
     else if (flag === "--github-review-config") {
       options.githubReviewConfig = valueFor(args, index, flag);
       index += 1;
@@ -245,7 +240,7 @@ export function selectRunnerExecutions(
 export function buildMatrixJobs(
   executions: readonly MatrixExecution[],
 ): MatrixJob[] {
-  if (executions.some(e => ["provider_connection", "github_review_journey", "antigravity_agent_journey"].includes(e.task.flow))) throw new RunnerSelectorError("Attended connection journeys require explicit private setup profiles; they are not admitted to paid CI matrix jobs yet.");
+  if (executions.some(e => ["github_review_journey", "antigravity_agent_journey"].includes(e.task.flow))) throw new RunnerSelectorError("Attended journeys require explicit private setup profiles; they are not admitted to paid CI matrix jobs yet.");
   return executions
     .map((execution) => ({
       executionId: execution.id,

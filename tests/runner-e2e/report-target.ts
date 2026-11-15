@@ -12,7 +12,7 @@ function httpUrl(value: string, base?: string): URL | null {
 
 /** The application under test, rather than the worker's execution environment. */
 export function reportTargetUrl(result: RunnerE2EResult | undefined): string | null {
-  const value = result?.targetUrl ?? result?.productJourney?.deployment?.origin ?? result?.providerConnection?.target.origin;
+  const value = result?.targetUrl ?? result?.productJourney?.deployment?.origin;
   return value ? httpUrl(value)?.href ?? null : null;
 }
 

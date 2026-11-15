@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { type createConnectionProof, verifyConnectionArtifact } from "../connection-evidence.js";
+import { type createArtifactProof, verifyArtifactProof } from "../artifact-proof.js";
 import type { OnboardingArtifactEvidence } from "./types.js";
 
 const maxBytes = 4096;
@@ -29,7 +29,7 @@ export function validateOnboardingArtifact(value: unknown): asserts value is Onb
   const expected = { nonce: input.nonce, count: input.values.length, total: input.values.reduce((sum, n) => sum + n, 0), sha256: hash(receipt.input) };
   if (receipt.input !== `${JSON.stringify({ nonce: input.nonce, values: input.values })}\n` ||
     Object.entries(expected).some(([key, entry]) => receipt.expected[key as keyof typeof expected] !== entry) ||
-    !verifyConnectionArtifact(bytes, expected)) fail();
+    !verifyArtifactProof(bytes, expected)) fail();
   const compact = bytes.toString("utf8").replace(/[ \t\r\n]/g, "");
   const pairs = compact.slice(1, -1).split(",");
   if (!compact.startsWith("{") || !compact.endsWith("}") || pairs.length !== Object.keys(expected).length) fail();
@@ -45,7 +45,7 @@ export function validateOnboardingArtifact(value: unknown): asserts value is Onb
 }
 
 export function retainOnboardingArtifact(input: {
-  id: string; originatingRunId: string; bytes: Buffer; proof: ReturnType<typeof createConnectionProof>;
+  id: string; originatingRunId: string; bytes: Buffer; proof: ReturnType<typeof createArtifactProof>;
 }): OnboardingArtifactEvidence {
   const receipt: OnboardingArtifactEvidence = {
     schema: "outpost.product-journey.artifact/v1", id: input.id, originatingRunId: input.originatingRunId,

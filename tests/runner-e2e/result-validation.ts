@@ -2,7 +2,6 @@ import { SCREENSHOT_PRIVACY_REASONS } from "./screenshot-privacy.js";
 import { POSTGRES_IMAGE, POSTGRES_IMAGE_ID, POSTGRES_AMD64_IMAGE, POSTGRES_AMD64_IMAGE_IDS, reviewedPostgresReceiptIdentity } from "./docker-postgres.js";
 import { agentJourneyRuns, agentJourneyRunCountValid, journeyRequiredChecks } from "./product-journeys/success-contract.js";
 import { validateWorkerTiming } from "./worker-timing.js";
-import { connectionCheckpoints, connectionEvidencePasses, connectionRunSignals } from "./connection-evidence.js";
 import { githubJourneyCheckpoints, gradeGitHubReviewJourney } from "./github-review-evidence.js";
 import { gradeAntigravityJourney, validateAntigravityJourneyEvidence } from "./antigravity-journey-evidence.js";
 import { STARTUP_REUSE_LAYERS, STARTUP_REUSE_REASONS } from "../../packages/adapter-utils/src/startup-reuse.js";
@@ -381,20 +380,6 @@ const fields = {
     checks: array(shape({ id: string, passed: boolean })),
     resourceDisposition: oneOf("released", "retained", "cleanup-failed"),
   })),
-  providerConnection: optional(shape({
-    version: integer,
-    outcome: oneOf("running", "passed", "failed", "awaiting_user", "missing_credential", "blocked_target"),
-    phase: string, assisted: boolean, authFreshness: oneOf("signed-in", "signed-out"),
-    target: shape({ mode: oneOf("managed-local", "attach"), origin: url, commit: nullable(string), deploymentMode: nullable(string) }),
-    entry: oneOf("apps", "agent"), method: string, checkpoints: shape(Object.fromEntries(connectionCheckpoints.map(key => [key, optional(boolean)]))),
-    waits: array(shape({ kind: oneOf("board_login", "provider_login"), startedAt: date, finishedAt: optional(date) })),
-    artifactChecks: optional(array(shape({ filename: string, runId: string, sha256: string, fields: object, exactFields: boolean }))),
-    inputTransport: optional(oneOf("prompt_base64")),
-    setupChecks: optional(array(shape({ code: string, level: oneOf("info", "warn", "error") }))),
-    runDiagnostics: optional(array(shape({ runId: string, status: oneOf("succeeded", "failed", "cancelled", "interrupted", "timed_out", "unknown"), signals: array(oneOf(...connectionRunSignals)), logAvailable: boolean }))),
-    creationFailure: optional(shape({ status: integer, code: oneOf("ai_connection_api_key_rejected", "ai_connection_verification_failed", "connection_request_rejected") })),
-    connectionId: optional(string), agentId: optional(string), spaceId: optional(string), artifactSha256: optional(string), model: optional(string), cleanupRetained: optional(boolean), spaceArchived: optional(boolean),
-  })),
   completionQuality: optional(array(shape({
     name: string, purpose: optional(oneOf("product", "calibration")), expectedPass: boolean, passed: boolean, status: oneOf("completed", "failed", "pending"), config: object, configHash: string, evidenceHash: string,
     criteria: array(shape({ id: string, passed: boolean, rationale: string, evidenceIds: array(string) })),
@@ -449,7 +434,6 @@ export function validateRetainedRunnerResult(
       || !checked.model || !checked.provider || checked.runtimeMode !== "native")) invalid("result.agentJourneyRun");
     if (checked.caseId === "cloud-onboarding" && (!checked.runIds?.length || !evidence.operations || !evidence.operations.requestCount || !evidence.operations.traceIds.length || evidence.operations.campaignId !== evidence.campaignId || evidence.operations.attemptId !== evidence.attemptId)) invalid("result.paidJourneyReceipt");
   }
-  if (checked.suiteId === "provider-connections" && checked.status === "passed" && (!checked.providerConnection || !connectionEvidencePasses(checked.providerConnection))) invalid("result.providerConnection");
   if (checked.suiteId === "github-review-journey" && checked.status === "passed" && (!checked.githubReviewJourney || checked.githubReviewJourney.outcome !== "passed" || !checked.githubReviewJourney.targetCommit || !gradeGitHubReviewJourney(checked.githubReviewJourney).every(check => check.passed))) invalid("result.githubReviewJourney");
   if (checked.suiteId === "antigravity-agent-journey" && checked.status === "passed") {
     const evidence = checked.antigravityJourney;

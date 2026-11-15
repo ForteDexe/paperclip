@@ -108,19 +108,11 @@ and default grant. It neither resets the attached instance nor clears accounting
 holds. Two work turns, finite deadlines and zero automatic retries bound the
 selected cell; unknown subscription prices remain unknown.
 
-See [PROVIDER-CONNECTIONS.md](PROVIDER-CONNECTIONS.md) for the explicit-only
-`provider-connections` suite, local/staging target ownership, dedicated browser
-profiles, credential handoffs, private evidence, and cleanup contract.
-
 `ConnectionApi.postSensitive` keeps credential bodies outside Playwright traces.
 Adapters must preserve this transport when wrapping APIs. Its optional abort
 signal and bounded timeout stop the actual HTTP request; setup cleanup must
 wait for that request to retire before it certifies resource absence.
 
-Provider-connection results may retain closed diagnostic codes and terminal run
-status before managed-instance teardown. Only error records and failed tool
-receipts are inspected; raw error messages, child stderr, model output and
-reasoning are not retained. Unknown causes and unavailable logs stay explicit.
 The optional installed-Gemini filesystem smoke uses synthetic credentials and
 loopback model responses, makes no real provider calls, and removes its
 disposable home/workspace.

@@ -11,7 +11,7 @@ import { discoverReportCatalog } from "../report-catalog.js";
 import { isIncompleteFirstTaskResult, renderCaseOutcome } from "../case-outcome.js";
 import type { RunnerE2EResult } from "../types.js";
 import type { JourneyContext, JourneyEvidence, TargetSession } from "./types.js";
-import { createConnectionProof } from "../connection-evidence.js";
+import { createArtifactProof } from "../artifact-proof.js";
 import { retainOnboardingArtifact } from "./artifact-evidence.js";
 import { journeyRequiredChecks } from "./success-contract.js";
 import type { OnboardingConnectEvidence } from "./onboarding-connect.js";
@@ -116,7 +116,7 @@ describe("deployment journey contracts", () => {
     retained.caseId = "cloud-onboarding";
     retained.status = "failed";
     expect(() => validateRetainedRunnerResult(retained)).not.toThrow();
-    const proof = createConnectionProof();
+    const proof = createArtifactProof();
     retained.productJourney!.artifact = retainOnboardingArtifact({ id: "artifact", originatingRunId: "artifact-run", bytes: Buffer.from(JSON.stringify(proof.expected)), proof });
     retained.runIds = ["artifact-run"];
     expect(() => validateRetainedRunnerResult(JSON.parse(JSON.stringify(retained)))).not.toThrow();

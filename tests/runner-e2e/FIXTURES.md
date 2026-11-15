@@ -27,12 +27,6 @@ It creates and changes the document only through the production browser editor;
 setup never seeds the saved outcome. Task ownership also covers its documents
 and revisions during cleanup.
 
-## Connection creation fixtures
-
-See [PROVIDER-CONNECTIONS.md](PROVIDER-CONNECTIONS.md) for the explicit-only
-`provider-connections` suite, local/staging target ownership, dedicated browser
-profiles, credential handoffs, private evidence, and cleanup contract.
-
 [Antigravity additional-agent setup](ANTIGRAVITY-AGENT-JOURNEY.md) instead reuses
 an existing same-user personal default Google subscription on an attached local
 macOS ARM64 candidate. That prerequisite does not seed the measured new agent or

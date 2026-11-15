@@ -25,7 +25,6 @@ export type RunnerTaskFlow =
   | "finalization_recovery"
   | "followup_stop_resume"
   | "repository_skills"
-  | "provider_connection"
   | "github_review_journey"
   | "antigravity_agent_journey"
   | "plan_task_guidance"
@@ -380,7 +379,6 @@ export interface RunnerE2EResult {
   productJourney?: import("./product-journeys/types.js").JourneyEvidence;
   firstTask?: import("./first-task-scoring.js").FirstTaskEvidence;
   taskChat?: import("./task-chat.js").TaskChatEvidence;
-  providerConnection?: import("./connection-evidence.js").ConnectionEvidence;
   githubReviewJourney?: import("./github-review-evidence.js").GitHubReviewJourneyEvidence;
   antigravityJourney?: import("./antigravity-journey-evidence.js").AntigravityJourneyEvidence;
   completionQuality?: import("./completion-quality.js").CompletionQualityRecord[];

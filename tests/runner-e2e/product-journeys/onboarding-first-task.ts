@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { ONBOARDING_FIRST_TASK_ORIGIN_KIND } from "../../../packages/shared/src/constants.js";
-import { type createConnectionProof, verifyConnectionArtifact, verifyConnectionRun } from "../connection-evidence.js";
+import { type createArtifactProof, verifyArtifactProof, verifyArtifactRun } from "../artifact-proof.js";
 import { connectionDelay } from "../connection-target.js";
 import { activeRuns, firstTaskCompletionSettled, type Row } from "../first-task-scoring.js";
 import { isBlockedUnstartedWake, isTerminalUnstartedWake } from "../non-execution-wake.js";
@@ -13,7 +13,7 @@ export interface OnboardingFirstTaskInput {
   context: JourneyContext;
   agent: { id: string };
   connectionId: string;
-  proof: ReturnType<typeof createConnectionProof>;
+  proof: ReturnType<typeof createArtifactProof>;
   campaignId: string;
   maxRuns: number;
   deadlineAt: number;
@@ -265,10 +265,10 @@ export async function onboardingFirstTask(input: OnboardingFirstTaskInput): Prom
       const artifact = artifacts[0]!;
       const run = seen.get(artifact.originatingRunId);
       if (artifact.createdByAgentId !== agent.id || !input.context.environmentId || !run || run.nativeIssueId !== child.id ||
-        run.contextSnapshot?.issueId !== child.id || !verifyConnectionRun(run, { agentId: agent.id, connectionId: input.connectionId, method: "api_key", runtimeMode: "native", environmentId: input.context.environmentId })) fail("artifact_run_attribution_mismatch");
+        run.contextSnapshot?.issueId !== child.id || !verifyArtifactRun(run, { agentId: agent.id, connectionId: input.connectionId, method: "api_key", runtimeMode: "native", environmentId: input.context.environmentId })) fail("artifact_run_attribution_mismatch");
       const bytes = await api.bytes(`/api/attachments/${artifact.id}/content`);
       const sha256 = createHash("sha256").update(bytes).digest("hex");
-      if (artifact.byteSize !== bytes.byteLength || artifact.sha256 !== sha256 || !verifyConnectionArtifact(bytes, proof.expected)) fail("artifact_independent_check_failed");
+      if (artifact.byteSize !== bytes.byteLength || artifact.sha256 !== sha256 || !verifyArtifactProof(bytes, proof.expected)) fail("artifact_independent_check_failed");
       const retained = retainOnboardingArtifact({ id: artifact.id, originatingRunId: run.id, bytes, proof });
       input.onArtifact?.(retained);
       if (!snapshot.documents.some(row => row.issueId === child.id && !isPlanningDocument(row) && row.updatedByAgentId === agent.id &&

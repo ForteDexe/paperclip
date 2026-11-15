@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { createConnectionProof } from "../connection-evidence.js";
+import { createArtifactProof } from "../artifact-proof.js";
 import { onboardingConnect } from "./onboarding-connect.js";
 import { onboardingFirstTask } from "./onboarding-first-task.js";
 import { JourneyError, type JourneyContext, type JourneyEvidence, type TargetSession } from "./types.js";
@@ -82,7 +82,7 @@ export async function cloudOnboarding(input: CloudOnboardingInput): Promise<Jour
   await page.getByRole("button", { name: "Get started", exact: true }).click();
   await input.phase("agent");
   const completed = await onboardingFirstTask({ context, agent: { id: agent.id }, connectionId: connection.id,
-    proof: createConnectionProof(), campaignId, maxRuns: input.maxRuns, deadlineAt: input.deadlineAt,
+    proof: createArtifactProof(), campaignId, maxRuns: input.maxRuns, deadlineAt: input.deadlineAt,
     own: input.own, observeRun: input.observeRun, onArtifact: artifact => { evidence.artifact = artifact; },
     onPreAcceptanceFailure: receipt => { evidence.onboardingPreAcceptance = receipt; } });
   await input.verifyExecution(context, [completed.artifact.originatingRunId]);

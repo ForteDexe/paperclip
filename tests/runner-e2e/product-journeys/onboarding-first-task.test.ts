@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createConnectionProof } from "../connection-evidence.js";
+import { createArtifactProof } from "../artifact-proof.js";
 import { connectionDelay } from "../connection-target.js";
 import { onboardingFirstTask, type OnboardingFirstTaskInput } from "./onboarding-first-task.js";
 import { validateOnboardingArtifact } from "./artifact-evidence.js";
@@ -18,7 +18,7 @@ type Options = {
 /** Models the existing REST responses and visible card controls, with no mutating API. */
 function fixture(options: Options = {}) {
   let phase = "opening";
-  const proof = createConnectionProof();
+  const proof = createArtifactProof();
   const bytes = Buffer.from(JSON.stringify(options.wrongProof ? { ...proof.expected, total: proof.expected.total + 1 } : proof.expected));
   const events: string[] = [];
   const title = "Artifact campaign-1";

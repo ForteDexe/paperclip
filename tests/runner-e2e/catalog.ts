@@ -24,7 +24,6 @@ import { nativeCompletionTasks, nativeCompletionDefinitionDigest } from "./nativ
 import { NATIVE_INSTRUCTION_SUITE, NATIVE_INSTRUCTION_BASE_SHA, nativeInstructionDefinitionDigest } from "./native-instruction-consolidation.js";
 import { nativeCompletionProfile, NATIVE_COMPLETION_BUDGET_CENTS } from "./native-completion-defaults.js";
 import { chatConfirmationTasks } from "./chat-cases.js";
-import { buildConnectionSuite } from "./connection-cases.js";
 import { buildGitHubReviewJourneySuite } from "./github-review-cases.js";
 import { buildAntigravityJourneySuite } from "./antigravity-journey-cases.js";
 import { copilotProviderDeathTasks } from "./copilot-active-stop-tasks.js";
@@ -1975,7 +1974,6 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
           agentDailyRunCaps: { triage: 1, builder: 2, verifier: 1 } },
       } },
   },
-  buildConnectionSuite(runnerProfiles, runnerEnvironments),
   buildGitHubReviewJourneySuite(runnerProfiles, runnerEnvironments),
   buildAntigravityJourneySuite(runnerEnvironments),
   {
@@ -2061,8 +2059,8 @@ export function buildRunnerMatrix(
                   ]),
                 ],
                 requiredCredentials: [
-                  ...(["provider_connection", "github_review_journey", "antigravity_agent_journey"].includes(task.flow) ? [] : [profile.credential]),
-                  ...(!["provider_connection", "github_review_journey", "antigravity_agent_journey"].includes(task.flow) && selectedEnvironment.credential ? [selectedEnvironment.credential] : []),
+                  ...(["github_review_journey", "antigravity_agent_journey"].includes(task.flow) ? [] : [profile.credential]),
+                  ...(!["github_review_journey", "antigravity_agent_journey"].includes(task.flow) && selectedEnvironment.credential ? [selectedEnvironment.credential] : []),
                   ...(task.requiredCredentials ?? []),
                 ],
               };
@@ -2110,14 +2108,12 @@ function assertNoRawSecretValues(value: unknown, label: string) {
 }
 
 export function validateRunnerCatalog(): MatrixExecution[] {
-  const connectionSuite = runnerSuites.find(suite => suite.id === "provider-connections")!;
-  const allProfiles = [cursorCloudProfile, ...connectionSuite.profiles, ...extendedHarnessProfiles, ...runnerProfiles, ...legacyAcpxProfiles, ...pendingContextIntegrityProfiles, ...openRouterBreadthProfiles, ...everydayProfiles.filter(p => !runnerProfiles.some(existing => existing.id === p.id))];
+  const allProfiles = [cursorCloudProfile, ...extendedHarnessProfiles, ...runnerProfiles, ...legacyAcpxProfiles, ...pendingContextIntegrityProfiles, ...openRouterBreadthProfiles, ...everydayProfiles.filter(p => !runnerProfiles.some(existing => existing.id === p.id))];
   const allTasks = [
     cursorCloudArtifactTask, cursorCloudFollowupTask, cursorCloudStopTask,
     repositorySkillsTask,
     ...piNativeTasks,
     ...copilotProtectionTasks,
-    ...connectionSuite.tasks,
     extendedHarnessFileTask,
     ...contextIntegrityTasks,
     ...blockerTasks,

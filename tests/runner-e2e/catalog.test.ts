@@ -634,13 +634,13 @@ describe("runner E2E catalog", () => {
 
   it("uses only declared secret references in generated payloads", () => {
     expect(
-      runnerMatrix.filter(entry => !["provider_connection", "github_review_journey", "antigravity_agent_journey"].includes(entry.task.flow)).every((entry) =>
+      runnerMatrix.filter(entry => !["github_review_journey", "antigravity_agent_journey"].includes(entry.task.flow)).every((entry) =>
         entry.requiredCredentials.includes(entry.profile.credential),
       ),
     ).toBe(true);
     expect(
       runnerMatrix
-        .filter((entry) => entry.environment.id === "daytona" && !["provider_connection", "github_review_journey", "antigravity_agent_journey"].includes(entry.task.flow))
+        .filter((entry) => entry.environment.id === "daytona" && !["github_review_journey", "antigravity_agent_journey"].includes(entry.task.flow))
         .every((entry) =>
           entry.requiredCredentials.includes("DAYTONA_API_KEY"),
         ),
