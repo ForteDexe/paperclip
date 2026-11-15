@@ -100,6 +100,10 @@ const retiredInfrastructure = [
   "ui/src/wizard-preview-main.tsx",
   "ui/storybook/stories/onboarding",
   "ui/wizard-preview.html",
+  "server/src/routes/onboarding-seed.ts",
+  "server/src/services/onboarding-seed.ts",
+  "packages/shared/src/validators/onboarding-seed.ts",
+  "packages/db/src/schema/space_onboarding_seeds.ts",
 ];
 
 const retiredCatalogScenarioIds = [

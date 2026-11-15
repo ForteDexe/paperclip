@@ -8,7 +8,7 @@ An operator can start an instance, create a space, configure its first agent, an
 
 Feature ID: `onboarding`.
 
-Implementation: [web wizard](../../ui/src/components/OnboardingWizard.tsx), [CLI setup](../../cli/src/commands/onboard.ts).
+Implementation: [CLI setup](../../cli/src/commands/onboard.ts). The web wizard is retired.
 
 Agent access: [companion](../agent-access-map/onboarding.md).
 
@@ -185,7 +185,7 @@ Capability ID: `onboarding/resume`.
 Scope: ui
 Storybook: Restored incomplete wizard; invalid or unauthorized saved space; temporarily withheld draft; account switch; storage failure.
 Production: Reload space-prefixed onboarding without duplicating space; restore only authorized account/space draft and retain input after recoverable loading failure.
-Sources: [onboarding-state.ts](../../ui/src/lib/onboarding-state.ts). Tests: [onboarding-state.test.ts](../../ui/src/lib/onboarding-state.test.ts), [onboarding.spec.ts](../../tests/e2e/onboarding.spec.ts)
+Sources: retired. Browser-local wizard draft restoration is no longer a product capability.
 
 #### `instance`
 

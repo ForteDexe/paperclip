@@ -2,7 +2,6 @@ export { chatSlackRegistrations } from "./chat_slack_registrations.js";
 export { spaces } from "./spaces.js";
 export { spaceLogos } from "./space_logos.js";
 export { spaceTransferRuns } from "./space_transfer_runs.js";
-export { spaceOnboardingSeeds } from "./space_onboarding_seeds.js";
 export { authUsers, authSessions, authAccounts, authVerifications } from "./auth.js";
 export { instanceSettings } from "./instance_settings.js";
 export { controllerInstances } from "./controller_instances.js";

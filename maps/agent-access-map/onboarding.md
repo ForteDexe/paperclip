@@ -31,7 +31,7 @@ Policy: Instance setup is operator work; space creation is board; agent creation
 creation retain their individual permissions.
 
 Evidence: `source-only` —
-[implementation](../../ui/src/components/OnboardingWizard.tsx#L279) at the reviewed
+[CLI implementation](../../cli/src/commands/onboard.ts) at the reviewed
 commit above.
 
 Verification: `not-run` — exercise the listed local workflow in an authorized, owned
@@ -59,7 +59,7 @@ Policy: Instance setup is operator work; space creation is board; agent creation
 creation retain their individual permissions.
 
 Evidence: `source-only` —
-[implementation](../../ui/src/components/OnboardingWizard.tsx#L279) at the reviewed
+[space route implementation](../../server/src/routes/spaces.ts) at the reviewed
 commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
@@ -151,10 +151,10 @@ snapshot binding, warm/cold signup and live allowed/denied agent checks remain
 
 
 Evidence: `source-only` —
-[implementation](../../ui/src/components/OnboardingWizard.tsx#L279) at the reviewed
+[agent route implementation](../../server/src/routes/agents.ts) at the reviewed
 commit above.
 
-Scoped Evidence: `source-only` — [wizard/default selection](../../ui/src/components/OnboardingWizard.tsx),
+Scoped Evidence: `source-only` — [agent creation](../../server/src/routes/agents.ts),
 [creation resolver](../../server/src/services/agent-runner-selection.ts) and
 [setup/login authorization](../../server/src/routes/agents.ts) at the scoped
 commit. Existing agent/approval execution preservation follows
@@ -228,7 +228,7 @@ Controls: [native/REST PostgreSQL regressions](../../server/src/__tests__/onboar
 These controls do not qualify a live Cloud provider journey.
 
 Evidence: `source-only` —
-[implementation](../../ui/src/components/OnboardingWizard.tsx#L279) at the reviewed
+[creation admission](../../server/src/services/onboarding-first-task-admission.ts) at the reviewed
 commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
@@ -271,9 +271,8 @@ use their domain APIs.
 Policy: Instance setup is operator work; space creation is board; agent creation/task
 creation retain their individual permissions.
 
-Evidence: `source-only` —
-[implementation](../../ui/src/components/OnboardingWizard.tsx#L279) at the reviewed
-commit above.
+Evidence: `source-only` — the historical implementation was the retired
+browser wizard at the reviewed commit above.
 
 Verification: `not-run` — use the product recipe for the local/developer surface. Verify
 listed shared-resource reads separately; local presentation alone is not agent API
@@ -282,7 +281,7 @@ evidence.
 Gaps: No server onboarding-draft API for this browser-local state; classify explicitly
 or intentionally make it a cross-client product feature.
 
-Scoped source review of [draft restoration](../../ui/src/components/OnboardingWizard.tsx)
+Scoped historical review of browser draft restoration
 preserves harness/runner intent and invalidates obsolete setup-test results after
 a selection change. Browser draft continuity is not API or live-agent evidence,
 and opening a saved Legacy agent does not apply new-agent defaults.

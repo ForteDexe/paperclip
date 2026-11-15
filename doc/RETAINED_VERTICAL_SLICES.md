@@ -278,9 +278,11 @@ Outpost assumes Codex or Claude authentication is completed in the provider's
 own CLI or desktop application. Spaces and agents are created from their normal
 product screens, so the separate full-screen onboarding wizard, saved browser
 draft, onboarding-only character and step components, standalone preview
-entries, and Storybook journeys are removed. Shared harness, model, credential,
-and motion controls used by the retained New Agent flow remain. CLI/server
-bootstrap and the historical first-task runtime are separate follow-up slices.
+entries, Storybook journeys, Cloud seed endpoint, active seed schema, and seed
+application service are removed. Shared harness, model, credential, and motion
+controls used by the retained New Agent flow remain. CLI/server bootstrap and
+the historical first-task runtime are separate follow-up slices. The old seed
+database migration remains only as immutable migration history.
 
 ## Scope guard
 

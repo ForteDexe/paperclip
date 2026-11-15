@@ -35,7 +35,7 @@ Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Use 
 
 ### `preview-lab`
 
-Automated: [onboarding variant](../../ui/src/components/OnboardingWizardVariant.test.tsx) is an example component contract. There is no claim of full automated acceptance coverage for every lab page.
+Automated: no dedicated test establishes full acceptance coverage for every lab page.
 
 Manual: Open the specific fixture state, inspect controls and layout, then repeat the affected interaction in the actual product host. Report fixture results separately from persisted task/space results.
 

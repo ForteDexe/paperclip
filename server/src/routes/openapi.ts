@@ -1589,7 +1589,6 @@ const CREATED_OPERATIONS = new Set([
   "POST /api/approvals/{id}/comments",
   "POST /api/spaces/{spaceId}/assets/images",
   "POST /api/spaces/{spaceId}/logo",
-  "POST /api/spaces/{spaceId}/onboarding-seed",
   "POST /api/cli-auth/challenges",
   "POST /api/operator-api-keys",
   "POST /api/spaces",
@@ -8335,15 +8334,6 @@ registry.registerPath({
   summary: "Upload space logo",
   request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
-});
-
-registry.registerPath({
-  method: "post",
-  path: "/api/spaces/{spaceId}/onboarding-seed",
-  tags: ["spaces"],
-  summary: "Apply the onboarding seed Outpost Cloud collected at signup",
-  request: { params: z.object({ spaceId: z.string() }) },
-  responses: { 200: r.ok(), 401: r.unauthorized, 422: r.unprocessable },
 });
 
 registry.registerPath({
