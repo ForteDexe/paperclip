@@ -855,7 +855,6 @@ function assignmentLabel(
   if (binding.targetType === "space") return "Outpost default";
   if (binding.targetType === "agent") return maps.agentsById.get(binding.targetId) ?? "Unknown agent";
   if (binding.targetType === "project") return maps.projectsById.get(binding.targetId) ?? "Unknown project";
-  if (binding.targetType === "routine") return maps.routinesById.get(binding.targetId) ?? "Unknown routine";
   if (binding.targetId === spaceId) return "Outpost";
   return binding.targetId;
 }
@@ -864,6 +863,5 @@ function assignmentTypeLabel(type: ToolProfileBinding["targetType"]): string {
   if (type === "space") return "Outpost default";
   if (type === "agent") return "Agent";
   if (type === "project") return "Project";
-  if (type === "routine") return "Routine";
   return "Scoped assignment";
 }

@@ -1,5 +1,4 @@
 import { SkillsNavigationTabs } from "@/components/skill-studio/SkillsNavigationTabs";
-import { RoutinesToolbar, type RoutineSortField, type RoutineSortDir, type RoutineGroupBy } from "@/components/RoutinesToolbar";
 import type { AttentionItem } from "@outpost/shared";
 import { useState, type ReactNode } from "react";
 import { DecisionsToolbar } from "@/components/DecisionsToolbar";
@@ -18,7 +17,7 @@ import { DesignProposalAccess } from "./DesignProposalAccess";
 import { initialItems } from "./task-page-data";
 
 export type ToolbarsPreviewProps = {
-  family: "all" | "tasks" | "decisions" | "skills" | "artifacts" | "projects" | "routines";
+  family: "all" | "tasks" | "decisions" | "skills" | "artifacts" | "projects";
   width: "full" | "medium" | "narrow";
   onWidthChange?: (width: ToolbarsPreviewProps["width"]) => void;
 };
@@ -111,21 +110,6 @@ function ProjectsToolbarSpecimen() {
   </Specimen>;
 }
 
-function RoutinesToolbarSpecimen() {
-  const [query, setQuery] = useState("");
-  const [field, setField] = useState<RoutineSortField>("updated");
-  const [direction, setDirection] = useState<RoutineSortDir>("desc");
-  const [group, setGroup] = useState<RoutineGroupBy>("folder");
-  const [action, setAction] = useState("");
-  return <Specimen title="Routines toolbar" source="RoutinesToolbar · shared routine search, sorting, grouping, folder creation and run history controls used by the Routines page.">
-    <RoutinesToolbar query={query} onQueryChange={setQuery} sortField={field} sortDir={direction} groupBy={group}
-      onSortChange={(nextField, nextDirection) => { setField(nextField); setDirection(nextDirection); }} onGroupChange={setGroup}
-      tasksHref="/issues?view=all&originKind=routine_execution" onNewFolder={group === "folder" ? () => setAction("New folder requested · local preview only") : undefined}
-      onCreateRoutine={() => setAction("Create routine requested · local preview only")} />
-    <output className="block text-xs" aria-live="polite">Search: {query || "All routines"} · Sort: {field} · Direction: {direction} · Group: {group}{action ? ` · ${action}` : ""}</output>
-  </Specimen>;
-}
-
 export function ToolbarsPreview({ family, width, onWidthChange }: ToolbarsPreviewProps) {
   return <FlyoutAppearanceProvider><DesignProposalAccess>
     <main data-testid="toolbars-preview" className="min-h-dvh space-y-8 bg-background p-6 font-sans text-muted-foreground sm:p-10">
@@ -139,7 +123,6 @@ export function ToolbarsPreview({ family, width, onWidthChange }: ToolbarsPrevie
         {(family === "all" || family === "skills") && <SkillsToolbarSpecimen />}
         {(family === "all" || family === "artifacts") && <ArtifactsToolbarSpecimen />}
         {(family === "all" || family === "projects") && <ProjectsToolbarSpecimen />}
-        {(family === "all" || family === "routines") && <RoutinesToolbarSpecimen />}
       </div>
       <p className="max-w-3xl text-xs">Local fixture state only. Search, menus, toggles and feedback can be inspected here; creation actions report an intent without changing saved data. These are canonical proposal references, with production adoption and backend verification tracked separately.</p>
     </main>

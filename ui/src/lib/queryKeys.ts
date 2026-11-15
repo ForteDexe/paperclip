@@ -398,24 +398,6 @@ export const queryKeys = {
     fileResourceAvailability: (issueId: string, refKeys: readonly string[]) =>
       ["issues", "file-resources", issueId, "availability", refKeys] as const,
   },
-  routines: {
-    list: (spaceId: string, filters?: { projectId?: string | null }) =>
-      [
-        "routines",
-        spaceId,
-        filters?.projectId ?? "__all-projects__",
-      ] as const,
-    detail: (id: string) => ["routines", "detail", id] as const,
-    runs: (id: string) => ["routines", "runs", id] as const,
-    revisions: (id: string) => ["routines", "revisions", id] as const,
-    activity: (spaceId: string, id: string) =>
-      ["routines", "activity", spaceId, id] as const,
-    documentAnnotations: (
-      routineId: string,
-      key: "description",
-      status: "open" | "resolved" | "all" = "all",
-    ) => ["routines", "document-annotations", routineId, key, status] as const,
-  },
   folders: {
     list: (spaceId: string, kind: string) =>
       ["folders", spaceId, kind] as const,

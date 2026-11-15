@@ -1,8 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { buildRoutineMentionHref, buildSkillMentionHref } from "@outpost/shared";
+import { buildSkillMentionHref } from "@outpost/shared";
 import { spaceSkillsApi } from "../api/spaceSkills";
-import { routinesApi } from "../api/routines";
 import { useSpace } from "./SpaceContext";
 import { queryKeys } from "../lib/queryKeys";
 
@@ -18,16 +17,6 @@ export interface SkillCommandOption {
   aliases: string[];
 }
 
-export interface RoutineCommandOption {
-  id: string;
-  kind: "routine";
-  routineId: string;
-  name: string;
-  status: string;
-  href: string;
-  aliases: string[];
-}
-
 export interface ActionCommandOption {
   id: string;
   kind: "action";
@@ -39,11 +28,11 @@ export interface ActionCommandOption {
   disabledReason?: string | null;
 }
 
-export type SlashCommandOption = SkillCommandOption | RoutineCommandOption | ActionCommandOption;
+export type SlashCommandOption = SkillCommandOption | ActionCommandOption;
 
 interface EditorAutocompleteContextValue {
   slashCommands: SlashCommandOption[];
-  /** Starts the skills and routines reads. Editors call it when they mount. */
+  /** Starts the skills read. Editors call it when they mount. */
   requestSlashCommands: () => void;
 }
 
@@ -53,10 +42,10 @@ const EditorAutocompleteContext = createContext<EditorAutocompleteContextValue>(
 });
 
 /**
- * Slash-command options for Markdown editors. The space skills and routines
- * lists are large, and most pages have no editor, so the provider reads them
+ * Slash-command options for Markdown editors. The space skill list is large,
+ * and most pages have no editor, so the provider reads it
  * only after the first editor mounts. Once read they stay current through the
- * live-update invalidations for skills and routines.
+ * live-update invalidations for skills.
  */
 export function EditorAutocompleteProvider({ children }: { children: ReactNode }) {
   const { selectedSpaceId } = useSpace();
@@ -69,14 +58,6 @@ export function EditorAutocompleteProvider({ children }: { children: ReactNode }
     queryFn: () => spaceSkillsApi.list(selectedSpaceId!),
     enabled: requested && Boolean(selectedSpaceId),
   });
-  const { data: routines = [] } = useQuery({
-    queryKey: selectedSpaceId
-      ? queryKeys.routines.list(selectedSpaceId)
-      : ["routines", "__none__", "__all-projects__"],
-    queryFn: () => routinesApi.list(selectedSpaceId!),
-    enabled: requested && Boolean(selectedSpaceId),
-  });
-
   const value = useMemo<EditorAutocompleteContextValue>(() => ({
     slashCommands: [
       ...spaceSkills.map((skill) => ({
@@ -90,21 +71,9 @@ export function EditorAutocompleteProvider({ children }: { children: ReactNode }
         href: buildSkillMentionHref(skill.id, skill.slug),
         aliases: [skill.slug, skill.name, skill.key],
       })),
-      ...routines
-        .filter((routine) => routine.status !== "archived")
-        .sort((left, right) => left.title.localeCompare(right.title))
-        .map((routine) => ({
-          id: `routine:${routine.id}`,
-          kind: "routine" as const,
-          routineId: routine.id,
-          name: routine.title,
-          status: routine.status,
-          href: buildRoutineMentionHref(routine.id),
-          aliases: [`routine:${routine.title}`, routine.title, routine.id],
-        })),
     ],
     requestSlashCommands,
-  }), [spaceSkills, requestSlashCommands, routines]);
+  }), [spaceSkills, requestSlashCommands]);
 
   return (
     <EditorAutocompleteContext.Provider value={value}>

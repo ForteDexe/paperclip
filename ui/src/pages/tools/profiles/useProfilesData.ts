@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { agentsApi } from "@/api/agents";
-import { routinesApi } from "@/api/routines";
 import { toolsApi } from "@/api/tools";
 import { queryKeys } from "@/lib/queryKeys";
 import { groupCatalogByApp } from "./profile-model";
@@ -32,11 +31,6 @@ export function useProfilesData(spaceId: string) {
   const projects = useQuery({
     ...spaceProjectsQuery(spaceId),
   });
-  const routines = useQuery({
-    queryKey: queryKeys.routines.list(spaceId),
-    queryFn: () => routinesApi.list(spaceId),
-  });
-
   const connectionList = connections.data?.connections ?? [];
   const catalogQueries = useQueries({
     queries: connectionList.map((c) => ({
@@ -57,9 +51,8 @@ export function useProfilesData(spaceId: string) {
       connectionsById: new Map(connectionList.map((c) => [c.id, c.name])),
       agentsById: new Map((agents.data ?? []).map((a) => [a.id, a.name])),
       projectsById: new Map((projects.data ?? []).map((p) => [p.id, p.name])),
-      routinesById: new Map((routines.data ?? []).map((r) => [r.id, r.title])),
     }),
-    [applications.data, connectionList, agents.data, projects.data, routines.data],
+    [applications.data, connectionList, agents.data, projects.data],
   );
 
   const appGroups = useMemo(
@@ -73,7 +66,6 @@ export function useProfilesData(spaceId: string) {
     connections,
     agents,
     projects,
-    routines,
     catalog,
     catalogLoading,
     appGroups,

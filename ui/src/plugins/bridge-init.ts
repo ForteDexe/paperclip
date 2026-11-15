@@ -33,7 +33,6 @@ import {
 import { AgentIcon } from "@/components/AgentIconPicker";
 import { InlineEntitySelector, type InlineEntityOption } from "@/components/InlineEntitySelector";
 import { IssuesList as HostIssuesList } from "@/components/IssuesList";
-import { ManagedRoutinesList as HostManagedRoutinesList } from "@/components/ManagedRoutinesList";
 import { MarkdownBody } from "@/components/MarkdownBody";
 import { accessApi } from "@/api/access";
 import { agentsApi } from "@/api/agents";
@@ -718,7 +717,6 @@ export function initPluginBridge(
       IssuesList: PluginSdkIssuesList,
       AssigneePicker: PluginSdkAssigneePicker,
       ProjectPicker: PluginSdkProjectPicker,
-      ManagedRoutinesList: HostManagedRoutinesList,
     },
   };
 }

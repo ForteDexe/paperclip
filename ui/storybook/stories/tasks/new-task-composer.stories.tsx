@@ -7,7 +7,6 @@ import {
   buildAgentMentionHref,
   buildIssueReferenceHref,
   buildProjectMentionHref,
-  buildRoutineMentionHref,
   buildSkillMentionHref,
   buildUserMentionHref,
 } from "@outpost/shared";
@@ -36,11 +35,9 @@ const NEW_TASK_AGENTS = [...storybookAgents, { ...storybookAgents[2]!, id: "agen
     : { ...agent, appearance: appearanceForPalette("pink-lemonade") },
 );
 const REQUEST = "Review the sign-in flow and fix the redirect after a session expires.";
-const ROUTINES = [{ id: "routine-daily-check", title: "Daily check-in", status: "active" }];
 const RICH_REQUEST = [
   `Ask [@CodexCoder](${buildAgentMentionHref("agent-codex", "code")}) and [@QAChecker](${buildAgentMentionHref("agent-qa", "shield")}) to review [@Board UI](${buildProjectMentionHref("project-operator-ui", storybookProjects[0]!.color)}).`,
   `Check [PAP-1602](${buildIssueReferenceHref("PAP-1602")}) with [@Product Lead](${buildUserMentionHref("user-product")}) using [/test-it-for-real](${buildSkillMentionHref(SKILLS[0]!.id, SKILLS[0]!.slug)}).`,
-  `Use [/routine:Daily check-in](${buildRoutineMentionHref(ROUTINES[0]!.id)}) as the checklist.`,
 ].join("\n\n");
 const WORKTREES = [
   { ...storybookExecutionWorkspaces[0]!, name: "Sign-in redirect", branchName: "codex/sign-in-redirect" },
@@ -77,7 +74,6 @@ function NewTaskStory({
       );
       if (url.pathname === `/api/spaces/${SPACE_ID}/skills`) return Response.json(SKILLS);
       if (url.pathname === `/api/spaces/${SPACE_ID}/agents`) return Response.json(NEW_TASK_AGENTS);
-      if (url.pathname === `/api/spaces/${SPACE_ID}/routines`) return Response.json(ROUTINES);
       if (url.pathname === `/api/spaces/${SPACE_ID}/execution-workspaces`) {
         if (worktrees === "loading") return new Promise<Response>(() => {});
         if (worktrees === "error") return Response.json({ error: "Worktrees unavailable" }, { status: 503 });
@@ -140,7 +136,6 @@ function NewTaskStory({
     })));
     client.setQueryData(queryKeys.issues.mentionPool(SPACE_ID), storybookIssues);
     client.setQueryData(queryKeys.spaceSkills.list(SPACE_ID), SKILLS);
-    client.setQueryData(queryKeys.routines.list(SPACE_ID), ROUTINES);
     client.setQueryData(queryKeys.instance.experimentalSettings, {
       enableIsolatedWorkspaces: true,
     });
@@ -206,7 +201,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "The production new-task dialog renders TaskChatComposer. An inset bar shared with queued messages holds the colored project picker and, for projects with isolation enabled, Worktrees. Choose a new worktree or reuse a project worktree. The shared editor supports agent, person, project, and task mentions plus skill and routine slash-command chips. Agent mentions show the agent's current avatar. The editor, add menu, work modes, assignee/model/effort picker, and send button are shared with task chat. Creation is mocked locally; no agents run.",
+          "The production new-task dialog renders TaskChatComposer. An inset bar shared with queued messages holds the colored project picker and, for projects with isolation enabled, Worktrees. Choose a new worktree or reuse a project worktree. The shared editor supports agent, person, project, and task mentions plus skill slash-command chips. Agent mentions show the agent's current avatar. The editor, add menu, work modes, assignee/model/effort picker, and send button are shared with task chat. Creation is mocked locally; no agents run.",
       },
     },
     outpost: {
@@ -488,7 +483,6 @@ export const SlashCommands: Story = {
     await expect(menu.getByText("/test-it-for-real")).toBeVisible();
     await expect(menu.getByText(SKILLS[0]!.description!)).toBeVisible();
     await expect(menu.getByText(`/${SKILLS[2]!.slug}`)).toBeVisible();
-    await expect(menu.getByText("/routine:Daily check-in")).toBeVisible();
     await expect(menuElement.getBoundingClientRect().right).toBeLessThanOrEqual(canvasElement.ownerDocument.defaultView!.innerWidth);
   },
 };
@@ -498,7 +492,7 @@ export const RichChips: Story = {
   play: async ({ canvasElement }) => {
     const page = within(canvasElement.ownerDocument.body);
     const composer = await page.findByTestId("task-chat-composer-input");
-    for (const kind of ["agent", "user", "project", "issue", "skill", "routine"]) {
+    for (const kind of ["agent", "user", "project", "issue", "skill"]) {
       await waitFor(() => expect(composer.querySelector(`[data-mention-kind="${kind}"]`)).toBeVisible());
     }
     const agentChip = composer.querySelector('[data-mention-kind="agent"]')!;
@@ -517,7 +511,6 @@ export const CreateWithRichChips: Story = {
     await expect(receipt).toHaveTextContent("Task created");
     await expect(receipt).toHaveTextContent("/test-it-for-real");
     await expect(within(receipt).getByRole("link", { name: "/test-it-for-real" })).toHaveAttribute("href", `/skills/${SKILLS[0]!.id}`);
-    await expect(receipt).toHaveTextContent("/routine:Daily check-in");
     await expect(receipt.querySelector('[data-mention-kind="agent"]')).toHaveAttribute("style", expect.stringContaining("electric-grove"));
   },
 };
@@ -533,7 +526,6 @@ export const InsertRichChips: Story = {
       [" @Board UI", /Board UI/],
       [" @PAP-1602", /PAP-1602/],
       [" /test-it", /test-it-for-real/],
-      [" /routine:Daily", /routine:Daily check-in/],
     ] as const) {
       await waitFor(() => expect(editor).toHaveFocus());
       await userEvent.keyboard(query);
@@ -545,7 +537,7 @@ export const InsertRichChips: Story = {
     await userEvent.click(page.getByRole("button", { name: "Create task" }));
     const receipt = await page.findByRole("status");
     await expect(receipt).toHaveTextContent("Please review these together.");
-    for (const kind of ["agent", "user", "project", "skill", "routine"]) {
+    for (const kind of ["agent", "user", "project", "skill"]) {
       await expect(receipt.querySelector(`[data-mention-kind="${kind}"]`)).toBeVisible();
     }
     await expect(within(receipt).getByRole("link", { name: "Issue PAP-1602" })).toBeVisible();

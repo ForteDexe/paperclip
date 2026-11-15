@@ -44,10 +44,9 @@ import {
   buildAgentMentionHref,
   buildIssueReferenceHref,
   buildProjectMentionHref,
-  buildRoutineMentionHref,
   buildUserMentionHref,
 } from "@outpost/shared";
-import { Boxes, CalendarClock, Flag, Hash, User, X } from "lucide-react";
+import { Boxes, Flag, Hash, User, X } from "lucide-react";
 import { applyMentionChipDecoration, clearMentionChipDecoration, parseMentionChipHref } from "../lib/mention-chips";
 import { MentionAwareLinkNode, mentionAwareLinkNodeReplacement } from "../lib/mention-aware-link-node";
 import { mentionDeletionPlugin } from "../lib/mention-deletion";
@@ -381,7 +380,7 @@ export function findMentionMatch(
 
   if (atPos === -1) return null;
   const query = text.slice(atPos + 1, offset);
-  if (trigger === "skill" && /\s/.test(query) && !query.toLowerCase().startsWith("routine:")) {
+  if (trigger === "skill" && /\s/.test(query)) {
     return null;
   }
 
@@ -604,7 +603,6 @@ function mentionMarkdown(option: MentionOption): string {
 }
 
 function slashCommandLabel(option: SlashCommandOption): string {
-  if (option.kind === "routine") return `/routine:${option.name}`;
   if (option.kind === "action") return `/${option.command}`;
   return `/${option.slug}`;
 }
@@ -614,14 +612,11 @@ function slashCommandMarkdown(option: SlashCommandOption): string {
   // command. Keep a non-breaking separator in the document so subsequent text
   // is inserted as the command argument instead of being glued to the token.
   if (option.kind === "action") return `/${option.command}\u00a0`;
-  if (option.kind === "routine") {
-    return `[${slashCommandLabel(option)}](${buildRoutineMentionHref(option.routineId)}) `;
-  }
   return `[/${option.slug}](${option.href}) `;
 }
 
 function autocompleteMarkdown(option: AutocompleteOption): string {
-  return option.kind === "skill" || option.kind === "routine" || option.kind === "action"
+  return option.kind === "skill" || option.kind === "action"
     ? slashCommandMarkdown(option)
     : mentionMarkdown(option);
 }
@@ -657,10 +652,6 @@ function autocompleteOptionMatchesLink(option: AutocompleteOption, href: string)
   if (option.kind === "skill") {
     return parsed.kind === "skill" && parsed.skillId === option.skillId;
   }
-  if (option.kind === "routine") {
-    return parsed.kind === "routine" && parsed.routineId === option.routineId;
-  }
-
   if (option.kind === "issue" && option.issueIdentifier) {
     return parsed.kind === "issue" && parsed.identifier === option.issueIdentifier;
   }
@@ -1699,9 +1690,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
                   setMentionIndex(i);
                 }}
               >
-                {option.kind === "routine" ? (
-                  <CalendarClock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                ) : option.kind === "action" ? (
+                {option.kind === "action" ? (
                   <Flag className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                 ) : option.kind === "skill" ? (
                   <Boxes className="h-3.5 w-3.5 shrink-0 text-(--skill-mention-foreground)" />
@@ -1735,7 +1724,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
                   </span>
                 ) : (
                   <span className="truncate">
-                    {option.kind === "routine" || option.kind === "action"
+                    {option.kind === "action"
                       ? slashCommandLabel(option)
                       : option.name}
                   </span>
@@ -1758,11 +1747,6 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
                 {option.kind === "skill" && (
                   <span className="ml-auto shrink-0 text-(length:--text-nano) uppercase tracking-wide text-popover-foreground/70">
                     Skill
-                  </span>
-                )}
-                {option.kind === "routine" && (
-                  <span className="ml-auto text-(length:--text-nano) uppercase tracking-wide text-muted-foreground">
-                    Routine
                   </span>
                 )}
                 {option.kind === "action" && (

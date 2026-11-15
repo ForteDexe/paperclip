@@ -2,8 +2,8 @@ import { useWorkspaceIsolationControls } from "@/hooks/useWorkspaceIsolationCont
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate, useParams } from "@/lib/router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ExecutionWorkspace, Issue, Project, ProjectWorkspace, RoutineListItem, WorkspaceOperation } from "@outpost/shared";
-import { Copy, ExternalLink, Loader2, Play, Repeat } from "lucide-react";
+import type { ExecutionWorkspace, Issue, Project, ProjectWorkspace, WorkspaceOperation } from "@outpost/shared";
+import { Copy, ExternalLink, Loader2 } from "lucide-react";
 import { QueryErrorState, useQueryView } from "@/components/QueryView";
 import { describeError } from "@/api/errors";
 import { Button } from "@/components/ui/button";
@@ -20,15 +20,10 @@ import { executionWorkspacesApi } from "../api/execution-workspaces";
 import { heartbeatsApi } from "../api/heartbeats";
 import { issuesApi } from "../api/issues";
 import { projectsApi } from "../api/projects";
-import { routinesApi } from "../api/routines";
 import { IssuesList } from "../components/IssuesList";
 import { PageTabBar } from "../components/PageTabBar";
 import { usePublishSharedQueryData, useSharedPollingQuery } from "../hooks/useSharedPolling";
 import { PluginSlotMount, PluginSlotOutlet, usePluginSlots } from "@/plugins/slots";
-import {
-  RoutineRunVariablesDialog,
-  type RoutineRunDialogSubmitData,
-} from "../components/RoutineRunVariablesDialog";
 import {
   buildWorkspaceRuntimeControlSections,
   buildWorkspaceServiceControlEntries,
@@ -44,11 +39,6 @@ import { useToastActions } from "../context/ToastContext";
 import { collectLiveIssueIds } from "../lib/liveIssueIds";
 import { queryKeys } from "../lib/queryKeys";
 import { cn, formatDateTime, issueUrl, projectRouteRef, projectWorkspaceUrl } from "../lib/utils";
-import {
-  getWorkspaceSpecificRoutineVariableNames,
-  routineHasWorkspaceSpecificVariables,
-  sortWorkspaceRoutinesByName,
-} from "../lib/workspace-routines";
 import { useUpdateIssueMutation } from "../hooks/useUpdateIssueMutation";
 
 type WorkspaceFormState = {
@@ -74,7 +64,7 @@ type ConfiguredRuntimeServicePort = {
   invalidPort: boolean;
 };
 
-type ExecutionWorkspaceBaseTab = "services" | "configuration" | "runtime_logs" | "issues" | "routines";
+type ExecutionWorkspaceBaseTab = "services" | "configuration" | "runtime_logs" | "issues";
 type ExecutionWorkspacePluginTab = `plugin:${string}`;
 type ExecutionWorkspaceTab = ExecutionWorkspaceBaseTab | ExecutionWorkspacePluginTab;
 type OrderedExecutionWorkspaceTabItem = {
@@ -89,7 +79,6 @@ const EXECUTION_WORKSPACE_BASE_TAB_ITEMS: OrderedExecutionWorkspaceTabItem[] = [
   { value: "services", label: "Services", order: 20 },
   { value: "configuration", label: "Configuration", order: 30 },
   { value: "runtime_logs", label: "Runtime logs", order: 40 },
-  { value: "routines", label: "Routines", order: 60 },
 ];
 
 function isExecutionWorkspacePluginTab(value: string | null): value is ExecutionWorkspacePluginTab {
@@ -110,7 +99,6 @@ function resolveExecutionWorkspaceTab(pathname: string, workspaceId: string): Ex
   const tab = segments[executionWorkspacesIndex + 2];
   if (tab === "services") return "services";
   if (tab === "issues") return "issues";
-  if (tab === "routines") return "routines";
   if (tab === "runtime-logs") return "runtime_logs";
   if (tab === "configuration") return "configuration";
   return null;
@@ -588,196 +576,6 @@ function ExecutionWorkspaceIssuesList({
       baseCreateIssueDefaults={createIssueDefaults}
       onUpdateIssue={(id, data) => updateIssue.mutate({ id, data })}
     />
-  );
-}
-
-function WorkspaceRoutineRow({
-  routine,
-  variableNames,
-  runningRoutineId,
-  onRunNow,
-}: {
-  routine: RoutineListItem;
-  variableNames: string[];
-  runningRoutineId: string | null;
-  onRunNow: (routine: RoutineListItem) => void;
-}) {
-  const isArchived = routine.status === "archived";
-  const isRunning = runningRoutineId === routine.id;
-
-  return (
-    <div className="flex flex-col gap-3 border-b border-border px-3 py-3 last:border-b-0 sm:flex-row sm:items-center">
-      <div className="min-w-0 flex-1 space-y-1.5">
-        <div className="flex flex-wrap items-center gap-2">
-          <Link to={`/routines/${routine.id}`} className="truncate text-sm font-medium hover:underline">
-            {routine.title}
-          </Link>
-          {routine.status !== "active" ? (
-            <span className="text-xs text-muted-foreground">{routine.status}</span>
-          ) : null}
-        </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-          <span>{routine.assigneeAgentId ? "Default agent set" : "Choose agent when running"}</span>
-          <span>Last run {formatOptionalDateTime(routine.lastRun?.triggeredAt ?? routine.lastTriggeredAt)}</span>
-          <span className="flex flex-wrap gap-1">
-            {variableNames.map((name) => (
-              <span key={name} className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-(length:--text-micro) text-muted-foreground">
-                {name}
-              </span>
-            ))}
-          </span>
-        </div>
-      </div>
-      <Button
-        variant="outline"
-        size="sm"
-        className="w-full sm:w-auto"
-        disabled={isArchived || isRunning}
-        onClick={() => onRunNow(routine)}
-      >
-        {isRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
-        {isRunning ? "Running..." : "Run now"}
-      </Button>
-    </div>
-  );
-}
-
-function ExecutionWorkspaceRoutinesList({
-  workspace,
-  project,
-}: {
-  workspace: ExecutionWorkspace;
-  project: Project | null;
-}) {
-  const queryClient = useQueryClient();
-  const { pushToast } = useToastActions();
-  const [runDialogRoutine, setRunDialogRoutine] = useState<RoutineListItem | null>(null);
-  const [runningRoutineId, setRunningRoutineId] = useState<string | null>(null);
-
-  const routinesQuery = useQuery({
-    queryKey: queryKeys.routines.list(workspace.spaceId, { projectId: workspace.projectId }),
-    queryFn: () => routinesApi.list(workspace.spaceId, { projectId: workspace.projectId }),
-  });
-  // Read the routine list through the shared view: cached rows stay usable
-  // during a transient refetch failure,and a no-data failure shows readable
-  // copy with Retry.
-  const routinesView = useQueryView(routinesQuery);
-
-  const { data: agents } = useQuery({
-    queryKey: queryKeys.agents.list(workspace.spaceId),
-    queryFn: () => agentsApi.list(workspace.spaceId),
-  });
-
-  const workspaceRoutines = useMemo(
-    () => sortWorkspaceRoutinesByName((routinesQuery.data ?? []).filter(routineHasWorkspaceSpecificVariables)),
-    [routinesQuery.data],
-  );
-
-  const runRoutine = useMutation({
-    mutationFn: ({ id, data }: { id: string; data?: RoutineRunDialogSubmitData }) => routinesApi.run(id, {
-      ...(data?.variables && Object.keys(data.variables).length > 0 ? { variables: data.variables } : {}),
-      ...(data?.assigneeAgentId !== undefined ? { assigneeAgentId: data.assigneeAgentId } : {}),
-      ...(data?.projectId !== undefined ? { projectId: data.projectId } : {}),
-      ...(data?.executionWorkspaceId !== undefined ? { executionWorkspaceId: data.executionWorkspaceId } : {}),
-      ...(data?.executionWorkspacePreference !== undefined
-        ? { executionWorkspacePreference: data.executionWorkspacePreference }
-        : {}),
-      ...(data?.executionWorkspaceSettings !== undefined
-        ? { executionWorkspaceSettings: data.executionWorkspaceSettings }
-        : {}),
-    }),
-    onMutate: ({ id }) => {
-      setRunningRoutineId(id);
-    },
-    onSuccess: async (_, { id }) => {
-      setRunDialogRoutine(null);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["routines", workspace.spaceId] }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.routines.detail(id) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.issues.listByExecutionWorkspace(workspace.spaceId, workspace.id) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.issues.list(workspace.spaceId) }),
-      ]);
-      pushToast({
-        title: "Routine started",
-        body: "Outpost created a run using this execution workspace.",
-        tone: "success",
-      });
-    },
-    onSettled: () => {
-      setRunningRoutineId(null);
-    },
-    onError: (mutationError) => {
-      pushToast({
-        title: "Routine run failed",
-        body: describeError(mutationError).body,
-        tone: "error",
-      });
-    },
-  });
-
-  return (
-    <>
-      <Card className="rounded-none">
-        <CardHeader>
-          <CardTitle>Workspace routines</CardTitle>
-          <CardDescription>
-            Routines that use workspace-specific variables can be run against this execution workspace.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {routinesView.kind === "loading" || routinesView.kind === "reconnecting" ? (
-            <p className="text-sm text-muted-foreground">Loading routines...</p>
-          ) : routinesView.kind === "error" ? (
-            <QueryErrorState
-              size="inline"
-              error={routinesView.error}
-              action="load workspace routines"
-              onRetry={routinesView.retry}
-              retrying={routinesView.isFetching}
-            />
-          ) : workspaceRoutines.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-10 text-center">
-              <Repeat className="h-5 w-5 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">
-                No routines use workspace-specific variables yet.
-              </p>
-            </div>
-          ) : (
-            <div className="rounded-lg border border-border">
-              {workspaceRoutines.map((routine) => (
-                <WorkspaceRoutineRow
-                  key={routine.id}
-                  routine={routine}
-                  variableNames={getWorkspaceSpecificRoutineVariableNames(routine)}
-                  runningRoutineId={runningRoutineId}
-                  onRunNow={setRunDialogRoutine}
-                />
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <RoutineRunVariablesDialog
-        open={runDialogRoutine !== null}
-        onOpenChange={(next) => {
-          if (!next) setRunDialogRoutine(null);
-        }}
-        spaceId={workspace.spaceId}
-        routineName={runDialogRoutine?.title ?? null}
-        agents={agents ?? []}
-        projects={project ? [project] : []}
-        defaultProjectId={workspace.projectId}
-        defaultAssigneeAgentId={runDialogRoutine?.assigneeAgentId ?? null}
-        defaultExecutionWorkspace={workspace}
-        variables={runDialogRoutine?.variables ?? []}
-        isPending={runRoutine.isPending}
-        onSubmit={(data) => {
-          if (!runDialogRoutine) return;
-          runRoutine.mutate({ id: runDialogRoutine.id, data });
-        }}
-      />
-    </>
   );
 }
 
@@ -1611,11 +1409,6 @@ export function ExecutionWorkspaceDetail() {
           <MissingPluginTabPlaceholder
             defaultTabHref={executionWorkspaceTabPath(workspace.id, "issues")}
             defaultTabLabel="Back to tasks"
-          />
-        ) : activeTab === "routines" ? (
-          <ExecutionWorkspaceRoutinesList
-            workspace={workspace}
-            project={project}
           />
         ) : (
           <LegacyWorkspaceTabRedirect workspaceId={workspace.id} />

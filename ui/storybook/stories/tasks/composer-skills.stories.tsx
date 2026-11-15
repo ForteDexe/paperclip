@@ -23,11 +23,9 @@ function TaskSkillsStory() {
     window.fetch = async (input, init) => {
       const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, location.origin);
       if (url.pathname === `/api/spaces/${selectedSpaceId}/skills`) return Response.json(composerSkills);
-      if (url.pathname === `/api/spaces/${selectedSpaceId}/routines`) return Response.json([]);
       return originalFetch(input, init);
     };
     client.setQueryData(queryKeys.spaceSkills.list(selectedSpaceId), composerSkills);
-    client.setQueryData(queryKeys.routines.list(selectedSpaceId), []);
     return () => { window.fetch = originalFetch; };
   }, [client, selectedSpaceId]);
 

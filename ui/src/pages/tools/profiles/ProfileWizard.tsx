@@ -76,7 +76,6 @@ export function ProfileWizard({
   const [newToolsAction, setNewToolsAction] = useState<"deny" | "allow">("deny");
   const [selectedAgentIds, setSelectedAgentIds] = useState<Set<string>>(new Set());
   const [selectedProjectIds, setSelectedProjectIds] = useState<Set<string>>(new Set());
-  const [selectedRoutineIds, setSelectedRoutineIds] = useState<Set<string>>(new Set());
   const [spaceDefault, setSpaceDefault] = useState(false);
 
   const toggleIn = (setter: typeof setSelectedAgentIds) => (id: string) =>
@@ -109,7 +108,6 @@ export function ProfileWizard({
       new Set(existing.bindings.filter((b) => b.targetType === type).map((b) => b.targetId));
     setSelectedAgentIds(targetIds("agent"));
     setSelectedProjectIds(targetIds("project"));
-    setSelectedRoutineIds(targetIds("routine"));
     setSpaceDefault(existing.bindings.some((b) => b.targetType === "space"));
   }, [existing, appGroups, profileId, initialStep]);
 
@@ -194,7 +192,6 @@ export function ProfileWizard({
       await reconcileBindings(spaceId, profile, {
         agentIds: [...selectedAgentIds],
         projectIds: [...selectedProjectIds],
-        routineIds: [...selectedRoutineIds],
         spaceDefault,
       });
       return toolsApi.updateProfile(draftId, { status: "active" });
@@ -267,14 +264,11 @@ export function ProfileWizard({
           <StepAssign
             agents={(agents.data ?? []).map((a) => ({ id: a.id, name: a.name, title: a.title, icon: a.icon }))}
             projects={(data.projects.data ?? []).map((p) => ({ id: p.id, name: p.name }))}
-            routines={(data.routines.data ?? []).map((r) => ({ id: r.id, name: r.title }))}
             profiles={allProfiles}
             selectedAgentIds={selectedAgentIds}
             onToggleAgent={toggleIn(setSelectedAgentIds)}
             selectedProjectIds={selectedProjectIds}
             onToggleProject={toggleIn(setSelectedProjectIds)}
-            selectedRoutineIds={selectedRoutineIds}
-            onToggleRoutine={toggleIn(setSelectedRoutineIds)}
             spaceDefault={spaceDefault}
             onSpaceDefault={setSpaceDefault}
           />
@@ -353,17 +347,16 @@ export function ProfileWizard({
 async function reconcileBindings(
   spaceId: string,
   profile: ToolProfileWithDetails,
-  desired: { agentIds: string[]; projectIds: string[]; routineIds: string[]; spaceDefault: boolean },
+  desired: { agentIds: string[]; projectIds: string[]; spaceDefault: boolean },
 ) {
   const want = new Map<string, ToolProfileBindingInput>();
   if (desired.spaceDefault) want.set(`space:${spaceId}`, { targetType: "space", targetId: spaceId });
   for (const id of desired.agentIds) want.set(`agent:${id}`, { targetType: "agent", targetId: id });
   for (const id of desired.projectIds) want.set(`project:${id}`, { targetType: "project", targetId: id });
-  for (const id of desired.routineIds) want.set(`routine:${id}`, { targetType: "routine", targetId: id });
 
   // Only the target types the wizard manages are reconciled — leave any
   // issue-scoped or other bindings untouched.
-  const managed = new Set(["space", "agent", "project", "routine"]);
+  const managed = new Set(["space", "agent", "project"]);
   const have = new Set(profile.bindings.map((b) => `${b.targetType}:${b.targetId}`));
 
   const operations = [
@@ -558,27 +551,21 @@ interface TargetOption {
 export function StepAssign({
   agents,
   projects = [],
-  routines = [],
   profiles,
   selectedAgentIds,
   onToggleAgent,
   selectedProjectIds,
   onToggleProject,
-  selectedRoutineIds,
-  onToggleRoutine,
   spaceDefault,
   onSpaceDefault,
 }: {
   agents: AgentMultiSelectOption[];
   projects?: TargetOption[];
-  routines?: TargetOption[];
   profiles: ToolProfileWithDetails[];
   selectedAgentIds: Set<string>;
   onToggleAgent: (id: string) => void;
   selectedProjectIds?: Set<string>;
   onToggleProject?: (id: string) => void;
-  selectedRoutineIds?: Set<string>;
-  onToggleRoutine?: (id: string) => void;
   spaceDefault: boolean;
   onSpaceDefault: (v: boolean) => void;
 }) {
@@ -640,7 +627,7 @@ export function StepAssign({
         </p>
       </div>
 
-      {(projects.length > 0 || routines.length > 0) && onToggleProject && onToggleRoutine ? (
+      {projects.length > 0 && onToggleProject ? (
         <Collapsible open={moreOpen} onOpenChange={setMoreOpen} className="rounded-lg border border-border">
           <CollapsibleTrigger className="flex w-full items-center justify-between px-4 py-3 text-left">
             <span className="text-sm font-medium text-foreground">More targets</span>
@@ -648,20 +635,13 @@ export function StepAssign({
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-4 border-t border-border px-4 py-3">
             <p className="text-xs text-muted-foreground">
-              Assign this profile to a whole project or a scheduled routine instead of (or as well as)
-              individual agents.
+              Assign this profile to a whole project instead of (or as well as) individual agents.
             </p>
             <TargetChecklist
               label="Projects"
               options={projects}
               selected={selectedProjectIds ?? new Set()}
               onToggle={onToggleProject}
-            />
-            <TargetChecklist
-              label="Routines"
-              options={routines}
-              selected={selectedRoutineIds ?? new Set()}
-              onToggle={onToggleRoutine}
             />
           </CollapsibleContent>
         </Collapsible>

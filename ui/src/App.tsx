@@ -154,7 +154,6 @@ function operatorRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled
       <Route path="chats" element={<AgentChats />} />
       <Route path="chats/:agentRef" element={<AgentChat />} />
       <Route path="issues/:issueId" element={<IssueDetail />} />
-      <Route path="routines" element={<Navigate to="/dashboard" replace />} />
       <Route
         path="cases"
         element={<CasesExperimentalGate><Cases /></CasesExperimentalGate>}
@@ -165,8 +164,6 @@ function operatorRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled
       />
       <Route path="status" element={<Navigate to="/dashboard" replace />} />
       <Route path="status/:cardId" element={<Navigate to="/dashboard" replace />} />
-      <Route path="routines/:routineId" element={<Navigate to="/dashboard" replace />} />
-      <Route path="routines/:routineId/:section" element={<Navigate to="/dashboard" replace />} />
       <Route path="execution-workspaces/:workspaceId/*" element={<Navigate to="/dashboard" replace />} />
       <Route path="goals" element={<Goals />} />
       <Route path="goals/:goalId" element={<GoalDetail />} />
@@ -363,8 +360,6 @@ export function App() {
           <Route path="tasks" element={<UnprefixedOperatorRedirect />} />
           <Route path="issues/:issueId" element={<UnprefixedOperatorRedirect />} />
           <Route path="approvals/:approvalId" element={<UnprefixedOperatorRedirect />} />
-          <Route path="routines" element={<UnprefixedOperatorRedirect />} />
-          <Route path="routines/:routineId" element={<UnprefixedOperatorRedirect />} />
           <Route path="cases" element={<UnprefixedOperatorRedirect />} />
           <Route path="cases/:caseIdentifier" element={<UnprefixedOperatorRedirect />} />
           <Route path="status" element={<UnprefixedOperatorRedirect />} />

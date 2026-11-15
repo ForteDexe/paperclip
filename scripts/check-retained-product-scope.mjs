@@ -95,6 +95,12 @@ const retiredInfrastructure = [
   "tests/runner-e2e/chat-scenarios/projects.yaml",
   "tests/runner-e2e/chat-scenarios/routines.yaml",
   "tests/runner-e2e/chat-scenarios/skills.yaml",
+  "ui/src/api/routines.ts",
+  "ui/src/components/ManagedRoutinesList.tsx",
+  "ui/src/components/RoutinesToolbar.tsx",
+  "ui/src/pages/RoutineDetail.tsx",
+  "ui/src/pages/Routines.tsx",
+  "ui/storybook/stories/routines",
 ];
 
 const retiredCatalogScenarioIds = [

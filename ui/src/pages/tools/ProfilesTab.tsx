@@ -15,7 +15,6 @@ import type {
   ToolRiskLevel,
 } from "@outpost/shared";
 import { agentsApi } from "@/api/agents";
-import { routinesApi } from "@/api/routines";
 import {
   toolsApi,
   type CreateToolProfileInput,
@@ -71,7 +70,6 @@ const TARGET_TYPES: Array<{ value: ToolProfileBindingTargetType; label: string }
   { value: "space", label: "Outpost" },
   { value: "agent", label: "Agent" },
   { value: "project", label: "Project" },
-  { value: "routine", label: "Routine" },
   { value: "issue", label: "Issue ID" },
 ];
 
@@ -97,13 +95,11 @@ function targetIdForType(input: {
   targetType: ToolProfileBindingTargetType;
   agentId: string;
   projectId: string;
-  routineId: string;
   issueId: string;
 }) {
   if (input.targetType === "space") return input.spaceId;
   if (input.targetType === "agent") return input.agentId;
   if (input.targetType === "project") return input.projectId;
-  if (input.targetType === "routine") return input.routineId;
   return input.issueId.trim();
 }
 
@@ -153,13 +149,11 @@ function bindingLabel(
     spaceId: string;
     agentsById: Map<string, string>;
     projectsById: Map<string, string>;
-    routinesById: Map<string, string>;
   },
 ) {
   if (targetType === "space") return targetId === labels.spaceId ? "Outpost" : targetId;
   if (targetType === "agent") return labels.agentsById.get(targetId) ?? targetId;
   if (targetType === "project") return labels.projectsById.get(targetId) ?? targetId;
-  if (targetType === "routine") return labels.routinesById.get(targetId) ?? targetId;
   return targetId;
 }
 
@@ -315,10 +309,6 @@ function useLookupData(spaceId: string) {
   const projects = useQuery({
     ...spaceProjectsQuery(spaceId, { includeArchived: true }),
   });
-  const routines = useQuery({
-    queryKey: queryKeys.routines.list(spaceId),
-    queryFn: () => routinesApi.list(spaceId),
-  });
   const applications = useQuery({
     queryKey: queryKeys.tools.applications(spaceId),
     queryFn: () => toolsApi.listApplications(spaceId),
@@ -331,12 +321,11 @@ function useLookupData(spaceId: string) {
   const maps = useMemo(() => ({
     agentsById: new Map((agents.data ?? []).map((agent) => [agent.id, agent.name])),
     projectsById: new Map((projects.data ?? []).map((project) => [project.id, project.name])),
-    routinesById: new Map((routines.data ?? []).map((routine) => [routine.id, routine.title])),
     applicationsById: new Map((applications.data?.applications ?? []).map((app) => [app.id, app.name])),
     connectionsById: new Map((connections.data?.connections ?? []).map((conn) => [conn.id, conn.name])),
-  }), [agents.data, applications.data, connections.data, projects.data, routines.data]);
+  }), [agents.data, applications.data, connections.data, projects.data]);
 
-  return { agents, projects, routines, applications, connections, maps };
+  return { agents, projects, applications, connections, maps };
 }
 
 function EntryFields({
@@ -667,7 +656,6 @@ export function ProfilesTab({ spaceId }: { spaceId: string }) {
   const [targetType, setTargetType] = useState<ToolProfileBindingTargetType>("agent");
   const [targetAgentId, setTargetAgentId] = useState("");
   const [targetProjectId, setTargetProjectId] = useState("");
-  const [targetRoutineId, setTargetRoutineId] = useState("");
   const [targetIssueId, setTargetIssueId] = useState("");
   const [priority, setPriority] = useState("100");
 
@@ -699,7 +687,6 @@ export function ProfilesTab({ spaceId }: { spaceId: string }) {
   const connectionOptions = lookups.connections.data?.connections ?? [];
   const agentOptions = lookups.agents.data ?? [];
   const projectOptions = (lookups.projects.data ?? []).filter((project) => !project.archivedAt);
-  const routineOptions = lookups.routines.data ?? [];
 
   const invalidateProfiles = () => {
     qc.invalidateQueries({ queryKey: queryKeys.tools.profiles(spaceId) });
@@ -905,7 +892,6 @@ export function ProfilesTab({ spaceId }: { spaceId: string }) {
       targetType,
       agentId: targetAgentId,
       projectId: targetProjectId,
-      routineId: targetRoutineId,
       issueId: targetIssueId,
     });
     if (!targetId) {
@@ -926,7 +912,7 @@ export function ProfilesTab({ spaceId }: { spaceId: string }) {
     <div className="space-y-4">
       <ToolsPageHeader
         title="Access profiles"
-        description="Reusable bundles of allowed applications, connections, and tools, assignable to agents, projects, routines, or issues."
+        description="Reusable bundles of allowed applications, connections, and tools, assignable to agents, projects, or issues."
         actions={
           <Button size="sm" onClick={() => setCreateOpen(true)}>
             <Plus className="mr-1 h-4 w-4" />
@@ -1201,17 +1187,6 @@ export function ProfilesTab({ spaceId }: { spaceId: string }) {
                 </Select>
               </div>
             ) : null}
-            {targetType === "routine" ? (
-              <div className="space-y-1.5">
-                <Label>Routine</Label>
-                <Select value={targetRoutineId} onValueChange={setTargetRoutineId}>
-                  <SelectTrigger><SelectValue placeholder="Select a routine" /></SelectTrigger>
-                  <SelectContent>
-                    {routineOptions.map((routine) => <SelectItem key={routine.id} value={routine.id}>{routine.title}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : null}
             {targetType === "issue" ? (
               <div className="space-y-1.5">
                 <Label htmlFor="target-issue-id">Issue ID</Label>
@@ -1254,7 +1229,6 @@ function ProfileDetail({
     spaceId?: string;
     agentsById: Map<string, string>;
     projectsById: Map<string, string>;
-    routinesById: Map<string, string>;
     applicationsById: Map<string, string>;
     connectionsById: Map<string, string>;
   };
