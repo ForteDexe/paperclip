@@ -121,8 +121,8 @@ qualification is a synthetic workload, not a production cost forecast.
 Finalization streams the committed bytes once to compute the existing complete
 file SHA-256. It does not re-upload the entire log. Range indexes avoid loading
 all segment descriptors to read a tail. Historical consumers, UTF-8/NDJSON record
-alignment, issue previews, feedback, and customer-success inspection dispatch
-through the persisted backend. Logical reads retain the existing authorization.
+alignment, issue previews, and diagnostics dispatch through the persisted
+backend. Logical reads retain the existing authorization.
 On-demand native repair closes its verified committed range with an exact byte
 count and leaves an unavailable full-file SHA-256 null. It does not make a log
 page request re-download the entire archive to compute that optional digest.
@@ -148,9 +148,8 @@ rows. The control ACK and sparse checkpoint formats remain unchanged.
 Recovery runs before native execution reconnects. If the run settled before its
 archive finished, the normal log API, issue preview, or feedback reader can repair
 it after the native controller lease expires. Concurrent requests share recovery;
-final metadata is saved only when no later native source remains. Read-only
-customer-success inspection reads the currently published prefix. A failed
-repair leaves final size/digest unknown and preserves the existing source.
+final metadata is saved only when no later native source remains. A failed repair
+leaves final size/digest unknown and preserves the existing source.
 Retained native events are not deleted by Runner cleanup. Recovery adds bounded
 reads and one final metadata update, with no new per-record SQL on the normal
 contiguous output path. Raw optional capture can still be incomplete after a crash.

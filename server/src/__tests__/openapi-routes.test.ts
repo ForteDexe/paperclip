@@ -40,7 +40,6 @@ const apiPrefixes: Record<string, string> = {
   "slack-tools.ts": "/api",
   "email.ts": "/api",
   "cloud.ts": "/api/cloud",
-  "customer-success.ts": "/api/customer-success/v1",
   "spaces.ts": "/api/spaces",
   "space-skills.ts": "/api",
   "space-skill-policy.ts": "/api",
@@ -112,11 +111,6 @@ const explicitOpenApiOperationCoverageExclusions = new Set([
   // Exact Cloud-control signed action; ordinary operator/agent credentials cannot invoke it.
   "POST /api/instance/connector-events/wake",
   "POST /api/instance/ephemeral-enrollment/prepare",
-  // Inspection uses its own versioned Cloud-permit/managed-run protocol,
-  // documented in CUSTOMER-SUCCESS-INSPECTION.md and the shared contract.
-  // Ordinary operator sessions and agent API keys cannot invoke these endpoints.
-  "GET /api/customer-success/v1/run-authority",
-  "POST /api/customer-success/v1/read",
   // This endpoint is authenticated by the provider signature rather than by a
   // Outpost operator/agent credential. It intentionally stays out of the public
   // operator API document, while this exact exclusion keeps route coverage honest.

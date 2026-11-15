@@ -310,6 +310,15 @@ they support operating and debugging the retained local runtime rather than
 reporting product usage to a vendor. Historical release notes and immutable
 database migrations may still describe older telemetry behavior.
 
+### Cloud Customer Support Inspection
+
+Outpost no longer exposes a cloud-signed support channel that can inspect an
+active run, private task content, skill snapshots, or remote workspace files.
+The dedicated versioned endpoint, permit and query contracts, authority and
+inspection services, cloud qualification, operator documentation, and focused
+tests are removed. Normal operator and agent APIs, task authorization, runtime
+identity, workspace file access, logs, artifacts, and local diagnostics remain.
+
 ## Scope guard
 
 `scripts/check-retained-product-scope.mjs` verifies that the required Codex,

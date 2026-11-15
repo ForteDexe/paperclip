@@ -120,6 +120,13 @@ const retiredInfrastructure = [
   "server/src/services/connector-telemetry.ts",
   "doc/TELEMETRY_WORKFLOW.md",
   "scripts/extract-proposed-events.mjs",
+  "server/src/routes/customer-success.ts",
+  "server/src/services/customer-success-authority.ts",
+  "server/src/services/customer-success-inspection.ts",
+  "server/src/__tests__/customer-success.test.ts",
+  "server/src/__tests__/customer-success-cloud.test.ts",
+  "packages/shared/src/customer-success.ts",
+  "doc/CUSTOMER-SUCCESS-INSPECTION.md",
 ];
 
 const retiredCatalogScenarioIds = [

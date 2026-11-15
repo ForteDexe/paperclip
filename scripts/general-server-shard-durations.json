@@ -229,8 +229,6 @@
     "server/src/__tests__/cursor-local-skill-injection.test.ts": 1164,
     "server/src/__tests__/cursor-local-skill-sync.test.ts": 1244,
     "server/src/__tests__/custom-image-cleanup-work.test.ts": 1221,
-    "server/src/__tests__/customer-success-cloud.test.ts": 1410,
-    "server/src/__tests__/customer-success.test.ts": 5641,
     "server/src/__tests__/dashboard-disconnect-retry.test.ts": 3250,
     "server/src/__tests__/dashboard-service.test.ts": 5216,
     "server/src/__tests__/database-backup-work.test.ts": 366,

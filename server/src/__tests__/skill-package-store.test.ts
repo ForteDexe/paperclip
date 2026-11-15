@@ -22,7 +22,6 @@ import { skillPackageMaintenance } from "../services/skill-package-maintenance.j
 import { skillPackageManifest, validateSkillPackageManifest, writeSkillPackageArchive, extractSkillPackageArchive,
   verifySkillPackageDirectory } from "../services/skill-package-files.js";
 import { skillFileBytes, skillSnapshotHash } from "../services/skill-snapshot.js";
-import { readCustomerSuccessResource } from "../services/customer-success-inspection.js";
 import { repositorySkillProjection } from "../services/skill-repository-package.js";
 import { hasRestorableSnapshot } from "../services/skill-version-cache.js";
 
@@ -182,29 +181,14 @@ describe.skipIf(!support.supported)("external skill packages", () => {
     expect(fork.reassignments).toEqual([{ agentId: agent!.id, previousSkillKey: original.key, nextSkillKey: fork.skill.key }]);
   });
 
-  it("lists version metadata without reading archives, while inspection reads the requested historical bytes", async () => {
+  it("lists version metadata without reading archives", async () => {
     const f = await fixture();
-    const { skill, version } = f.skills[0]!;
+    const { skill } = f.skills[0]!;
     await db.update(spaceSkills).set({ markdown: "New current markdown" }).where(eq(spaceSkills.id, skill.id));
     const read = vi.spyOn(storage, "getObject");
     const history = await f.service.listVersions(f.spaceId, skill.id);
     expect(history[0]!.fileInventory).toEqual([{ path: "SKILL.md", kind: "skill" }]);
     expect(read.mock.calls.filter(call => call[1].endsWith("files.tar.gz"))).toHaveLength(0);
-    await db.update(spaceSkillVersions).set({ packageFileMap: [
-      ...version.packageFileMap!, { path: "run.sh", kind: "script", sourcePath: "shared/run.sh" },
-    ] }).where(eq(spaceSkillVersions.id, version.id));
-    const script = await readCustomerSuccessResource(db, storage, {
-      operation: "skills.file", spaceId: f.spaceId, resourceId: skill.id, versionId: version.id, path: "run.sh",
-    }) as { content: string };
-    expect(Buffer.from(script.content, "base64").toString()).toBe(files[2]!.content);
-    const result = await readCustomerSuccessResource(db, storage, {
-      operation: "skills.file", spaceId: f.spaceId, resourceId: skill.id, versionId: version.id, path: "SKILL.md",
-    }) as { content: string };
-    expect(Buffer.from(result.content, "base64").toString()).toBe(files[0]!.content);
-    const missing = await readCustomerSuccessResource(db, storage, {
-      operation: "skills.file", spaceId: f.spaceId, resourceId: skill.id, versionId: version.id, path: "not-saved.md",
-    });
-    expect(missing).toEqual({ available: false, reason: "skill_file_not_snapshotted" });
   });
 
   it("does not block a warm turn behind a paused archive read for retention", async () => {

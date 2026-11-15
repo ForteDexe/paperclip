@@ -2754,7 +2754,6 @@ export { aiConnectionRouterSlug, aiConnectionRouterAppDefinition, aiConnectionRo
 export { isAppAggregator, aggregatorManagementUrl, aggregatorAppsSyncSchema, aggregatorAppsRefreshSchema, arcadeDiscoverySetupSchema, type AggregatorAppSnapshot, type AggregatorAppsResponse, type ArcadeDiscoverySetupInput } from "./aggregator-apps.js";
 
 export * from "./connection-instructions.js";
-export * from "./customer-success.js";
 export type { GitHubAppOwner, GitHubAppRegistrationInput, GitHubAppCloudState, GitHubAppWizardState } from "./types/github-app-setup.js";
 export * from "./decision-models.js";
 export { updateDefaultAgentSchema, type UpdateDefaultAgent, type DefaultAgentPreference } from "./default-agent.js";
