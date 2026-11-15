@@ -22,7 +22,7 @@ export const stockHarnessGates = [
   { id: "SH-2", name: "Production-default create bundle", cwd: ".", files: [
     "server/src/__tests__/agent-skills-routes.test.ts",
     "server/src/services/onboarding-first-task-assets.test.ts",
-  ], required: ["materializes minimal default instructions for non-CEO agents with no prompt template"] },
+  ], required: ["materializes minimal default instructions for agents with no prompt template"] },
   { id: "SH-3", name: "Shared legacy startup and continuation", cwd: ".", files: [
     "packages/adapter-utils/src/server-utils.test.ts",
     "packages/adapter-utils/src/prompt-sections.test.ts",
@@ -51,8 +51,8 @@ export function stockHarnessGatesForVariant(variant) {
   if (variant !== "reduced" && variant !== "historical") throw new Error("Unknown stock instruction variant.");
   return stockHarnessGates.map(gate => variant !== "historical" ? gate : {
     ...gate,
-    required: gate.required.map(name => name === "materializes minimal default instructions for non-CEO agents with no prompt template"
-      ? "materializes the bundled default instruction set for non-CEO agents with no prompt template"
+    required: gate.required.map(name => name === "materializes minimal default instructions for agents with no prompt template"
+      ? "materializes the bundled default instruction set for agents with no prompt template"
       : name === "keeps task and chat defaults to identity and connection guidance"
         ? "keeps the default local-agent prompt action-oriented"
         : name === "does not restore generic procedures on resume or with the legacy opt-in"
@@ -104,16 +104,15 @@ export function sourceFingerprint() {
     "packages/outpost-runner/runner/crates/runner-core/tests/codex_provider.rs",
   ]);
   const sourceErrors = [];
-  sources.add("skills/outpost/SKILL.md");
-  sources.add("skills/outpost/references/issue-documents.md");
+  sources.add("skills/outpost-task/SKILL.md");
+  sources.add("skills/outpost-task/references/task-documents.md");
   sources.add("scripts/outpost-issue-update.sh");
-  sources.add("skills/outpost/scripts/outpost-issue-update.sh");
+  sources.add("skills/outpost-task/scripts/outpost-task-update.sh");
   for (const source of [...sources].sort()) {
     hash.update(source);
     try { hash.update("present\0").update(readFileSync(join(root, source))); }
     catch (error) {
-      if ((source === "skills/outpost/references/issue-documents.md" || source === "skills/outpost/scripts/outpost-issue-update.sh") && error.code === "ENOENT") hash.update("absent\0");
-      else sourceErrors.push(source);
+      sourceErrors.push(source);
     }
   }
   return { fingerprint: hash.digest("hex"), sourceErrors };

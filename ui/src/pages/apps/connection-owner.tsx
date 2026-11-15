@@ -1,4 +1,4 @@
-import type { McpConnection, ToolConnection } from "@outpost/shared";
+import type { ToolConnection } from "@outpost/shared";
 import { humanizeConnectionDisplayName } from "@outpost/shared";
 import { Identity } from "@/components/Identity";
 import type { SpaceUserProfile } from "@/lib/space-members";
@@ -50,13 +50,6 @@ export function connectionDisplayNameForOwner(
     return connectionName;
   }
   return `${possessive(ownerGivenName(owner.label))} ${applicationName}`;
-}
-
-/** Use the same owner naming as outbound connections, without changing OAuth client identity. */
-export function assistantConnectionDisplayName(connection: McpConnection): string {
-  const clientName = connection.clientName.trim();
-  const owner = connection.user ? `${possessive(ownerGivenName(connection.user.name))} ` : "";
-  return `${owner}${clientName} connection`;
 }
 
 export function ConnectionOwnerIdentity({ owner }: { owner: ConnectionOwnerProfile | null }) {

@@ -88,8 +88,6 @@ import { RunnerApi, pollUntil } from "./api.js";
 import { buildRuntimeUsage, summarizeExecutionBilling } from "./billing.js";
 import { collectAttemptFeedback, emptyFeedbackSummary } from "./feedback.js";
 import { createKimiLifecycleTiming, finishBudgetedEvalSetup, waitForEvalAgentReady } from "./budgeted-setup.js";
-import { establishPublicMcpSession, runPublicMcpFlow } from "./public-mcp-flow.js";
-import { assistantUsage } from "./public-mcp-model.js";
 import { runnerExecutionById } from "./catalog.js";
 import { classifyFailure } from "./failure-classifier.js";
 import { runnerE2EServerControlPaths } from "./harness-env.js";
@@ -654,9 +652,7 @@ for (const execution of executions) {
       if (trace) { try { await trace.configureSpace(api, id); } finally { await saveTrace(); } }
     };
     const api = new RunnerApi(request);
-    const spaceRunFlow = execution.suite.id === "task-titles" || execution.task.flow === "cursor_cloud_stop" || ["plan_task_guidance", "blocker_guidance", "continuation_accounting", "continuation", "context_integrity", "repository_skills", "agent_chat", "everyday_workflow", "first_task", "instruction_persistence", "pi_native", "pi_controls", "copilot_protection", "cursor_native", "native_active_stop", "native_provider_loss", "kimi_native_lifecycle", "public_mcp", "case_handoff"].includes(execution.task.flow);
-    const publicMcpUsage = execution.task.flow === "public_mcp" ? assistantUsage(execution.profile.provider === "claude" ? "anthropic" : "openai", execution.profile.model) : undefined;
-    let publicMcpUserId = "";
+    const spaceRunFlow = execution.suite.id === "task-titles" || execution.task.flow === "cursor_cloud_stop" || ["plan_task_guidance", "blocker_guidance", "continuation_accounting", "continuation", "context_integrity", "repository_skills", "agent_chat", "everyday_workflow", "first_task", "instruction_persistence", "pi_native", "pi_controls", "copilot_protection", "cursor_native", "native_active_stop", "native_provider_loss", "kimi_native_lifecycle", "case_handoff"].includes(execution.task.flow);
     const consoleDiagnostics: Array<Record<string, unknown>> = [];
     const networkDiagnostics: Array<Record<string, unknown>> = [];
     const pageLifecycleDiagnostics: Array<Record<string, unknown>> = [];
@@ -1011,7 +1007,6 @@ for (const execution of executions) {
         await writeSanitizedJson(snapshotsDir, "api-state.json", boundarySnapshots.apiState, secrets);
         matcherResults.push(...checks.map(check => ({ matcher: { kind: "json_path" as const, path: `boundary.${check.id}`, expected: true }, passed: check.passed, detail: check.detail })));
       } else {
-      if (execution.task.flow === "public_mcp" || execution.suite.id === "chat-features" && findChatCatalogCase(execution.task.id)?.authentication === "human-session") publicMcpUserId = await establishPublicMcpSession(api, page, secrets);
       if (execution.suite.id === "stock-harness") {
         const receipt = verifyStockHarnessPreflight(process.env[STOCK_PREFLIGHT_ENV]);
         await writeSanitizedJson(snapshotsDir, "stock-harness-preflight.json", receipt, secrets);
@@ -1235,16 +1230,6 @@ for (const execution of executions) {
           }, capture: captureScreenshot, evidence: (name, data) => writeSanitizedJson(snapshotsDir, name, data, secrets),
         });
         issue = journey.issue as IssueRecord; selectedRuns = journey.runs as RunRecord[];
-      } else if (execution.task.flow === "public_mcp") {
-        const journey = await runPublicMcpFlow({
-          page, api, fixtures, execution, nonce, secrets, userId: publicMcpUserId,
-          credential: credentials[execution.profile.credential]!, usage: publicMcpUsage!, deadlineAt: startedAtMs + deadlineMs,
-          observe: (currentIssue, runs) => { issue = currentIssue; selectedRuns = runs; },
-          capture: captureScreenshot,
-          evidence: (name, data) => writeSanitizedJson(snapshotsDir, name, data, secrets),
-        });
-        issue = journey.issue; selectedRuns = journey.runs;
-        matcherResults = journey.checks.map(check => ({ matcher: { kind: "json_path" as const, path: `publicMcp.${check.id}`, expected: true }, passed: check.passed, detail: check.detail }));
       } else if (execution.task.flow === "plan_task_guidance") {
         const planning = await runPlanTaskFlow({ page, api, fixtures, execution, nonce, workspacePath,
           deadlineAt: startedAtMs + deadlineMs - 30_000,
@@ -3383,7 +3368,6 @@ for (const execution of executions) {
         ...(firstTaskEvidence ? { firstTask: firstTaskEvidence } : {}),
         ...(taskChat ? { taskChat } : {}),
         ...(completionQuality.length ? { completionQuality } : {}),
-        ...(publicMcpUsage ? { publicMcp: publicMcpUsage } : {}),
         runtimeMode: execution.profile.expectedRuntimeMode,
         targetUrl: testInfo.project.use.baseURL,
         issueId: issue?.id,

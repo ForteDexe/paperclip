@@ -7,17 +7,14 @@ import { readStockInstructionVariant } from "./stock-harness-instruction-variant
 // constants. Otherwise a larger shipped manual could silently update the oracle.
 export const STOCK_HIRE_IDENTITY = "You are an agent in a Outpost space.\n";
 export const STOCK_TEMPLATE_IDENTITY = "You are agent";
-const SKILL_SOURCES = ["../../skills/outpost/SKILL.md", "../../skills/outpost/references/issue-documents.md",
-  "../../scripts/outpost-issue-update.sh", "../../skills/outpost/scripts/outpost-issue-update.sh"];
+const SKILL_SOURCES = ["../../skills/outpost-task/SKILL.md", "../../skills/outpost-task/references/task-documents.md",
+  "../../scripts/outpost-issue-update.sh", "../../skills/outpost-task/scripts/outpost-task-update.sh"];
 export function stockHarnessSkillSources() {
   return SKILL_SOURCES.map(source => {
     try {
       return { path: source.replace(/^\.\.\/\.\.\//, ""), present: true,
         sha256: createHash("sha256").update(readFileSync(new URL(source, import.meta.url))).digest("hex") };
     } catch (error) {
-      if ((source.endsWith("/references/issue-documents.md") || source === "../../skills/outpost/scripts/outpost-issue-update.sh")
-        && (error as NodeJS.ErrnoException).code === "ENOENT")
-        return { path: source.replace(/^\.\.\/\.\.\//, ""), present: false, sha256: null };
       throw error;
     }
   });

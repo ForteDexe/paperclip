@@ -1,5 +1,4 @@
 import { observation, checks } from "./internal-support.js";
-import { projectsCases } from "./internal-projects.js";
 import { tasksCases } from "./internal-tasks.js";
 import { goalsCases } from "./internal-goals.js";
 import { documents_artifactsCases } from "./internal-documents-artifacts.js";
@@ -20,7 +19,6 @@ import { workTimelineCases } from "./internal-work-timeline.js";
 import { archivePartialCases } from "./internal-archive-partial.js";
 
 export const internalChatCatalogCases = [
-  ...projectsCases,
   ...tasksCases,
   ...goalsCases,
   ...documents_artifactsCases,

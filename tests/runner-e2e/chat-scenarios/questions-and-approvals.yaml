@@ -127,7 +127,6 @@ scenarios:
   - id: questions-and-approvals.approve-tool-once
     capabilities:
       - questions-and-approvals/tool-review
-      - app-permissions/action-policy
     context: >-
       A connected synthetic service allows the CEO's read action only after Ask first approval.
     query: >-

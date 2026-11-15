@@ -40,9 +40,17 @@ test("keeps complete evidence unchanged at the exact payload boundary and refuse
   await assert.rejects(stageBoundedArtifact("evidence", source, out, bounds), { code: "EEXIST" });
 }));
 
-test("refuses symlinks and records missing evidence without reading outside the source", async () => fixture(async ({ root, source, out }) => {
+test("refuses symlinks and records missing evidence without reading outside the source", async t => fixture(async ({ root, source, out }) => {
   await writeFile(path.join(root, "private"), "secret outside source");
-  await symlink(path.join(root, "private"), path.join(source, "result.json"));
+  try {
+    await symlink(path.join(root, "private"), path.join(source, "result.json"));
+  } catch (error) {
+    if (process.platform === "win32" && error?.code === "EPERM") {
+      t.skip("Windows symlink creation requires Developer Mode or elevated privileges.");
+      return;
+    }
+    throw error;
+  }
   const result = await stageBoundedArtifact("evidence", source, out, bounds);
   assert.equal(result.sourceComplete, false); assert.deepEqual(result.findings, ["non_regular_file"]);
   assert.equal(result.retainedBytes, 0);

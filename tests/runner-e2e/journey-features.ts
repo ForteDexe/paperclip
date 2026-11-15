@@ -38,7 +38,7 @@ associate(["antigravity-agent-journey"], {
   "saved-subscription-two-turn": ["agents/create", "agents/instructions", "runs-adapters/validation", "runs-adapters/session",
     "tasks/create", "tasks/completion", "documents-artifacts/attachments", "documents-artifacts/work-products"],
 });
-associate(["core-compatibility", "openrouter-model-breadth", "extended-harnesses", "grok-qualification", "grok-subscription-qualification", "kimi-qualification"], {
+associate(["core-compatibility", "openrouter-model-breadth", "extended-harnesses"], {
   "message-marker": ["runs-adapters/runs"],
   "hello-complete": ["runs-adapters/runs"],
   "plan-revise-accept": ["questions-and-approvals/plan-review"],
@@ -46,7 +46,7 @@ associate(["core-compatibility", "openrouter-model-breadth", "extended-harnesses
   "ask-question": ["questions-and-approvals/questions"],
   "question-resume-complete": ["questions-and-approvals/questions", "questions-and-approvals/continuation"],
 });
-associate(["local-session-integrity", "extended-harnesses", "grok-qualification", "grok-subscription-qualification", "kimi-qualification"], {
+associate(["local-session-integrity", "extended-harnesses"], {
   "structured-question-resume": ["questions-and-approvals/continuation", "runs-adapters/session"],
   "structured-question-restart-resume": ["questions-and-approvals/continuation", "runs-adapters/session"],
 });
@@ -76,7 +76,7 @@ associate(["confirmation-replies"], {
   "confirmation-ambiguous": ["questions-and-approvals/confirmations", "questions-and-approvals/audience"],
   "unanswered-question-return": ["questions-and-approvals/dismiss-and-reopen", "questions-and-approvals/continuation"],
 });
-associate(["agent-chat", "agent-chat-hardening", "grok-qualification", "grok-subscription-qualification", "kimi-qualification", "stock-harness"], {
+associate(["agent-chat", "agent-chat-hardening", "stock-harness"], {
   "create-backlog": ["tasks/create"],
   "reassign-task": ["tasks/properties"],
   "continuity-restart": ["agent-chat/history", "runs-adapters/session"],
@@ -101,26 +101,14 @@ associate(["agent-chat-stories"], {
 associate(["completion-updates"], Object.fromEntries([
   "handoff-completion-idle", "handoff-completion-busy", "handoff-completion-multiple", "handoff-completion-restart",
 ].map((id) => [id, ["agent-chat/handoff", "tasks/completion"]])));
-associate(["everyday-workflows", "native-connection-guidance", "grok-qualification", "grok-subscription-qualification"], {
+associate(["everyday-workflows"], {
   "build-revise": ["documents-artifacts/work-products"],
   "delegate-feedback": ["task-coordination/delegation", "steering/steer"],
   "agent-review-handoff": ["task-coordination/signoff"],
   "create-reuse": ["agents/create", "task-coordination/delegation"],
-  "service-approve": ["questions-and-approvals/tool-review", "app-permissions/action-policy"],
-  "service-decline": ["questions-and-approvals/tool-review", "app-permissions/action-policy"],
-  "connection-decline": ["connection-setup/task-request"],
-  "provider-decline": ["connection-setup/task-request"],
-  "provider-second": ["connection-setup/task-request"],
-  "provider-native": ["connection-setup/task-request"],
-  "agentmail-setup": ["connection-setup/task-request"],
   "recover-controller": ["recovery/user-continuation", "documents-artifacts/work-products"],
   "stop-redirect": ["steering/stop-and-pause"],
   "create-skill-studio": ["skills/authoring"],
-});
-associate(["kimi-qualification"], {
-  "file-edit-validate": ["documents-artifacts/work-products"],
-  "native-write-permission-stop": ["steering/stop-and-pause", "questions-and-approvals/tool-review"],
-  "native-write-provider-loss": ["recovery/diagnosis", "questions-and-approvals/tool-review"],
 });
 associate(["task-workspaces"], {
   "task-directory-repository-resume": ["workspaces/binding", "workspaces/provisioning", "projects/repositories"],

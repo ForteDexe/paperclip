@@ -62,7 +62,7 @@ export function chatFeatureProfile(profile: RunnerProfileFixture): RunnerProfile
     const { codexPermissionMode: _permission, ...adapterConfig } = config;
     const throughputRouting = profile.id === "runner-opencode" && profile.provider === "opencode"
       && profile.model === CHAT_FEATURE_OPENCODE_MODEL && profile.adapterType === "outpost_runner" && profile.credential === "OPENROUTER_API_KEY";
-    return { ...payload, name: "CEO", title: "CEO", role: "ceo",
+    return { ...payload, name: "Lead", title: "Lead", role: "lead",
       capabilities: "Coordinates space work and delegates tasks to the team.",
       budgetMonthlyCents: CHAT_FEATURE_BUDGET_CENTS,
       adapterConfig: { ...adapterConfig, ...(throughputRouting ? { env: { ...(adapterConfig.env as Record<string, unknown>),

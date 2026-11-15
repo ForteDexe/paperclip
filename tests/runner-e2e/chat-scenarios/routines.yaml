@@ -85,7 +85,6 @@ scenarios:
   - id: routines.plugin-managed-routine
     capabilities:
       - routines/management
-      - plugins/contributions
     context: >-
       A routine is managed by a plugin and exposes limited editable controls.
     query: >-

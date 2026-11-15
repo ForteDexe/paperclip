@@ -7,7 +7,7 @@ scenarios:
   - id: agents.create-claude-code
     capabilities:
       - agents/create
-      - agents/organization
+      - agents/coordination
       - runs-adapters/validation
     context: >-
       No agent named Morgan exists. The CEO has creation and configuration grants, an eligible
@@ -23,7 +23,6 @@ scenarios:
   - id: agents.create-needs-account
     capabilities:
       - agents/create
-      - connection-setup/task-request
     context: >-
       Claude Code is available but no eligible Anthropic account is connected. Morgan does not
       exist; creation is otherwise allowed.
@@ -91,7 +90,7 @@ scenarios:
       earlier text existed, restoring exactly that would be acceptable instead.
   - id: agents.change-manager
     capabilities:
-      - agents/organization
+      - agents/coordination
     context: >-
       Riley is a CTO, Morgan reports to the CEO, and the CEO can edit reporting lines.
     query: >-
@@ -152,19 +151,6 @@ scenarios:
       supported retirement control and assignment consequences. Historical tasks and attribution
       remain inspectable. It never treats deleting history or simply renaming the agent as
       successful retirement.
-  - id: agents.configure-required-agent
-    capabilities:
-      - agents/built-in
-    context: >-
-      The space has a built-in summarizer whose configuration is editable by the current actor
-      but whose identity is protected.
-    query: >-
-      Tune our summarizer to write shorter updates.
-    expected_outcome: >-
-      The agent updates only supported configuration under the applicable policy and explains
-      the effective change. It preserves the required agent's identity and history. If the
-      requested setting needs a human management step, it points there instead of replacing the
-      built-in agent with an ordinary create.
   - id: agents.agent-api-key
     capabilities:
       - agents/api-keys
@@ -181,7 +167,6 @@ scenarios:
   - id: agents.existing-grok-bot
     capabilities:
       - agents/grok-bot
-      - connection-setup/handoff
     context: >-
       The Grok Bot experiment is enabled and the person owns an existing Bot but has not
       authorized Outpost.

@@ -23,10 +23,6 @@ work. All three reuse the same capability IDs.
   attached-brief, ambiguous-task, privacy and ownership-conflict cases.
 - [Archive completed inbox items](inbox-search.yaml): `inbox-search.archive-done`,
   with missing authority, partial failure and undo cases.
-- [Read Notion](connection-setup.yaml): `connection-setup.notion-connected` and
-  `connection-setup.notion-missing` deliberately use the same sentence. The second
-  requires setup in the conversation and continuation after usable access exists.
-  Other cases cover decline, wrong account, unassigned agent and expired access.
 
 ## Reading a scenario
 
@@ -45,12 +41,6 @@ fixture requirements, not dependencies on running an earlier catalog entry.
 | `context` | Existing records, current identity, authority, accounts, gates and significant starting conditions, plus any later human action or fault needed for the branch. |
 | `query` | The natural-language message a person would send, including an answer or follow-up where that is the subject of the case. |
 | `expected_outcome` | A paragraph describing the visible conversation, resulting durable state, necessary human interaction and meaningful boundaries. |
-
-For example, two fixtures can send “Read my Notion and tell me the latest on the
-launch.” In the connected fixture, the answer comes from current pages and links
-back to them. In the unconnected fixture, the agent requests setup, the addressed
-person completes it, and the original work continues. A third fixture declines
-setup and should receive a truthful explanation without any provider read.
 
 Context and expected outcomes are **evaluator material**. Do not paste them into
 an agent's system prompt or teach the model which API to choose. A future fixture
@@ -78,17 +68,15 @@ specific control or request card exists.
 Some capabilities cannot originate inside an already working chat: first server
 installation, login, an unfinished first-agent wizard, browser preferences and
 developer-only labs. Their entries explicitly describe the relevant boundary or
-companion journey. External MCP and channel cases also name their different
-surface. Preserve those labels in future selection and reporting; a successful
-operator, browser-only or external-client step cannot certify a direct Agent Chat
-action. Where only guidance is currently possible, qualifying automated chat
-execution requires a separate product change and updated access contract.
+companion journey. A successful operator or browser-only step cannot certify a
+direct Agent Chat action. Where only guidance is currently possible, qualifying
+automated chat execution requires a separate product change and updated access
+contract.
 
 ## Conditional coverage to preserve
 
 | Condition | Representative scenarios |
 | --- | --- |
-| Account ready / missing / wrong / expired / not assigned | `connection-setup.notion-*` |
 | Allowed / human approval / denied / wrong resolver | `agents.create-*`, `questions-and-approvals.wrong-reviewer` |
 | Unambiguous / missing required detail / ambiguous reference | `tasks.website-task`, `questions-and-approvals.necessary-question`, `tasks.ambiguous-task` |
 | Complete list / partial mutation / undo | `tasks.organize-open-work`, `inbox-search.archive-partial-failure`, `inbox-search.restore-archive` |
@@ -175,30 +163,23 @@ and authority. Each YAML file can also reference capabilities from other areas.
 | [activity](activity.yaml) | [Feature](../../../maps/feature-map/activity.md) | [Access](../../../maps/agent-access-map/activity.md) |
 | [agent-chat](agent-chat.yaml) | [Feature](../../../maps/feature-map/agent-chat.md) | [Access](../../../maps/agent-access-map/agent-chat.md) |
 | [agents](agents.yaml) | [Feature](../../../maps/feature-map/agents.md) | [Access](../../../maps/agent-access-map/agents.md) |
-| [app-permissions](app-permissions.yaml) | [Feature](../../../maps/feature-map/app-permissions.md) | [Access](../../../maps/agent-access-map/app-permissions.md) |
-| [assistant-connections](assistant-connections.yaml) | [Feature](../../../maps/feature-map/assistant-connections.md) | [Access](../../../maps/agent-access-map/assistant-connections.md) |
 | [budgets-costs](budgets-costs.yaml) | [Feature](../../../maps/feature-map/budgets-costs.md) | [Access](../../../maps/agent-access-map/budgets-costs.md) |
 | [cases](cases.yaml) | [Feature](../../../maps/feature-map/cases.md) | [Access](../../../maps/agent-access-map/cases.md) |
-| [chat-channels](chat-channels.yaml) | [Feature](../../../maps/feature-map/chat-channels.md) | [Access](../../../maps/agent-access-map/chat-channels.md) |
 | [cli-operations](cli-operations.yaml) | [Feature](../../../maps/feature-map/cli-operations.md) | [Access](../../../maps/agent-access-map/cli-operations.md) |
 | [spaces](spaces.yaml) | [Feature](../../../maps/feature-map/spaces.md) | [Access](../../../maps/agent-access-map/spaces.md) |
-| [connection-setup](connection-setup.yaml) | [Feature](../../../maps/feature-map/connection-setup.md) | [Access](../../../maps/agent-access-map/connection-setup.md) |
 | [developer-labs](developer-labs.yaml) | [Feature](../../../maps/feature-map/developer-labs.md) | [Access](../../../maps/agent-access-map/developer-labs.md) |
 | [documents-artifacts](documents-artifacts.yaml) | [Feature](../../../maps/feature-map/documents-artifacts.md) | [Access](../../../maps/agent-access-map/documents-artifacts.md) |
 | [execution-environments](execution-environments.yaml) | [Feature](../../../maps/feature-map/execution-environments.md) | [Access](../../../maps/agent-access-map/execution-environments.md) |
-| [gateways-profiles](gateways-profiles.yaml) | [Feature](../../../maps/feature-map/gateways-profiles.md) | [Access](../../../maps/agent-access-map/gateways-profiles.md) |
 | [goals](goals.yaml) | [Feature](../../../maps/feature-map/goals.md) | [Access](../../../maps/agent-access-map/goals.md) |
 | [inbox-search](inbox-search.yaml) | [Feature](../../../maps/feature-map/inbox-search.md) | [Access](../../../maps/agent-access-map/inbox-search.md) |
 | [instance-operations](instance-operations.yaml) | [Feature](../../../maps/feature-map/instance-operations.md) | [Access](../../../maps/agent-access-map/instance-operations.md) |
 | [navigation-preferences](navigation-preferences.yaml) | [Feature](../../../maps/feature-map/navigation-preferences.md) | [Access](../../../maps/agent-access-map/navigation-preferences.md) |
 | [onboarding](onboarding.yaml) | [Feature](../../../maps/feature-map/onboarding.md) | [Access](../../../maps/agent-access-map/onboarding.md) |
-| [plugins](plugins.yaml) | [Feature](../../../maps/feature-map/plugins.md) | [Access](../../../maps/agent-access-map/plugins.md) |
 | [projects](projects.yaml) | [Feature](../../../maps/feature-map/projects.md) | [Access](../../../maps/agent-access-map/projects.md) |
 | [questions-and-approvals](questions-and-approvals.yaml) | [Feature](../../../maps/feature-map/questions-and-approvals.md) | [Access](../../../maps/agent-access-map/questions-and-approvals.md) |
 | [recovery](recovery.yaml) | [Feature](../../../maps/feature-map/recovery.md) | [Access](../../../maps/agent-access-map/recovery.md) |
 | [routines](routines.yaml) | [Feature](../../../maps/feature-map/routines.md) | [Access](../../../maps/agent-access-map/routines.md) |
 | [runs-adapters](runs-adapters.yaml) | [Feature](../../../maps/feature-map/runs-adapters.md) | [Access](../../../maps/agent-access-map/runs-adapters.md) |
-| [secrets](secrets.yaml) | [Feature](../../../maps/feature-map/secrets.md) | [Access](../../../maps/agent-access-map/secrets.md) |
 | [skills](skills.yaml) | [Feature](../../../maps/feature-map/skills.md) | [Access](../../../maps/agent-access-map/skills.md) |
 | [steering](steering.yaml) | [Feature](../../../maps/feature-map/steering.md) | [Access](../../../maps/agent-access-map/steering.md) |
 | [task-coordination](task-coordination.yaml) | [Feature](../../../maps/feature-map/task-coordination.md) | [Access](../../../maps/agent-access-map/task-coordination.md) |

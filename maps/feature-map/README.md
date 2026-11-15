@@ -83,13 +83,6 @@ Use this index to open a recipe or copy its feature and full capability IDs.
 
 | Feature ID | Recipe | Capability IDs |
 | --- | --- | --- |
-| `connection-setup` | [Connection setup](connection-setup.md) | `connection-setup/catalog`, `connection-setup/identity-and-access`, `connection-setup/credentials`, `connection-setup/handoff`, `connection-setup/draft-recovery`, `connection-setup/task-request`, `connection-setup/channel-setup`, `connection-setup/failure` |
-| `assistant-connections` | [Assistant connections (MCP)](assistant-connections.md) | `assistant-connections/setup`, `assistant-connections/consent`, `assistant-connections/device-login`, `assistant-connections/client-use`, `assistant-connections/revocation` |
-| `app-permissions` | [App access and action permissions](app-permissions.md) | `app-permissions/agent-access`, `app-permissions/action-policy`, `app-permissions/catalog-change`, `app-permissions/test-action`, `app-permissions/account-maintenance` |
-| `chat-channels` | [External chat and email](chat-channels.md) | `chat-channels/providers`, `chat-channels/identity`, `chat-channels/conversation`, `chat-channels/attachments`, `chat-channels/lifecycle`, `chat-channels/outbound-email` |
-| `gateways-profiles` | [Tool gateways and access profiles](gateways-profiles.md) | `gateways-profiles/gateway`, `gateways-profiles/profiles`, `gateways-profiles/client-connect`, `gateways-profiles/tokens`, `gateways-profiles/activity` |
-| `secrets` | [Secrets and proposals](secrets.md) | `secrets/space-secrets`, `secrets/user-secrets`, `secrets/proposals`, `secrets/vault-import`, `secrets/runtime-delivery` |
-| `plugins` | [Plugins](plugins.md) | `plugins/installation`, `plugins/configuration`, `plugins/contributions`, `plugins/lifecycle` |
 
 ### Automation and structured work
 

@@ -42,8 +42,6 @@ import { continuationTasks, questionResumeTask } from "./continuation-cases.js";
 import { contextIntegrityTasks, outpostDocumentTask } from "./context-integrity-cases.js";
 import { productionDefaultHireProfile, stockHarnessSourceDigest, stockHarnessSkillSources } from "./stock-harness.js";
 import { lifecycleLiveTasks, lifecycleLiveDefinitionDigest } from "./lifecycle-live-cases.js";
-import { publicMcpTasks, publicMcpExpandedDigest, publicMcpSetupDigest, publicMcpWorkflowDigest, publicMcpWorkerInstructions, publicMcpWorkerSkillDigest } from "./public-mcp-cases.js";
-import { graderVersion as publicMcpGraderVersion } from "./public-mcp-grading.js";
 import { everydayTasks, productionStoryProfile } from "./everyday-cases.js";
 import { EVERYDAY_RELIABILITY_GROUP, EVERYDAY_RELIABILITY_SLOW_GROUP, RELIABILITY_FACADE_PROFILE_IDS, RELIABILITY_CANDIDATE_PROFILE_ID, everydayReliabilityExecutionIds, everydayReliabilitySignatures, everydayReliabilityTasks } from "./everyday-reliability-cases.js";
 import { REMOTE_WORKSPACE_STORAGE_SUITE, remoteWorkspaceStoragePrompt } from "./remote-workspace-storage.js";
@@ -1485,28 +1483,6 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     definitionMetadata: { version: 3, warmPromptDigest: warmTurnDefinitionDigest, qualification: "pending", scheduling: "explicit-only", identity: "native-session-runner-provider-session-process-start", agentFiles: "unchanged-home-process-continuity" },
   },
   {
-    id: "public-mcp", label: "Outpost through an assistant", manualOnly: true,
-    description: "Paid assistant tool use plus actual team execution, browser OAuth consent, durable outcomes and authorization boundaries.",
-    groups: ["local"], environments: [localEnvironment], tasks: publicMcpTasks, expectedMatrixSize: 63,
-    profiles: [
-      ...["mini"].map(size => legacyProfile({
-        id: `assistant-codex-${size}`, label: `Assistant + Codex ${size}`, adapterType: "codex_local", provider: "codex",
-        model: `gpt-5.4-${size}`, credential: "OPENAI_API_KEY",
-        instructions: publicMcpWorkerInstructions,
-        modelQualification: { source: "qualified_runner_profile", qualificationId: `public-mcp-gpt-5.4-${size}-pilot` },
-        extraConfig: { engine: "cli", extraArgs: ["-c", "features.shell_snapshot=false", "-c", "features.apps=false", "-c", "features.plugins=false"] },
-      })),
-      ...[["haiku", "claude-haiku-4-5-20251001"], ["sonnet", "claude-sonnet-4-6"]].map(([name, model]) => legacyProfile({
-        id: `assistant-claude-${name}`, label: `Assistant + Claude ${name}`, adapterType: "claude_local", provider: "claude",
-        model: model!, credential: "ANTHROPIC_API_KEY",
-        instructions: publicMcpWorkerInstructions,
-        modelQualification: { source: "qualified_runner_profile", qualificationId: `public-mcp-${name}-pilot` },
-        extraConfig: { engine: "cli", maxTurnsPerRun: 16 },
-      })),
-    ],
-    definitionMetadata: { version: 10, expandedDigest: publicMcpExpandedDigest, setupDigest: publicMcpSetupDigest, grader: publicMcpGraderVersion, workflowDigest: publicMcpWorkflowDigest, workerSkillDigest: publicMcpWorkerSkillDigest, workerInstructions: publicMcpWorkerInstructions, assistantMaxRequests: 16, assistantMaxEstimatedUsd: 2, instructions: "shipped-plugin-skills", scheduling: "explicit-only" },
-  },
-  {
     id: "plan-task-guidance", label: "Planning guidance utility", manualOnly: true,
     description: "Current, short and disabled planning skills on cohesive, parallel, dependent and independently reviewed work.",
     groups: ["native"], profiles: runnerProfiles.filter(p => p.id === "runner-codex").map(planTaskProfile),
@@ -1575,64 +1551,6 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     excludedExecutionIds: ["instruction-persistence.legacy-codex.daytona.private-copy-persists"],
     expectedMatrixSize: 3, manualOnly: true,
     definitionMetadata: { version: 6, oracle: "current-directory-independent-nonce-binary-last-sync-wins-and-nonblocking-storage-quota", providerTurns: 6, restart: "between-tasks", instructions: "production" },
-  },
-  {
-    id: "grok-subscription-qualification", label: "Grok Build Subscription Qualification", manualOnly: true,
-    description: "Explicit space subscription login across Grok browser workflows in local and Daytona environments.",
-    groups: ["native"],
-    profiles: [nativeProfile({
-      id: "runner-acpx-grok-subscription", label: "Grok Build Subscription",
-      provider: "acpx", acpxAgent: "grok",
-      model: ACPX_QUALIFICATION_MODELS.grok,
-      credential: "GROK_AUTH_JSON",
-    })],
-    environments: [localEnvironment, daytonaWarmEnvironment],
-    tasks: [
-      ...runnerTasks, ...localIntegrityTasks,
-      ...everydayTasks.filter(task => task.id === "build-revise"),
-      ...chatHardeningTasks.filter(task => ["stop-new-resume", "continuity-restart"].includes(task.id)),
-    ], expectedMatrixSize: 16,
-    definitionMetadata: { version: 1, authentication: "space-subscription", binary: "1.0.13", model: "grok-4.7", scheduling: "explicit-only", repetitionsRequired: 3, artifactOracle: "independent-python-contract", stopBoundary: "provider-turn-started" },
-  },
-  {
-    id: "grok-qualification", label: "Grok Build Qualification", manualOnly: true,
-    description: "Grok replies, planning approval, questions, downloadable artifacts, stop/resume and controller restart in local and Daytona environments.",
-    groups: ["native"],
-    profiles: runnerProfiles.filter(profile => profile.id === "runner-acpx-grok"),
-    environments: [localEnvironment, daytonaWarmEnvironment],
-    tasks: [
-      ...runnerTasks, ...localIntegrityTasks,
-      ...everydayTasks.filter(task => task.id === "build-revise"),
-      ...chatHardeningTasks.filter(task => ["stop-new-resume", "continuity-restart"].includes(task.id)),
-    ], expectedMatrixSize: 16,
-    definitionMetadata: { version: 2, binary: "1.0.13", model: "grok-4.7", scheduling: "explicit-only", repetitionsRequired: 3, artifactOracle: "independent-python-contract", stopBoundary: "provider-turn-started" },
-  },
-  {
-    id: "kimi-qualification", label: "Kimi Code Qualification", manualOnly: true,
-    description: "Kimi Code replies, semantic planning and questions, verified file delivery, Stop and controller continuation through local and Daytona user journeys.",
-    groups: ["native"],
-    profiles: [kimiRunnerProfile],
-    environments: [localEnvironment, daytonaWarmEnvironment],
-    environmentOverrides: Object.fromEntries(kimiLifecycleTasks.map(task => [task.id, {
-      daytona: runnerEnvironments.find(environment => environment.id === "daytona")!,
-    }])),
-    tasks: [
-      ...runnerTasks, ...localIntegrityTasks, extendedHarnessFileTask,
-      ...chatHardeningTasks.filter(task => ["stop-new-resume", "continuity-restart"].includes(task.id)),
-      ...kimiLifecycleTasks,
-    ].map(task => ({ ...task, automaticRetryPolicy: "single_attempt" as const })),
-    expectedMatrixSize: 20,
-    definitionMetadata: { version: 7, binary: "2.3.3", model: "kimi-for-coding",
-      candidateAdmission: "ordinary-released-profile-without-candidate-grant-v1", profileVersion: QUALIFIED_ACPX_PROFILES.kimi.agentProfileVersion,
-      stopNewRunAccounting: "three-native-provider-runs-authored-reset-and-verified-predispatch-wait-v1",
-      planPromptContract: "literal-first-line-markers-v2",
-      modelDiscovery: "exact-model-authenticated-observed", qualification: "qualified",
-      scheduling: "explicit-only", maximumAttemptsPerCell: 1, repetitionsRequired: 1,
-      instructionAdmission: "native-effective-prompt-digest-on-create-load",
-      nativeQuestions: "not-claimed", nativePlans: "not-claimed", accounting: "usage-and-cost-unavailable",
-      artifactOracle: "independent-workspace-and-public-download-bytes", stopBoundary: "provider-turn-started",
-      remoteLifecycleBootstrap: "observer-bound-scoped-get-task-context-dual-turn-workspace-binding-full-semantic-command-ack-and-bounded-native-receipt",
-      nativeWriteLifecycle: "pending-permission-stop-and-exact-native-worker-loss", nativeWriteCleanup: "continuous-no-effects-through-owned-tree-retirement" },
   },
   {
     id: "api-response-reading", label: "Bounded API response reading", manualOnly: true,
@@ -1950,7 +1868,7 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     profiles: runnerProfiles,
     environments: runnerEnvironments,
     tasks: runnerTasks,
-    expectedMatrixSize: 48,
+    expectedMatrixSize: 42,
   },
   {
     id: "local-session-integrity",
@@ -1961,7 +1879,7 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     profiles: runnerProfiles,
     environments: [localEnvironment],
     tasks: localIntegrityTasks,
-    expectedMatrixSize: 16,
+    expectedMatrixSize: 14,
   },
   {
     id: "openrouter-model-breadth",

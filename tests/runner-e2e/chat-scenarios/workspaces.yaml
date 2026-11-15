@@ -33,7 +33,6 @@ scenarios:
   - id: workspaces.private-repository-no-access
     capabilities:
       - workspaces/provisioning
-      - connection-setup/task-request
     context: >-
       The requested repository is private and the task lacks an eligible Git connection.
     query: >-

@@ -11,10 +11,10 @@ export function productionStoryProfile(
       return {
         ...payload,
         name: `Studio Lead ${input.executionId}`,
-        role: "ceo",
+        role: "lead",
         title: "Studio Lead",
         capabilities:
-          "Builds small projects, delegates implementation, reviews delivered work, and hires teammates when requested.",
+          "Builds small projects, delegates implementation, reviews delivered work, and adds teammates when requested.",
         instructionsBundle: {
           entryFile: "AGENTS.md",
           files: {

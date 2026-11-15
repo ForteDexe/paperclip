@@ -69,19 +69,6 @@ scenarios:
       configuration and test surface. The journey checks a real acknowledgement and its failure
       or usage record. A quick acknowledgement is not presented as completion of the underlying
       task or evidence that the worker started.
-  - id: spaces.agent-observability
-    capabilities:
-      - spaces/agent-observability
-    context: >-
-      No space OTLP destination is configured; management and delivery tests require the
-      board. The supplied endpoint is a synthetic eval collector.
-    query: >-
-      Send our coding agents' traces to our test collector.
-    expected_outcome: >-
-      The agent points to the space observability setup and secure credential entry. Export
-      remains off until an authorized destination is configured, and a synthetic delivery test
-      proves the selected path. The response distinguishes this optional trace export from
-      first-party Telemetry and local run logs; disabling export stops future export.
   - id: spaces.archive-space
     capabilities:
       - spaces/archive
@@ -111,7 +98,6 @@ scenarios:
   - id: spaces.import-preview
     capabilities:
       - spaces/portability
-      - teams/preview
     context: >-
       A synthetic package contains an agent name that conflicts with an existing one; import
       into the current space is permitted within its normal policy.

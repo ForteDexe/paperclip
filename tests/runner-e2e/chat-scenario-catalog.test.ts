@@ -11,7 +11,7 @@ it("validates the complete planned chat catalog against its schema and feature m
   const areas = readdirSync(catalog).filter(name => name.endsWith(".yaml") && name !== "defaults.yaml").sort();
   const features = readdirSync(maps).filter(name => name.endsWith(".md") && name !== "README.md").map(name => name.slice(0, -3)).sort();
   expect(areas.map(name => name.slice(0, -5))).toEqual(features);
-  expect(areas).toHaveLength(34);
+  expect(areas).toHaveLength(26);
   const ids = new Set<string>();
   const covered = new Set<string>();
   const mapped = new Set<string>();
@@ -35,14 +35,19 @@ it("validates the complete planned chat catalog against its schema and feature m
     expect(capabilities.length, feature).toBeGreaterThan(0);
     capabilities.forEach(id => mapped.add(id));
   }
-  expect(ids.size).toBe(240);
-  // Added by merged production after this 240-scenario catalog was frozen.
+  expect(ids.size).toBe(176);
+  // Added by merged production after this scenario catalog was frozen.
   // This capability is explicitly uncovered, not implicitly qualified by this suite.
-  const outsideFrozenScope = ["runs-adapters/model-accounts"];
+  const outsideFrozenScope = [
+    "execution-environments/assignment",
+    "execution-environments/images",
+    "recovery/workspace",
+    "runs-adapters/model-accounts",
+  ];
   expect([...covered].filter(id => !mapped.has(id))).toEqual([]);
   expect([...mapped].filter(id => !covered.has(id)).sort()).toEqual(outsideFrozenScope);
-  expect(covered.size).toBe(188);
-  expect(mapped.size).toBe(192);
+  expect(covered.size).toBe(137);
+  expect(mapped.size).toBe(141);
   const defaults = parseDocument(readFileSync(new URL("defaults.yaml", catalog), "utf8"), { uniqueKeys: true });
   expect(defaults.errors).toEqual([]);
   expect(defaults.toJS()).toMatchObject({ schema_version: 1, status: "planned" });

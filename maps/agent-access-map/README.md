@@ -29,11 +29,11 @@ its revision and scope. Do not refresh unrelated headers as bookkeeping.
 
 ## Using an entry
 
-Read its Policy and Gaps before selecting an agent path. Native fallback, legacy
-REST/CLI, stdio MCP and a personal assistant connection can have different
-authority and availability. Use a real admitted production binding; a scenario
-declaration is not an installed tool. A `restricted` entry records current
-enforcement and leaves any unresolved delegation decision visible.
+Read its Policy and Gaps before selecting an agent path. Native and legacy CLI
+paths can have different authority and availability. Use a real admitted
+production binding; a scenario declaration is not an installed tool. A
+`restricted` entry records current enforcement and leaves any unresolved
+delegation decision visible.
 
 For API catalog disagreements, follow the route/service authorization and record
 discovery drift. For `not-applicable`, retain the concrete exception and local

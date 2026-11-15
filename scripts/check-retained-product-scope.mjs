@@ -1,4 +1,4 @@
-import { access, readFile } from "node:fs/promises";
+import { access, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 
@@ -87,6 +87,12 @@ const retiredInfrastructure = [
   "scripts/prepare-runner-release-image.mjs",
 ];
 
+const retiredFilenamePrefixes = [
+  { root: "tests/runner-e2e", prefix: "public-mcp-" },
+  { root: "tests/runner-e2e/chat-catalog-domains", prefix: "external-" },
+  { root: "tests/runner-e2e/chat-catalog-domains", prefix: "runtime-grok" },
+];
+
 async function exists(relativePath) {
   return access(path.join(repoRoot, relativePath)).then(() => true, () => false);
 }
@@ -115,6 +121,15 @@ for (const retired of retiredPackages) {
 for (const retiredPath of retiredInfrastructure) {
   if (await exists(retiredPath)) {
     failures.push(`retired infrastructure exists: ${retiredPath}`);
+  }
+}
+
+for (const retired of retiredFilenamePrefixes) {
+  const entries = await readdir(path.join(repoRoot, retired.root));
+  for (const entry of entries) {
+    if (entry.startsWith(retired.prefix)) {
+      failures.push(`retired file family exists: ${retired.root}/${entry}`);
+    }
   }
 }
 
