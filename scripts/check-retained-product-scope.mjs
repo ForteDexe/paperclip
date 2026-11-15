@@ -93,7 +93,6 @@ const retiredInfrastructure = [
   "tests/runner-e2e/chat-scenarios/navigation-preferences.yaml",
   "tests/runner-e2e/chat-scenarios/onboarding.yaml",
   "tests/runner-e2e/chat-scenarios/projects.yaml",
-  "tests/runner-e2e/chat-scenarios/routines.yaml",
   "tests/runner-e2e/chat-scenarios/skills.yaml",
 ];
 

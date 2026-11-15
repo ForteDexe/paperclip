@@ -15,6 +15,8 @@ from user interface through runtime and persistence.
   those agents reliably.
 - **Tasks**: one durable owner carries work from assignment through completion;
   a lead may route a task to the appropriate scope owner.
+- **Routines**: reusable or scheduled task workflows, including manual runs,
+  triggers, variables, and run history.
 - **Decisions**: explicit questions or choices that require human input without
   reassigning the task.
 - **Artifacts**: task-linked files and evidence, including intermediate or final
