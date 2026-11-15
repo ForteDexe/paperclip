@@ -8,7 +8,8 @@ Operators inspect recorded spend and configure budget controls for the space, pr
 
 Feature ID: `budgets-costs`.
 
-Implementation: [costs and budget host](../../ui/src/pages/Costs.tsx), [audit hub](../../ui/src/pages/audit/AuditHub.tsx).
+Implementation: [audit hub](../../ui/src/pages/audit/AuditHub.tsx). The former
+standalone Costs page is retired and its legacy URL redirects to Dashboard.
 
 Agent access: [companion](../agent-access-map/budgets-costs.md).
 
@@ -71,19 +72,19 @@ Manual: Create a small fixture budget, cross its threshold with synthetic record
 
 ### `subscription-accounts`
 
-Automated: [Subscription card tests](../../ui/src/components/SubscriptionCostCard.test.tsx) cover component states; [subscription service](../../server/src/__tests__/subscriptions.test.ts), [routes](../../server/src/__tests__/subscription-routes.test.ts), and [refresh](../../server/src/__tests__/subscription-refresh.test.ts) cover accounting, authorization, revisions, and simulated provider discovery. These are not a live provider billing check.
+Automated: [subscription service](../../server/src/__tests__/subscriptions.test.ts), [routes](../../server/src/__tests__/subscription-routes.test.ts), and [refresh](../../server/src/__tests__/subscription-refresh.test.ts) cover accounting, authorization, revisions, and simulated provider discovery. These are not a live provider billing check.
 
 Manual: Use disposable subscription fixtures and two authenticated people with different account audiences. Open details and verify personal/shared visibility, unknown-price labels, and separate currency totals. Save a known annual price, reload, and verify its monthly equivalent and user-supplied label. Link two editable records for the same paid seat; reload and verify one fee plus combined usage, retaining the selected target price. Try a stale revision and an account owned only by the other person. Mark tracking Ended or Excluded and verify the monthly subtotal changes without canceling the provider subscription or rewriting historical run costs. Simulate a failed account refresh and verify saved estimates remain distinguishable from zero or fresh data.
 
-Sources: [Subscription card](../../ui/src/components/SubscriptionCostCard.tsx), [cost routes](../../server/src/routes/costs.ts), [subscription service](../../server/src/services/subscriptions.ts), and [report visibility](../../server/src/services/subscription-report.ts).
+Sources: [cost routes](../../server/src/routes/costs.ts), [subscription service](../../server/src/services/subscriptions.ts), and [report visibility](../../server/src/services/subscription-report.ts). The standalone subscription card was retired with the Costs page.
 
 ### `cost-recording`
 
-Automated: [Cost notice](../../ui/src/components/CostDataQualityNotice.test.tsx), [quality report](../../server/src/__tests__/cost-data-quality.test.ts), and [quality routes](../../server/src/__tests__/cost-data-quality-routes.test.ts) cover UI explanations, report scope, viewer/agent denial, and retry contracts. They do not prove arrival of a real provider receipt.
+Automated: [quality report](../../server/src/__tests__/cost-data-quality.test.ts) and [quality routes](../../server/src/__tests__/cost-data-quality-routes.test.ts) cover report scope, viewer/agent denial, and retry contracts. They do not prove arrival of a real provider receipt.
 
 Manual: Use saved-cost fixtures for waiting-for-receipt, receipt-unavailable, unknown-billing, missing-model/price, and retryable states. Expand the notice, inspect the affected run, and verify the explanation matches its saved evidence. For a retryable entry, choose Retry cost recording, reload, and verify costs are recorded once while the run ID, transcript, task execution count, and original outcome stay unchanged. Repeat with no new receipt and with a failed recording attempt; neither may fabricate zero cost or start a model run. Sign in as a viewer and then an ordinary agent: check the read/mutation boundaries and denial. Keep unresolved budget holds visible until their own accounting obligations settle.
 
-Sources: [Cost notice](../../ui/src/components/CostDataQualityNotice.tsx), [cost routes](../../server/src/routes/costs.ts), [quality report](../../server/src/services/cost-data-quality.ts), and [accounting retry](../../server/src/services/accounting-integrity.ts).
+Sources: [cost routes](../../server/src/routes/costs.ts), [quality report](../../server/src/services/cost-data-quality.ts), and [accounting retry](../../server/src/services/accounting-integrity.ts). The standalone cost-quality notice was retired with the Costs page.
 
 ## Gotchas
 

@@ -2905,8 +2905,6 @@ span.outpost-mention-chip[data-mention-kind="external-object"] {
   --app-logo-tile-7: #0f9d58;
   --app-logo-tile-8: #ea4335;
   --gradient-extract-1: linear-gradient(180deg,rgba(255,80,80,0.12),rgba(255,255,255,0.02)); /* Dashboard.tsx budget-alert card gradient. */
-  --gradient-extract-2: linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02)); /* Costs.tsx subtle white card gradient. */
-  --gradient-extract-3: radial-gradient(circle at top left,rgba(244,114,182,0.08),transparent 35%),radial-gradient(circle at bottom right,rgba(56,189,248,0.1),transparent 32%); /* AccountingModelCard.tsx decorative overlay. */
   --gradient-extract-4: linear-gradient(180deg,rgba(255,70,70,0.10),rgba(255,255,255,0.02)); /* BudgetIncidentCard.tsx incident-card gradient. */
 }
 
@@ -3220,9 +3218,6 @@ span.outpost-mention-chip[data-mention-kind="external-object"] {
   --gtc-28: 13rem minmax(0,1fr); /* Extracted from ui/src/pages/SpaceSkills.tsx (grid-cols-[13rem_minmax(0,1fr)]). */
   --gtc-29: minmax(0,1fr) 18rem; /* Extracted from ui/src/pages/SpaceSkills.tsx (grid-cols-[minmax(0,1fr)_18rem]). */
   --gtc-30: 14rem minmax(0,1fr); /* Extracted from ui/src/pages/SpaceSkills.tsx (grid-cols-[14rem_minmax(0,1fr)]). */
-  --gtc-31: 1.3fr,1fr; /* Extracted from ui/src/pages/Costs.tsx (grid-cols-[1.3fr,1fr]). */
-  --gtc-32: 1.25fr,0.95fr; /* Extracted from ui/src/pages/Costs.tsx (grid-cols-[1.25fr,0.95fr]). */
-  --gtc-33: 1.2fr,0.95fr; /* Extracted from ui/src/pages/Costs.tsx (grid-cols-[1.2fr,0.95fr]). */
   --gtc-34: 320px minmax(0,1fr); /* Extracted from ui/src/pages/InstanceAccess.tsx (grid-cols-[320px_minmax(0,1fr)]). */
   --gtc-35: minmax(10rem,14rem) 1fr; /* Extracted from ui/src/pages/InstanceExperimentalSettings.tsx (grid-cols-[minmax(10rem,14rem)_1fr]). */
   --gtc-39: minmax(0,1.2fr) 320px; /* Extracted from ui/src/pages/InviteUxLab.tsx (grid-cols-[minmax(0,1.2fr)_320px]). */
@@ -3247,7 +3242,6 @@ span.outpost-mention-chip[data-mention-kind="external-object"] {
   --gtr-3: 0fr; /* Extracted from ui/src/pages/SpaceSkills.tsx (grid-rows-[0fr]). */
   --tp-background-color-border-color: background-color,border-color; /* Extracted from ui/src/components/ActivityFeed.tsx (transition-[background-color,border-color]). */
   --tp-width-background-color: width,background-color; /* Extracted from ui/src/components/BudgetPolicyCard.tsx (transition-[width,background-color]). */
-  --tp-width: width; /* Extracted from ui/src/components/ClaudeSubscriptionPanel.tsx (transition-[width]). */
   --tp-background-color-color-opacity: background-color,color,opacity; /* Extracted from ui/src/components/FileTree.tsx (transition-[background-color,color,opacity]). */
   --tp-max-height: max-height; /* Extracted from ui/src/components/FoldCurtain.tsx (transition-[max-height]). */
   --tp-border-color-background-color-box-shadow: border-color,background-color,box-shadow; /* Extracted from ui/src/components/IssueChatThread.tsx (transition-[border-color,background-color,box-shadow]). */

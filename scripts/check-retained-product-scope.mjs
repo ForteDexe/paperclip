@@ -132,6 +132,22 @@ const retiredInfrastructure = [
   "server/src/services/ephemeral-enrollment.ts",
   "server/src/services/ephemeral-enrollment.test.ts",
   "server/src/__tests__/ephemeral-enrollment-replay.test.ts",
+  "ui/src/pages/Costs.tsx",
+  "ui/src/components/AccountingModelCard.tsx",
+  "ui/src/components/BillerSpendCard.tsx",
+  "ui/src/components/ClaudeSubscriptionPanel.tsx",
+  "ui/src/components/CodexSubscriptionPanel.tsx",
+  "ui/src/components/CostByUserTable.tsx",
+  "ui/src/components/CostDataQualityNotice.tsx",
+  "ui/src/components/FinanceBillerCard.tsx",
+  "ui/src/components/FinanceKindCard.tsx",
+  "ui/src/components/FinanceTimelineCard.tsx",
+  "ui/src/components/ProviderQuotaCard.tsx",
+  "ui/src/components/SubscriptionCostCard.tsx",
+  "ui/src/api/subscriptions.ts",
+  "ui/storybook/stories/budgets-costs/budget-finance.stories.tsx",
+  "ui/storybook/stories/budgets-costs/budget-resolution.stories.tsx",
+  "ui/storybook/stories/budgets-costs/costs/subscriptions.stories.tsx",
 ];
 
 const retiredCatalogScenarioIds = [

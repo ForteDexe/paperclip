@@ -327,6 +327,14 @@ preparation service, secret-log exception, replay coverage, and focused tests
 are removed. Offline migration and recovery compatibility remain until their
 shared runtime dependencies can be retired through a separate migration.
 
+### Legacy Costs Dashboard
+
+The retired `/costs` route already redirects to Dashboard, so its unreachable
+page, subscription and finance cards, provider quota panels, focused tests,
+Storybook showcase, and page-only API client are removed. Runtime token usage,
+task accounting, budget enforcement, and the compact activity data shown by
+retained agent and task screens remain available.
+
 ## Scope guard
 
 `scripts/check-retained-product-scope.mjs` verifies that the required Codex,

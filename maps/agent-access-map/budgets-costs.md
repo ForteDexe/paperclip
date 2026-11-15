@@ -147,7 +147,7 @@ Agent access: `restricted` — these report, refresh, price, and link routes req
 
 Policy: Space membership and space cost-read permission apply. Account metadata and fees are limited to the owner, an authorized shared audience, or a manager of shared AI connections. Viewers cannot refresh or edit. Editing requires ownership or management of a shared account; linking requires that authority for both records and matching source/target revisions. Space boundaries, immutable price history, and activity logging remain in force.
 
-Evidence: `source-only` — reviewed at `9ef434fe79c57d976b8b03b14c5242db270b8320`. [Subscription card](../../ui/src/components/SubscriptionCostCard.tsx), [cost routes](../../server/src/routes/costs.ts), [subscription service](../../server/src/services/subscriptions.ts), and [report visibility](../../server/src/services/subscription-report.ts).
+Evidence: `source-only` — reviewed at `9ef434fe79c57d976b8b03b14c5242db270b8320`. [Cost routes](../../server/src/routes/costs.ts), [subscription service](../../server/src/services/subscriptions.ts), and [report visibility](../../server/src/services/subscription-report.ts). The standalone subscription card is retired.
 
 Verification: `not-run` — Read as each authorized person and verify the account audience. Persist and reload an allowed price change and same-seat link. Reject viewer mutation, another person’s personal-price edit, stale revisions, foreign-space IDs, and ordinary agent requests. Compare current fees, historical usage, and provider state separately.
 
@@ -165,7 +165,7 @@ Agent access: `restricted` — quality and retry routes require board identity a
 
 Policy: Space boundaries and cost visibility apply to the UI report. Viewers may read permitted reports but cannot retry recording. A retry names a run in the same space, logs its request, and calls saved-cost accounting; it does not invoke the adapter. Projection repair is a different operational action with an inspection fingerprint and reason, not the UI Retry cost recording control.
 
-Evidence: `source-only` — reviewed at `9ef434fe79c57d976b8b03b14c5242db270b8320`. [Cost notice](../../ui/src/components/CostDataQualityNotice.tsx), [cost routes](../../server/src/routes/costs.ts), [quality report](../../server/src/services/cost-data-quality.ts), and [accounting retry](../../server/src/services/accounting-integrity.ts).
+Evidence: `source-only` — reviewed at `9ef434fe79c57d976b8b03b14c5242db270b8320`. [Cost routes](../../server/src/routes/costs.ts), [quality report](../../server/src/services/cost-data-quality.ts), and [accounting retry](../../server/src/services/accounting-integrity.ts). The standalone cost-quality notice is retired.
 
 Verification: `not-run` — Inspect each fixture reason, execute one authorized retry, and compare cost rows, accounting state, activity, and the unchanged run/task execution. Repeat the request to check no duplicate charge. Reject viewer/agent mutations and a foreign-space run. Preserve unavailable and failed states until an actual receipt or allowed correction resolves them.
 
