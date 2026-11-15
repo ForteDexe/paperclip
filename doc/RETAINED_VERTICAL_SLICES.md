@@ -40,6 +40,52 @@ Historical migrations may remain when they are needed to open an existing
 database. Runtime internals stay until their dependency on the retained slices
 has been mapped. A hidden route is not considered removed.
 
+## Current package boundary
+
+The retained product currently depends on these package roots:
+
+- `packages/adapter-utils`: shared process, session, and harness utilities used
+  by the Codex and Claude adapters;
+- `packages/adapters/codex-local` and `packages/adapters/claude-local`: the two
+  supported agent harnesses;
+- `packages/db`: persistence for every retained vertical slice;
+- `packages/mcp-server`: the agent-facing task, decision, artifact, case, and
+  runtime tool surface used by runner capability contracts;
+- `packages/outpost-runner`: ACP/CLI execution, session continuity, and local
+  runtime orchestration;
+- `packages/plugins/plugin-campfire` and `packages/plugins/sdk`: the retained
+  group-chat plugin and its host contract;
+- `packages/shared`: contracts shared by the UI, server, CLI, runner, and
+  adapters.
+
+Routines are a retained vertical slice even though they are implemented across
+the shared, database, server, and UI packages rather than in a standalone
+package. Do not infer that a feature is retired merely because it has no package
+root of its own.
+
+## Deferred compatibility migrations
+
+These components are not part of the desired local product surface, but their
+remaining code is still coupled to retained runtime paths. They must be removed
+through focused migrations rather than broad deletion:
+
+- `packages/tailscale-https-broker` and `server/src/services/runtime-exposure/`
+  provide managed HTTPS exposure for remote workspace services. The retained
+  workspace runtime still owns their client, reservations, readiness, and
+  recovery state. Remove that integration as one complete runtime-exposure
+  slice before deleting the package.
+- `packages/outpost-runner/scripts/kimi-distribution/` and
+  `packages/outpost-runner/scripts/pi-distribution/`, plus remaining provider
+  branches in the shared runner, are historical provider compatibility. Remove
+  them only after Codex and Claude no longer share their transport/profile
+  machinery.
+- historical database migrations remain immutable unless the repository adopts
+  an explicit pre-release schema reset. Active schemas and product routes are
+  still expected to follow the retained boundary.
+
+This deferred list is a cleanup queue, not a declaration that those features
+are supported. New UI, routes, or tests must not depend on them.
+
 ## Retired slices
 
 ### Ready-made Team Catalog

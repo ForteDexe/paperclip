@@ -5,13 +5,22 @@ import process from "node:process";
 const repoRoot = path.resolve(import.meta.dirname, "..");
 
 const requiredPackageRoots = [
+  "packages/adapter-utils",
   "packages/adapters/claude-local",
   "packages/adapters/codex-local",
   "packages/db",
+  "packages/mcp-server",
   "packages/outpost-runner",
   "packages/plugins/plugin-campfire",
   "packages/plugins/sdk",
   "packages/shared",
+];
+
+// These are expected to remain only until their coupling to retained runtime
+// paths is removed through a dedicated migration. See
+// doc/RETAINED_VERTICAL_SLICES.md#deferred-compatibility-migrations.
+const deferredCompatibilityPackageRoots = [
+  "packages/tailscale-https-broker",
 ];
 
 const retiredPackages = [
@@ -194,6 +203,12 @@ const failures = [];
 for (const packageRoot of requiredPackageRoots) {
   if (!(await exists(packageRoot))) {
     failures.push(`required product package is missing: ${packageRoot}`);
+  }
+}
+
+for (const packageRoot of deferredCompatibilityPackageRoots) {
+  if (!(await exists(packageRoot))) {
+    failures.push(`deferred compatibility package disappeared without its migration: ${packageRoot}`);
   }
 }
 
