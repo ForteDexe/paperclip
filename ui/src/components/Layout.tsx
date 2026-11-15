@@ -15,6 +15,8 @@ import { SpaceSettingsNav } from "./access/SpaceSettingsNav";
 import { AppsSidebar } from "./AppsSidebar";
 import { AppDetailSidebar } from "./AppConnectionSidebar";
 import { AgentContextualSidebar } from "./AgentContextualSidebar";
+import { RoutineContextualSidebar } from "./RoutineContextualSidebar";
+import { SetupWizardSidebarOutlet } from "./SetupWizard";
 import { BreadcrumbBar } from "./BreadcrumbBar";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { CommandPalette } from "./CommandPalette";
@@ -109,10 +111,12 @@ export function Layout({ sidebarSections }: { sidebarSections?: ReactNode }) {
     spacePrefix,
     pluginRoutePath: matchedPluginRoutePath,
     agentId,
+    routineId,
   } = useParams<{
     spacePrefix: string;
     pluginRoutePath?: string;
     agentId?: string;
+    routineId?: string;
   }>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -215,11 +219,14 @@ export function Layout({ sidebarSections }: { sidebarSections?: ReactNode }) {
   ) : null;
   const secondarySidebar = isAgentChatRoute ? <AgentConversationsSidebar /> : shellRoute.builtInContextualSurface === "agent" && agentId ? (
     <AgentContextualSidebar agentRef={agentId} />
+  ) : streamlinedUiEnabled && shellRoute.builtInContextualSurface === "routine" && routineId ? (
+    <SetupWizardSidebarOutlet><RoutineContextualSidebar routineId={routineId} /></SetupWizardSidebarOutlet>
   ) : sharedSecondarySidebar;
   const hasSecondarySidebar = secondarySidebar != null;
   const keepsPrimarySidebar = streamlinedUiEnabled && hasSecondarySidebar && (
     isAgentChatRoute
     || shellRoute.builtInContextualSurface === "agent"
+    || shellRoute.builtInContextualSurface === "routine"
     || isAppsRoute
     || isToolsRoute
   );

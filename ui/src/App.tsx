@@ -42,6 +42,8 @@ const DashboardLive = lazy(() => import("./pages/DashboardLive").then((module) =
 const Spaces = lazy(() => import("./pages/Spaces").then((module) => ({ default: module.Spaces })));
 const AgentDetail = lazy(() => import("./pages/AgentDetailPage").then((module) => ({ default: module.AgentDetailPage })));
 const Search = lazy(() => import("./pages/Search").then((module) => ({ default: module.Search })));
+const Routines = lazy(() => import("./pages/Routines").then((module) => ({ default: module.Routines })));
+const RoutineDetail = lazy(() => import("./pages/RoutineDetail").then((module) => ({ default: module.RoutineDetail })));
 const Goals = lazy(() => import("./pages/Goals").then((module) => ({ default: module.Goals })));
 const Artifacts = lazy(() => import("./pages/Artifacts").then((module) => ({ default: module.Artifacts })));
 const GoalDetail = lazy(() => import("./pages/GoalDetail").then((module) => ({ default: module.GoalDetail })));
@@ -61,6 +63,8 @@ const NewAgent = lazy(() => import("./pages/NewAgent").then((module) => ({ defau
 
 const ProductionAgents = lazy(() => import("./pages/Agents.production").then((module) => ({ default: module.Agents })));
 const ProductionAgentHierarchy = lazy(() => import("./pages/AgentHierarchy.production").then((module) => ({ default: module.AgentHierarchy })));
+const ProductionRoutines = lazy(() => import("./pages/Routines.production").then((module) => ({ default: module.Routines })));
+const ProductionRoutineDetail = lazy(() => import("./pages/RoutineDetail.production").then((module) => ({ default: module.RoutineDetail })));
 
 function ProductionSurface({ children }: { children: ReactNode }) {
   return <Suspense fallback={<OutpostLoading />}>{children}</Suspense>;
@@ -154,7 +158,7 @@ function operatorRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled
       <Route path="chats" element={<AgentChats />} />
       <Route path="chats/:agentRef" element={<AgentChat />} />
       <Route path="issues/:issueId" element={<IssueDetail />} />
-      <Route path="routines" element={<Navigate to="/dashboard" replace />} />
+      <Route path="routines" element={streamlinedUiEnabled ? <Routines /> : <ProductionSurface><ProductionRoutines /></ProductionSurface>} />
       <Route
         path="cases"
         element={<CasesExperimentalGate><Cases /></CasesExperimentalGate>}
@@ -165,8 +169,8 @@ function operatorRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled
       />
       <Route path="status" element={<Navigate to="/dashboard" replace />} />
       <Route path="status/:cardId" element={<Navigate to="/dashboard" replace />} />
-      <Route path="routines/:routineId" element={<Navigate to="/dashboard" replace />} />
-      <Route path="routines/:routineId/:section" element={<Navigate to="/dashboard" replace />} />
+      <Route path="routines/:routineId" element={streamlinedUiEnabled ? <RoutineDetail /> : <ProductionSurface><ProductionRoutineDetail /></ProductionSurface>} />
+      <Route path="routines/:routineId/:section" element={streamlinedUiEnabled ? <RoutineDetail /> : <ProductionSurface><ProductionRoutineDetail /></ProductionSurface>} />
       <Route path="execution-workspaces/:workspaceId/*" element={<Navigate to="/dashboard" replace />} />
       <Route path="goals" element={<Goals />} />
       <Route path="goals/:goalId" element={<GoalDetail />} />

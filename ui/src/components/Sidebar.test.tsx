@@ -241,6 +241,7 @@ describe("Sidebar", () => {
 
     const navLabels = [...container.querySelectorAll("nav a")].map((a) => a.textContent?.trim());
     expect(navLabels).toContain("Tasks");
+    expect(navLabels).toContain("Routines");
     expect(navLabels).not.toContain("Issues");
 
     const spacesLink = [...container.querySelectorAll("nav a")].find((a) => a.textContent?.trim() === "Spaces");
@@ -342,8 +343,10 @@ describe("Sidebar", () => {
     expect(sidebarSlot?.textContent).toContain("Plugin slot outlet");
     const workSectionContainer = sidebarSlot?.parentElement?.parentElement;
     const workText = workSectionContainer?.textContent ?? "";
+    expect(workText).toContain("Routines");
     expect(workText).toContain("Artifacts");
     expect(workText).not.toContain("Workspaces");
+    expect(workText.indexOf("Routines")).toBeLessThan(workText.indexOf("Artifacts"));
     expect(workText.indexOf("Artifacts")).toBeLessThan(workText.indexOf("Plugin slot outlet"));
 
     const primaryNavText = container.querySelector("nav > div:first-child")?.textContent ?? "";
@@ -494,7 +497,7 @@ describe("Sidebar", () => {
     const labels = (section: Element | undefined) => [...(section?.querySelectorAll("a") ?? [])]
       .map((anchor) => anchor.textContent?.trim());
 
-    expect(labels(workSection)).toEqual(["Chat", "Tasks", "Spaces", "Artifacts"]);
+    expect(labels(workSection)).toEqual(["Chat", "Tasks", "Spaces", "Routines", "Artifacts"]);
     expect(labels(orgSection)).toEqual(["Agents"]);
     expect(sections.indexOf(workSection!)).toBeLessThan(sections.indexOf(orgSection!));
     expect(

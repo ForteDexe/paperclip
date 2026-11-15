@@ -7,6 +7,7 @@ import {
   Search,
   SquarePen,
   Network,
+  Repeat,
   Layers,
   FolderOpen,
   Package,
@@ -217,6 +218,7 @@ function ClassicSidebar({ children }: { children?: ReactNode }) {
             <SidebarNavItem to="/issues" label={sidebarVocabulary.tasks} icon={CircleCheck} />
           )}
           <SidebarNavItem to="/spaces" label={sidebarVocabulary.spaces} icon={FolderOpen} />
+          <SidebarNavItem to="/routines" label="Routines" icon={Repeat} />
           <SidebarNavItem to="/artifacts" label={sidebarVocabulary.artifacts} icon={Package} />
           {showCases ? (
             <SidebarNavItem to="/cases" label={sidebarVocabulary.cases} icon={Layers} textBadge="beta" />
