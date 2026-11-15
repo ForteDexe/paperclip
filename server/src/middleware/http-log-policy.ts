@@ -43,7 +43,6 @@ function normalizePath(url: string): string {
  * Labels come from this closed list, never from the request URL.
  */
 export type SecretSensitiveRouteFamily =
-  | "ephemeral_enrollment"
   | "provider_webhook"
   | "muse"
   | "mcp_files"
@@ -152,7 +151,6 @@ export function secretSensitiveRouteFamily(
   method: string | undefined,
   url: string | undefined,
 ): SecretSensitiveRouteFamily | null {
-  if (url && /^\/api\/instance\/ephemeral-enrollment(?:\/|$)/i.test(normalizePath(url).replace(/^https?:\/\/[^/]*/i, ""))) return "ephemeral_enrollment";
   if (isPrivateWebhookHttpRequest(method, url)) return "provider_webhook";
   if (isPrivateMuseHttpRequest(url)) return "muse";
   if (isPrivateDotPrincipalHttpRequest(url)) return "mcp_runner";

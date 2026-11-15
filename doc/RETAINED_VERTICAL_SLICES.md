@@ -319,6 +319,14 @@ inspection services, cloud qualification, operator documentation, and focused
 tests are removed. Normal operator and agent APIs, task authorization, runtime
 identity, workspace file access, logs, artifacts, and local diagnostics remain.
 
+### Online Ephemeral Cloud Enrollment
+
+Outpost no longer exposes the managed-cloud action that prepares a Railway
+deployment for online ephemeral enrollment. Its signed control endpoint,
+preparation service, secret-log exception, replay coverage, and focused tests
+are removed. Offline migration and recovery compatibility remain until their
+shared runtime dependencies can be retired through a separate migration.
+
 ## Scope guard
 
 `scripts/check-retained-product-scope.mjs` verifies that the required Codex,

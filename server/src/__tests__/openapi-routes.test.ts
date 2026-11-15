@@ -45,7 +45,6 @@ const apiPrefixes: Record<string, string> = {
   "space-skill-policy.ts": "/api",
   "connection-intents.ts": "/api",
   "connection-event-wake.ts": "/",
-  "ephemeral-enrollment.ts": "/api",
   "costs.ts": "/api",
   "dashboard.ts": "/api",
   "decision-queues.ts": "/api",
@@ -110,7 +109,6 @@ const explicitOpenApiOperationCoverageExclusions = new Set([
   "GET /api/spaces/{spaceId}/users/{userSlug}/profile",
   // Exact Cloud-control signed action; ordinary operator/agent credentials cannot invoke it.
   "POST /api/instance/connector-events/wake",
-  "POST /api/instance/ephemeral-enrollment/prepare",
   // This endpoint is authenticated by the provider signature rather than by a
   // Outpost operator/agent credential. It intentionally stays out of the public
   // operator API document, while this exact exclusion keeps route coverage honest.

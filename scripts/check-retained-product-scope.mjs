@@ -127,6 +127,11 @@ const retiredInfrastructure = [
   "server/src/__tests__/customer-success-cloud.test.ts",
   "packages/shared/src/customer-success.ts",
   "doc/CUSTOMER-SUCCESS-INSPECTION.md",
+  "server/src/routes/ephemeral-enrollment.ts",
+  "server/src/routes/ephemeral-enrollment.test.ts",
+  "server/src/services/ephemeral-enrollment.ts",
+  "server/src/services/ephemeral-enrollment.test.ts",
+  "server/src/__tests__/ephemeral-enrollment-replay.test.ts",
 ];
 
 const retiredCatalogScenarioIds = [

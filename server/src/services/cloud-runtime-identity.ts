@@ -448,7 +448,6 @@ export const CLOUD_CONTROL_HEADER = "x-outpost-cloud-control";
 export const CLOUD_CONTROL_AUDIENCE = "outpost-cloud-control/v1";
 export const CLOUD_CONTROL_JWS_TYPE = "outpost-cloud-control+jwt";
 export const CLOUD_CONTROL_ACTIONS = [
-  "ephemeral-enrollment:prepare",
   "task-drain:read",
   "task-drain:read-body",
   "task-drain:start",
