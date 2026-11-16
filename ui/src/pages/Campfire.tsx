@@ -5,7 +5,7 @@ import { campfireApi, type CampfireDelivery } from "@/api/campfire";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { MarkdownBody } from "@/components/MarkdownBody";
 import { Button } from "@/components/ui/button";
-import { ConversationAlertBanner } from "@/components/ConversationAlertBanner";
+import { ConversationAlertBanner, useDismissedConversationAlerts } from "@/components/ConversationAlertBanner";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
 import { useSpace } from "@/context/SpaceContext";
 import { queryKeys } from "@/lib/queryKeys";
@@ -38,7 +38,6 @@ export function Campfire() {
   const client = useQueryClient();
   const [draft, setDraft] = useState("");
   const [caret, setCaret] = useState(0);
-  const [dismissedDeliveryIds, setDismissedDeliveryIds] = useState<ReadonlySet<string>>(() => new Set());
   const scroller = useRef<HTMLDivElement>(null);
   const wasAtBottom = useRef(true);
   const state = useQuery({
@@ -48,8 +47,9 @@ export function Campfire() {
     refetchInterval: 1_500,
     refetchIntervalInBackground: false,
   });
+  const alertScope = `campfire:${selectedSpaceId ?? "none"}:${roomId ?? state.data?.room?.id ?? "none"}`;
+  const { dismissedIds: dismissedDeliveryIds, dismiss: dismissDeliveryIds } = useDismissedConversationAlerts(alertScope);
   useEffect(() => setBreadcrumbs([{ label: "Campfire" }]), [setBreadcrumbs]);
-  useEffect(() => setDismissedDeliveryIds(new Set()), [roomId]);
   useEffect(() => {
     if (!roomId && state.data?.room) navigate(`/campfire/${state.data.room.id}`, { replace: true });
   }, [navigate, roomId, state.data?.room?.id]);
@@ -70,10 +70,9 @@ export function Campfire() {
   const visibleDeliveryFailure = useMemo(() => (state.data?.deliveries ?? [])
     .filter((delivery) => delivery.status === "failed" && !dismissedDeliveryIds.has(delivery.id))
     .at(-1) ?? null, [dismissedDeliveryIds, state.data?.deliveries]);
-  const dismissCurrentDeliveryFailures = () => setDismissedDeliveryIds((current) => new Set([
-    ...current,
-    ...(state.data?.deliveries ?? []).filter((delivery) => delivery.status === "failed").map((delivery) => delivery.id),
-  ]));
+  const dismissCurrentDeliveryFailures = () => dismissDeliveryIds(
+    (state.data?.deliveries ?? []).filter((delivery) => delivery.status === "failed").map((delivery) => delivery.id),
+  );
   const selectMention = (handle: string) => {
     const before = draft.slice(0, caret).replace(/@([A-Za-z0-9_-]*)$/, `@${handle} `);
     setDraft(before + draft.slice(caret));

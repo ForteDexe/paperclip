@@ -3,7 +3,7 @@ import type { ScrollingHistory } from "@/components/task-chat/TaskMessageScrolle
 import { TaskChatShimmerScope } from "@/components/task-chat/TaskChatShimmer";
 import { useRunnerSubmission } from "@/hooks/useRunnerSubmission";
 import { TaskChatLoadingShell } from "@/components/task-chat/TaskChatLoadingShell";
-import { ConversationAlertBanner, partitionConversationFailureItems } from "@/components/ConversationAlertBanner";
+import { ConversationAlertBanner, partitionConversationFailureItems, useDismissedConversationAlerts } from "@/components/ConversationAlertBanner";
 import {
   ISSUE_DETAIL_CONTENT_PAINT_MARK,
   ISSUE_DETAIL_CONTENT_MEASURE,
@@ -2513,16 +2513,15 @@ export function TaskChatThread(props: TaskChatThreadProps) {
     () => conversationMode ? partitionConversationFailureItems(threadItems) : { failures: [], rest: threadItems },
     [conversationMode, threadItems],
   );
-  const [dismissedConversationFailureIds, setDismissedConversationFailureIds] = useState<ReadonlySet<string>>(() => new Set());
-  useEffect(() => setDismissedConversationFailureIds(new Set()), [issueId]);
+  const alertScope = `agent-chat:${issueId ?? draftKey ?? "draft"}`;
+  const { dismissedIds: dismissedConversationFailureIds, dismiss: dismissConversationFailureIds } = useDismissedConversationAlerts(alertScope);
   const visibleConversationFailure = [...conversationFailures.failures]
     .reverse()
     .find((failure) => !dismissedConversationFailureIds.has(failure.id)) ?? null;
   const visibleThreadItems = conversationFailures.rest;
-  const dismissConversationFailures = () => setDismissedConversationFailureIds((current) => new Set([
-    ...current,
-    ...conversationFailures.failures.map((failure) => failure.id),
-  ]));
+  const dismissCurrentConversationFailures = () => dismissConversationFailureIds(
+    conversationFailures.failures.map((failure) => failure.id),
+  );
   const tailStreaming = Boolean(liveRun);
   const tailRunSource = tailRunId
     ? runs.find((run) => run.id === tailRunId)
@@ -3398,12 +3397,12 @@ export function TaskChatThread(props: TaskChatThreadProps) {
               <ConversationAlertBanner
                 title={visibleConversationFailure.label}
                 detail={visibleConversationFailure.detail}
-                onDismiss={dismissConversationFailures}
+                onDismiss={dismissCurrentConversationFailures}
                 action={visibleConversationFailure.runId && onRetryFailedRun ? {
                   label: "Retry",
                   disabled: retryFailedRunId === visibleConversationFailure.runId,
                   onClick: () => {
-                    dismissConversationFailures();
+                    dismissCurrentConversationFailures();
                     onRetryFailedRun(visibleConversationFailure.runId!);
                   },
                 } : undefined}

@@ -1,7 +1,53 @@
 import { TriangleAlert, X } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { TaskChatItem } from "@/components/task-chat/task-chat-model";
+
+const DISMISSED_ALERTS_PREFIX = "outpost:dismissed-conversation-alerts:";
+const MAX_DISMISSED_ALERTS_PER_SCOPE = 200;
+
+function readDismissedAlerts(scope: string): ReadonlySet<string> {
+  try {
+    const stored = window.localStorage.getItem(`${DISMISSED_ALERTS_PREFIX}${scope}`);
+    const ids = stored ? JSON.parse(stored) : [];
+    return new Set(Array.isArray(ids) ? ids.filter((id): id is string => typeof id === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function writeDismissedAlerts(scope: string, ids: ReadonlySet<string>) {
+  try {
+    window.localStorage.setItem(
+      `${DISMISSED_ALERTS_PREFIX}${scope}`,
+      JSON.stringify([...ids].slice(-MAX_DISMISSED_ALERTS_PER_SCOPE)),
+    );
+  } catch {
+    // Dismissal still works for this mount when storage is unavailable.
+  }
+}
+
+export function useDismissedConversationAlerts(scope: string) {
+  const [snapshot, setSnapshot] = useState(() => ({ scope, ids: readDismissedAlerts(scope) }));
+  const dismissedIds = snapshot.scope === scope ? snapshot.ids : readDismissedAlerts(scope);
+
+  useEffect(() => {
+    if (snapshot.scope !== scope) setSnapshot({ scope, ids: readDismissedAlerts(scope) });
+  }, [scope, snapshot.scope]);
+
+  const dismiss = useCallback((ids: Iterable<string>) => {
+    setSnapshot((current) => {
+      const next = new Set(current.scope === scope ? current.ids : readDismissedAlerts(scope));
+      for (const id of ids) next.add(id);
+      const bounded = new Set([...next].slice(-MAX_DISMISSED_ALERTS_PER_SCOPE));
+      writeDismissedAlerts(scope, bounded);
+      return { scope, ids: bounded };
+    });
+  }, [scope]);
+
+  return { dismissedIds, dismiss };
+}
 
 export function partitionConversationFailureItems(items: readonly TaskChatItem[]) {
   const failures: Extract<TaskChatItem, { kind: "marker" }>[] = [];

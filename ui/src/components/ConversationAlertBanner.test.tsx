@@ -2,12 +2,14 @@
 
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { describe, expect, it, vi } from "vitest";
-import { ConversationAlertBanner, partitionConversationFailureItems } from "./ConversationAlertBanner";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { ConversationAlertBanner, partitionConversationFailureItems, useDismissedConversationAlerts } from "./ConversationAlertBanner";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 describe("ConversationAlertBanner", () => {
+  afterEach(() => window.localStorage.clear());
+
   it("shows the failure and lets the user dismiss it", () => {
     const host = document.createElement("div");
     const root = createRoot(host);
@@ -32,5 +34,26 @@ describe("ConversationAlertBanner", () => {
     const result = partitionConversationFailureItems([failure, credential]);
     expect(result.failures).toEqual([failure]);
     expect(result.rest).toEqual([credential]);
+  });
+
+  it("remembers a dismissal when the conversation is remounted", () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const Dismissible = () => {
+      const { dismissedIds, dismiss } = useDismissedConversationAlerts("campfire:space:room");
+      return dismissedIds.has("failure-1") ? null : (
+        <ConversationAlertBanner title="Run failed" onDismiss={() => dismiss(["failure-1"])} />
+      );
+    };
+    let root = createRoot(host);
+    act(() => root.render(<Dismissible />));
+    act(() => host.querySelector<HTMLButtonElement>('[aria-label="Dismiss alert"]')!.click());
+    expect(host.textContent).toBe("");
+    act(() => root.unmount());
+    root = createRoot(host);
+    act(() => root.render(<Dismissible />));
+    expect(host.textContent).toBe("");
+    act(() => root.unmount());
+    host.remove();
   });
 });
