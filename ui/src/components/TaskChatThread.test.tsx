@@ -314,6 +314,16 @@ describe.each(["legacy", "native"] as const)("historical %s system status", (run
     expect(retry).toHaveBeenCalledExactlyOnceWith("new-failure");
   });
 
+  it("moves Agent Chat run failures into a dismissible header banner", () => {
+    render(<TaskChatThread conversationMode comments={[]} onAdd={async () => {}} issueStatus="blocked"
+      linkedRuns={[run("chat-failure", "failed", 0)]} />);
+    const banner = container.querySelector('[data-testid="task-chat-thread"] > [role="alert"]');
+    expect(banner?.textContent).toContain("Run failed");
+    expect(container.querySelector('[data-testid="task-chat-run-failed-try-again"]')).toBeNull();
+    flushSync(() => banner?.querySelector<HTMLButtonElement>('[aria-label="Dismiss alert"]')?.click());
+    expect(container.querySelector('[data-testid="task-chat-thread"] > [role="alert"]')).toBeNull();
+  });
+
   it.each(["in_progress", "done"])("preserves a child's stop relay after parent work (%s)", (issueStatus) => {
     const relay = { ...comment("child-relay", "System relay: [Child task](/issues/child) transitioned to `blocked`."),
       authorType: "system" as const, authorAgentId: null };

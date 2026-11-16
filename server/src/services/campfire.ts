@@ -11,7 +11,7 @@ import {
   heartbeatRuns,
   type Db,
 } from "@outpost/db";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import type { PluginWorkerManager } from "./plugin-worker-manager.js";
 import { agentService } from "./agents.js";
 import { heartbeatService } from "./heartbeat.js";
@@ -42,6 +42,10 @@ export function campfireMentionHandles(body: string): string[] {
   return [...new Set([...matches].map((match) => match[2]!.toLowerCase()))];
 }
 
+export function campfireMemberStatus(agentStatus: string, hasActiveRun: boolean): string {
+  return hasActiveRun ? "running" : agentStatus;
+}
+
 function defaultHandle(name: string, id: string): string {
   const base = name.toLowerCase().replace(/[^a-z0-9_-]+/g, "").slice(0, 24);
   return base || `agent-${id.slice(0, 6)}`;
@@ -64,7 +68,7 @@ export function campfireService(
   }
 
   async function listMembers(spaceId: string, roomId: string) {
-    return db
+    const members = await db
       .select({
         roomId: campfireRoomMembers.roomId,
         agentId: campfireRoomMembers.agentId,
@@ -90,6 +94,26 @@ export function campfireService(
         eq(campfireRoomMembers.spaceId, spaceId),
       ))
       .orderBy(asc(campfireRoomMembers.joinedAt));
+
+    if (!members.length) return members;
+
+    // The persisted agent status is a lifecycle state and may remain idle while
+    // a turn is executing. Campfire needs the live run state for its indicator.
+    const activeRuns = await db
+      .select({ agentId: heartbeatRuns.agentId })
+      .from(heartbeatRuns)
+      .where(and(
+        eq(heartbeatRuns.spaceId, spaceId),
+        inArray(heartbeatRuns.agentId, members.map((member) => member.agentId)),
+        inArray(heartbeatRuns.status, ["queued", "running"]),
+      ))
+      .groupBy(heartbeatRuns.agentId);
+    const activeAgentIds = new Set(activeRuns.map((run) => run.agentId));
+
+    return members.map((member) => ({
+      ...member,
+      status: campfireMemberStatus(member.status, activeAgentIds.has(member.agentId)),
+    }));
   }
 
   async function listMessages(spaceId: string, roomId: string) {

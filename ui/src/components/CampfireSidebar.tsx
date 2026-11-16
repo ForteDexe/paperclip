@@ -8,6 +8,7 @@ import { Link, useNavigate, useParams } from "@/lib/router";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CampfireAgentStatus } from "@/components/CampfireAgentStatus";
 
 export function CampfireSidebar() {
   const { selectedSpaceId } = useSpace();
@@ -21,6 +22,8 @@ export function CampfireSidebar() {
     queryKey: queryKeys.campfire.state(selectedSpaceId, roomId),
     queryFn: () => campfireApi.state(selectedSpaceId!, roomId),
     enabled: !!selectedSpaceId,
+    refetchInterval: 1_500,
+    refetchIntervalInBackground: false,
   });
   const refresh = async () => {
     await client.invalidateQueries({ queryKey: queryKeys.campfire.all(selectedSpaceId) });
@@ -87,7 +90,7 @@ export function CampfireSidebar() {
               <p className="px-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">At the fire · {state.data.members.length}</p>
               <div className="mt-2 flex flex-col gap-1">
                 {state.data.members.map((member) => <div key={member.agentId} className="group flex items-center gap-2 rounded-md px-2 py-2 hover:bg-accent/60">
-                  <span className="size-2 rounded-full bg-muted-foreground" aria-hidden />
+                  <CampfireAgentStatus status={member.status} name={member.name} />
                   <span className="min-w-0 flex-1 truncate text-sm"><span className="font-medium">@{member.handle}</span><span className="ml-2 text-xs text-muted-foreground">{member.name}</span></span>
                   <Button variant="ghost" size="icon-xs" aria-label={`Remove ${member.name}`} disabled={removeMember.isPending} onClick={() => removeMember.mutate(member.agentId)}><UserMinus className="size-3.5" /></Button>
                 </div>)}

@@ -3,6 +3,7 @@ import type { ScrollingHistory } from "@/components/task-chat/TaskMessageScrolle
 import { TaskChatShimmerScope } from "@/components/task-chat/TaskChatShimmer";
 import { useRunnerSubmission } from "@/hooks/useRunnerSubmission";
 import { TaskChatLoadingShell } from "@/components/task-chat/TaskChatLoadingShell";
+import { ConversationAlertBanner, partitionConversationFailureItems } from "@/components/ConversationAlertBanner";
 import {
   ISSUE_DETAIL_CONTENT_PAINT_MARK,
   ISSUE_DETAIL_CONTENT_MEASURE,
@@ -2508,6 +2509,20 @@ export function TaskChatThread(props: TaskChatThreadProps) {
     }
     return [body, tail];
   }, [items, coordinatorEnabled, tailRunId]);
+  const conversationFailures = useMemo(
+    () => conversationMode ? partitionConversationFailureItems(threadItems) : { failures: [], rest: threadItems },
+    [conversationMode, threadItems],
+  );
+  const [dismissedConversationFailureIds, setDismissedConversationFailureIds] = useState<ReadonlySet<string>>(() => new Set());
+  useEffect(() => setDismissedConversationFailureIds(new Set()), [issueId]);
+  const visibleConversationFailure = [...conversationFailures.failures]
+    .reverse()
+    .find((failure) => !dismissedConversationFailureIds.has(failure.id)) ?? null;
+  const visibleThreadItems = conversationFailures.rest;
+  const dismissConversationFailures = () => setDismissedConversationFailureIds((current) => new Set([
+    ...current,
+    ...conversationFailures.failures.map((failure) => failure.id),
+  ]));
   const tailStreaming = Boolean(liveRun);
   const tailRunSource = tailRunId
     ? runs.find((run) => run.id === tailRunId)
@@ -3379,6 +3394,21 @@ export function TaskChatThread(props: TaskChatThreadProps) {
                 <TaskChatLoadingShell mobile={isMobile} streamlined={streamlinedUiEnabled} coordinator={coordinatorEnabled} />
               </div>
             ) : null}
+            {visibleConversationFailure ? (
+              <ConversationAlertBanner
+                title={visibleConversationFailure.label}
+                detail={visibleConversationFailure.detail}
+                onDismiss={dismissConversationFailures}
+                action={visibleConversationFailure.runId && onRetryFailedRun ? {
+                  label: "Retry",
+                  disabled: retryFailedRunId === visibleConversationFailure.runId,
+                  onClick: () => {
+                    dismissConversationFailures();
+                    onRetryFailedRun(visibleConversationFailure.runId!);
+                  },
+                } : undefined}
+              />
+            ) : null}
             <div
               className={cn(
                 "relative flex min-h-0 flex-1 flex-col",
@@ -3408,7 +3438,7 @@ export function TaskChatThread(props: TaskChatThreadProps) {
               >
                 {prepareInitialContent ? (
                   <>
-                    {items.length === 0 && !tailRunId && !optimisticRunnerStartup && !scrollingHistory?.hasMore ? (
+                    {visibleThreadItems.length === 0 && !tailRunId && !optimisticRunnerStartup && !scrollingHistory?.hasMore ? (
                       <div
                         className="min-h-0 flex-1 overflow-y-auto"
                       >
@@ -3442,7 +3472,7 @@ export function TaskChatThread(props: TaskChatThreadProps) {
                       </div>
                     ) : (
                       <TaskChatThreadView
-                        items={threadItems}
+                        items={visibleThreadItems}
                         scrollingHistory={scrollingHistory}
                         attachments={attachments}
                         header={<>{threadHeaderWithBlockers}{!issueBrief ? historyControl : null}<CoordinatorChatQuestionStatus query={pendingQuestions} /><CoordinatorChatReceiptStatus query={decisionReceipts} scroll={!!scrollingHistory} /><CoordinatorChatHandoffStatus query={taskHandoffs} scroll={!!scrollingHistory} /></>}

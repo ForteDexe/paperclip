@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  campfireMemberStatus,
   campfireMentionHandles,
   normalizeCampfireHandle,
   normalizeCampfireRoomName,
@@ -23,5 +24,10 @@ describe("Campfire input helpers", () => {
       "claude",
     ]);
     expect(campfireMentionHandles("mail dev@example.com or quote foo@rocky")).toEqual([]);
+  });
+
+  it("shows an active Campfire turn as running without changing the saved agent status", () => {
+    expect(campfireMemberStatus("idle", true)).toBe("running");
+    expect(campfireMemberStatus("paused", false)).toBe("paused");
   });
 });

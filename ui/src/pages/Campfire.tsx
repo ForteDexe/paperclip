@@ -5,6 +5,7 @@ import { campfireApi, type CampfireDelivery } from "@/api/campfire";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { MarkdownBody } from "@/components/MarkdownBody";
 import { Button } from "@/components/ui/button";
+import { ConversationAlertBanner } from "@/components/ConversationAlertBanner";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
 import { useSpace } from "@/context/SpaceContext";
 import { queryKeys } from "@/lib/queryKeys";
@@ -37,6 +38,7 @@ export function Campfire() {
   const client = useQueryClient();
   const [draft, setDraft] = useState("");
   const [caret, setCaret] = useState(0);
+  const [dismissedDeliveryIds, setDismissedDeliveryIds] = useState<ReadonlySet<string>>(() => new Set());
   const scroller = useRef<HTMLDivElement>(null);
   const wasAtBottom = useRef(true);
   const state = useQuery({
@@ -47,6 +49,7 @@ export function Campfire() {
     refetchIntervalInBackground: false,
   });
   useEffect(() => setBreadcrumbs([{ label: "Campfire" }]), [setBreadcrumbs]);
+  useEffect(() => setDismissedDeliveryIds(new Set()), [roomId]);
   useEffect(() => {
     if (!roomId && state.data?.room) navigate(`/campfire/${state.data.room.id}`, { replace: true });
   }, [navigate, roomId, state.data?.room?.id]);
@@ -64,15 +67,13 @@ export function Campfire() {
   });
   const query = mentionQuery(draft, caret);
   const suggestions = useMemo(() => query === null ? [] : (state.data?.members ?? []).filter((member) => member.handle.toLowerCase().includes(query)).slice(0, 6), [query, state.data?.members]);
-  const deliveriesByMessage = useMemo(() => {
-    const grouped = new Map<string, CampfireDelivery[]>();
-    for (const delivery of state.data?.deliveries ?? []) {
-      const entries = grouped.get(delivery.messageId) ?? [];
-      entries.push(delivery);
-      grouped.set(delivery.messageId, entries);
-    }
-    return grouped;
-  }, [state.data?.deliveries]);
+  const visibleDeliveryFailure = useMemo(() => (state.data?.deliveries ?? [])
+    .filter((delivery) => delivery.status === "failed" && !dismissedDeliveryIds.has(delivery.id))
+    .at(-1) ?? null, [dismissedDeliveryIds, state.data?.deliveries]);
+  const dismissCurrentDeliveryFailures = () => setDismissedDeliveryIds((current) => new Set([
+    ...current,
+    ...(state.data?.deliveries ?? []).filter((delivery) => delivery.status === "failed").map((delivery) => delivery.id),
+  ]));
   const selectMention = (handle: string) => {
     const before = draft.slice(0, caret).replace(/@([A-Za-z0-9_-]*)$/, `@${handle} `);
     setDraft(before + draft.slice(caret));
@@ -84,6 +85,19 @@ export function Campfire() {
   if (!room) return <div className="flex h-full flex-col items-center justify-center gap-3 text-center"><span className="flex size-12 items-center justify-center rounded-xl bg-muted"><Flame className="size-6" /></span><h1 className="text-lg font-semibold">Create your first Campfire room</h1><p className="max-w-sm text-sm text-muted-foreground">Use the room list to create a persistent group conversation for agents in this Space.</p></div>;
   return (
     <section className="flex h-full min-h-0 flex-col" aria-label={`Campfire room ${room.name}`}>
+      {send.isError ? (
+        <ConversationAlertBanner
+          title="Couldn’t send message"
+          detail={send.error instanceof Error ? send.error.message : "Please try again."}
+          onDismiss={() => send.reset()}
+        />
+      ) : visibleDeliveryFailure ? (
+        <ConversationAlertBanner
+          title={`${visibleDeliveryFailure.agentName} couldn’t answer`}
+          detail={deliveryFailure(visibleDeliveryFailure)}
+          onDismiss={dismissCurrentDeliveryFailures}
+        />
+      ) : null}
       <div ref={scroller} data-testid="campfire-scroller" onScroll={(event) => { const node = event.currentTarget; wasAtBottom.current = node.scrollHeight - node.scrollTop - node.clientHeight < 48; }} className="min-h-0 flex-1 overflow-y-auto px-5 py-8 scrollbar-auto-hide">
         {state.data.messages.length ? <div className="mx-auto flex w-full max-w-(--tc-shell-max-w) flex-col gap-6">{state.data.messages.map((message) => message.authorKind === "system" ? (
           <div key={message.id} className="flex items-center gap-3 text-xs text-muted-foreground"><span className="h-px flex-1 bg-border" /><span className="text-center italic">{message.body}</span><span className="h-px flex-1 bg-border" /></div>
@@ -93,11 +107,6 @@ export function Campfire() {
               <MarkdownBody className="outpost-markdown-on-accent">{message.body}</MarkdownBody>
             </div>
             <time className="px-1 text-(length:--text-micro) text-muted-foreground">{messageTime(message.createdAt)}</time>
-            {(deliveriesByMessage.get(message.id) ?? []).filter((delivery) => delivery.status === "failed").map((delivery) => (
-              <p key={delivery.id} className="max-w-(--pct-85) px-1 text-right text-xs text-destructive" title={delivery.runError ?? delivery.error ?? undefined}>
-                {delivery.agentName} couldn’t answer · {deliveryFailure(delivery)}
-              </p>
-            ))}
           </article>
         ) : (
           <article key={message.id} className="flex w-full flex-col items-start gap-1">
@@ -126,7 +135,6 @@ export function Campfire() {
             <Button type="submit" size="icon-sm" aria-label="Send message" disabled={!draft.trim() || send.isPending || !state.data.members.length} className="rounded-full"><ArrowUp className="size-4" /></Button>
           </div>
         </div>
-        {send.isError ? <p role="alert" className="mt-2 text-xs text-destructive">{send.error instanceof Error ? send.error.message : "Couldn’t send this message."}</p> : null}
       </form>
     </section>
   );
