@@ -79,14 +79,19 @@ describe("runner backlog task creation", () => {
     expect((await db.select().from(issues).where(eq(issues.id, human!.id)))[0]).toMatchObject({ assigneeAgentId: null, assigneeUserId: userId });
   });
 
-  it.each([false, true])("persists the plan without waking an assigned backlog task (conversation=%s)", async conversation => {
+  it.each([false, true])("persists the plan and task record without waking an assigned backlog task (conversation=%s)", async conversation => {
     const f = await fixture(conversation);
-    const call = { tool: "create_task", callId: "save-later", arguments: { idempotencyKey: "save-later", title: "Plan for later", status: "backlog", initialPlan: "1. Check status.\n2. Save the plan.\n3. Confirm creation." } };
+    const call = { tool: "create_task", callId: "save-later", arguments: { idempotencyKey: "save-later", title: "Plan for later", status: "backlog", initialPlan: "1. Check status.\n2. Save the plan.\n3. Confirm creation.", initialWorkingSpec: "# Plan for later\n\n## Intent\nShip the agreed behavior.\n\n## Next Step\nStart implementation." } };
     const receipt = await f.authority.execute(call) as { task: { id: string } };
     expect(receipt).toMatchObject({ scheduledWakeIds: [], task: { status: "backlog", assigneeActorId: f.agentId, parentId: conversation ? null : f.issueId } });
     const [task] = await db.select().from(issues).where(eq(issues.id, receipt.task.id));
     expect(task).toMatchObject({ status: "backlog", executionRunId: null, startedAt: null });
     expect(await documentService(db).getIssueDocumentByKey(task!.id, "plan")).toMatchObject({ body: call.arguments.initialPlan });
+    expect(await documentService(db).getIssueDocumentByKey(task!.id, "working-spec")).toMatchObject({
+      title: "Task Record",
+      body: call.arguments.initialWorkingSpec,
+      latestRevisionNumber: 1,
+    });
     expect(f.enqueueWakeup).not.toHaveBeenCalled();
     await expect(f.authority.execute({ ...call, callId: "retry" })).resolves.toEqual(receipt);
 

@@ -85,7 +85,7 @@
     {
       "path": "schemas/provider-descriptor.schema.json",
       "id": "https://outpost.dev/schemas/orp/v1/provider-descriptor.schema.json",
-      "sha256": "a28c2c477a34d87df316393eafe03a78ecb09dcaed32273181fa8cfebb134007"
+      "sha256": "7241c52ab5c23ec03aee575c28d5ba58fb3d06262ce6cbf4a78fcd3ec476998b"
     },
     {
       "path": "schemas/provider-event.schema.json",

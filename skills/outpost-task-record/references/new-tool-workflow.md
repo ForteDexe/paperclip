@@ -1,0 +1,65 @@
+# New Tool Development Workflow
+
+Use this workflow only for a genuinely new standalone tool or production
+workflow. Do not apply it to ordinary debugging, maintenance, refactors, or
+small feature changes.
+
+The goals are to prove the useful workflow with representative production data
+and to keep the task's `working-spec` Task Record current with the features and
+behaviors agreed during discussion. The record is not an upfront implementation
+plan: do not predict classes, functions, files, or architecture before the
+useful behavior is understood.
+
+## Choose the production destination
+
+Before creating the task:
+
+1. Inspect nearby production tools and relevant package boundaries.
+2. Recommend one concrete production destination and briefly explain why it
+   fits.
+3. Confirm the location with the user when choosing differently would
+   materially change ownership or architecture.
+4. Record the confirmed destination under Constraints or Decisions in the
+   initial Task Record.
+
+Do not create a placeholder tool folder or a local `WORKING_SPEC.md`. The Task
+Record lives in Outpost's database as a revisioned task document. Once the task
+starts, disposable prototypes and probes may live in `.experiment` within the
+task's execution workspace; production implementation belongs in the confirmed
+production destination.
+
+## Working flow
+
+For each feature or behavior:
+
+1. Clarify what the user expects, relevant inputs and outputs, and meaningful
+   constraints or non-goals. Once clear, update the Task Record without waiting
+   for a separate documentation request.
+2. When uncertainty warrants it, use the smallest experiment that can prove
+   the behavior. Prefer representative production data and validate host or
+   engine behavior in the real host. Keep disposable logic in `.experiment`.
+3. Implement the production behavior from the validated approach. Simple,
+   understood behavior may go directly to focused implementation and testing.
+4. Record the resulting state and useful evidence. If evidence changes the
+   agreed behavior, discuss that change and update the outcome before continuing.
+
+Experiments and implementation stages are working details, not approval gates.
+Pause only when missing information, an external action, or a decision could
+materially change the required result.
+
+## Agent responsibility
+
+- At the start of each task turn, read the injected Task Record and identify
+  the current agreed behavior, unresolved questions, and next step.
+- Update it when discussion or evidence changes a feature, decision, state, or
+  next step; do not wait to be asked.
+- Point out conflicts with an agreed behavior and ask which direction replaces
+  it.
+- Keep implementation details out unless they are part of the user-visible
+  contract or a real constraint.
+- Keep the record short and current. Remove stale conclusions.
+
+When all behaviors are implemented and validated or explicitly skipped, delete
+`.experiment`. Retain the final Task Record with the task as durable execution
+evidence. Move stable operator instructions into the production tool's README
+only when they are genuinely needed; do not duplicate the whole record there.

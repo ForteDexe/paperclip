@@ -1583,6 +1583,8 @@ function commandForOperation(
         status: input.status as "backlog" | "todo" | undefined,
         title: requireString(input.title),
         description: typeof input.description === "string" ? input.description : undefined,
+        initialPlan: typeof input.initialPlan === "string" ? input.initialPlan : undefined,
+        initialWorkingSpec: typeof input.initialWorkingSpec === "string" ? input.initialWorkingSpec : undefined,
         assigneeActorId: typeof input.assigneeActorId === "string" ? input.assigneeActorId : undefined,
         priority: typeof input.priority === "string" ? input.priority as never : undefined,
         blockedByTaskIds: optionalStringArray(input.blockedByTaskIds),

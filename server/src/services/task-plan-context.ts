@@ -6,18 +6,18 @@ import {
   issues,
   type Db,
 } from "@outpost/db";
+import { TASK_RECORD_DOCUMENT_KEY } from "@outpost/shared";
 import { redactQuarantinedBodyForHigherTrust } from "./source-trust.js";
 
-/** Read the task's durable plan before constructing any provider's assignment. */
-export async function getTaskPlanContext(input: {
+async function getTaskDocumentContext(input: {
   db: Db;
   spaceId: string;
   issueId: string;
   approvedRevisionId?: string | null;
   exposeLowTrustRaw?: boolean;
-}) {
+}, key: string) {
   const { db, spaceId, issueId } = input;
-  const plan = await db
+  const document = await db
     .select({
       documentId: documents.id,
       revisionId: documentRevisions.id,
@@ -44,12 +44,33 @@ export async function getTaskPlanContext(input: {
         eq(issueDocuments.spaceId, spaceId),
         eq(documents.spaceId, spaceId),
         eq(documentRevisions.spaceId, spaceId),
-        eq(issueDocuments.key, "plan"),
+        eq(issueDocuments.key, key),
         isNull(issues.conversationAgentId),
       ),
     )
     .then((rows) => rows[0] ?? null);
-  return plan && !input.exposeLowTrustRaw
-    ? redactQuarantinedBodyForHigherTrust(plan)
-    : plan;
+  return document && !input.exposeLowTrustRaw
+    ? redactQuarantinedBodyForHigherTrust(document)
+    : document;
+}
+
+/** Read the task's durable plan before constructing any provider's assignment. */
+export async function getTaskPlanContext(input: {
+  db: Db;
+  spaceId: string;
+  issueId: string;
+  approvedRevisionId?: string | null;
+  exposeLowTrustRaw?: boolean;
+}) {
+  return getTaskDocumentContext(input, "plan");
+}
+
+/** Read the task's living Task Record before constructing any provider's assignment. */
+export async function getTaskRecordContext(input: {
+  db: Db;
+  spaceId: string;
+  issueId: string;
+  exposeLowTrustRaw?: boolean;
+}) {
+  return getTaskDocumentContext(input, TASK_RECORD_DOCUMENT_KEY);
 }

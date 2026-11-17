@@ -30,7 +30,7 @@ function jsonExample(relativePath: string, heading: string): unknown {
 }
 
 describe("focused Outpost skill API examples", () => {
-  it("discovers the six focused skills as bundled runtime capabilities", async () => {
+  it("discovers the seven focused skills as bundled runtime capabilities", async () => {
     const entries = await listOutpostSkillEntries(here, [path.join(repoRoot, "skills")]);
     const keys = entries.map((entry) => entry.key);
 
@@ -41,6 +41,7 @@ describe("focused Outpost skill API examples", () => {
       "outpost/outpost/outpost-case",
       "outpost/outpost/outpost-north-star",
       "outpost/outpost/outpost-delegation",
+      "outpost/outpost/outpost-task-record",
     ]));
     expect(keys).not.toContain("outpost/outpost/outpost");
   });
@@ -91,6 +92,13 @@ describe("focused Outpost skill API examples", () => {
   it("keeps the task-document example accepted", () => {
     expect(upsertIssueDocumentSchema.parse(jsonExample(
       "skills/outpost-task/references/task-documents.md",
+      "## Create",
+    ))).toMatchObject({ format: "markdown", baseRevisionId: null });
+  });
+
+  it("keeps the Task Record create example accepted", () => {
+    expect(upsertIssueDocumentSchema.parse(jsonExample(
+      "skills/outpost-task-record/references/api-reference.md",
       "## Create",
     ))).toMatchObject({ format: "markdown", baseRevisionId: null });
   });

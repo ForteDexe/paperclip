@@ -710,6 +710,8 @@ export {
   type PluginApiRouteCheckoutPolicy,
   type PluginEventType,
   type PluginBridgeErrorCode,
+  TASK_RECORD_DOCUMENT_KEY,
+  TASK_RECORD_DOCUMENT_TITLE,
 } from "./constants.js";
 
 export {

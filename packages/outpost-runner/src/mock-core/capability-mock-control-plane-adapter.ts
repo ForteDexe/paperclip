@@ -966,6 +966,24 @@ export class CapabilityMockControlPlaneAdapter implements CapabilityMockControlP
         if (command.blockedByTaskIds?.length) {
           this.#replaceDependencies(child, command.blockedByTaskIds);
         }
+        for (const initialDocument of [
+          { key: "plan", title: "Plan", body: command.initialPlan },
+          { key: "working-spec", title: "Task Record", body: command.initialWorkingSpec },
+        ]) {
+          if (!initialDocument.body?.trim()) continue;
+          const document = this.#newDocument(child.id, initialDocument.key, initialDocument.title);
+          const revision = {
+            id: this.#id("revision"),
+            documentId: document.id,
+            revision: 1,
+            body: initialDocument.body,
+            changeSummary: "Created with task",
+            createdAt: this.#now(),
+          };
+          document.latestRevisionId = revision.id;
+          document.revisions.push(revision);
+          entityRefs.push(`document:${document.id}`, `revision:${revision.id}`);
+        }
         entityRefs.push(`task:${child.id}`);
         break;
       }

@@ -45,6 +45,7 @@ import {
 import { instanceSettingsService } from "../services/instance-settings.js";
 import { issueService } from "../services/issues.js";
 import { issueThreadInteractionService } from "../services/issue-thread-interactions.js";
+import { documentService } from "../services/documents.js";
 import { agentService } from "../services/agents.js";
 
 const externalUrl = resolveExternalTestDatabaseUrl("OUTPOST_INTERACTIONS_TEST_DATABASE_URL");
@@ -1276,6 +1277,7 @@ describeEmbeddedPostgres("issueThreadInteractionService", () => {
             title: "Create the root follow-up",
             workMode: "planning",
             assigneeAgentId,
+            initialWorkingSpec: "# Root follow-up\n\n## Intent\nCreate the agreed follow-up.",
           },
           {
             clientKey: "child",
@@ -1346,6 +1348,11 @@ describeEmbeddedPostgres("issueThreadInteractionService", () => {
     expect(nestedFollowUp.originIssueId).toBe(rootFollowUp.id);
     expect(nestedFollowUp.requestDepth).toBe(4);
     expect(await issuesSvc.list(spaceId, { parentId: rootFollowUp.id })).toHaveLength(0);
+    expect(await documentService(db).getIssueDocumentByKey(rootFollowUp.id, "working-spec")).toMatchObject({
+      title: "Task Record",
+      body: "# Root follow-up\n\n## Intent\nCreate the agreed follow-up.",
+      latestRevisionNumber: 1,
+    });
 
     const listed = await interactionsSvc.listForIssue(issueId);
     expect(listed).toHaveLength(1);

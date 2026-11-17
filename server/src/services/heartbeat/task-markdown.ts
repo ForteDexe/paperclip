@@ -63,6 +63,12 @@ export function buildOutpostTaskMarkdown(input: {
     revisionNumber: number;
     body: string;
   } | null;
+  taskRecord?: {
+    documentId: string;
+    revisionId: string;
+    revisionNumber: number;
+    body: string;
+  } | null;
   externalChatProvider?: string | null;
   slackCommand?: string | null;
   nativeRunner?: boolean;
@@ -306,6 +312,14 @@ export function buildOutpostTaskMarkdown(input: {
       input.includeDescription === false || issue.conversationAgentId ? "" : issue.description?.trim();
     if (description) {
       lines.push("", "Issue description:", fenceTaskText(description));
+    }
+    if (!issue.conversationAgentId && input.taskRecord?.body.trim()) {
+      lines.push(
+        "",
+        `Task Record document ${input.taskRecord.documentId}, revision ${input.taskRecord.revisionNumber} (${input.taskRecord.revisionId}):`,
+        "This is the living source of truth for the agreed outcome, current feature states, evidence, open questions, and next step. Use the outpost-task-record skill to keep it current when those facts materially change.",
+        fenceTaskText(input.taskRecord.body.trim()),
+      );
     }
     if (!issue.conversationAgentId && input.taskPlan?.body.trim()) {
       lines.push(

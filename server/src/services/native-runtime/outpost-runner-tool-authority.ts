@@ -1976,6 +1976,7 @@ export class OutpostRunnerToolAuthority {
           }),
         } : {}),
         initialPlan: nullableProviderId(input.initialPlan),
+        initialWorkingSpec: nullableProviderId(input.initialWorkingSpec),
         title: requiredString(input.title),
         description: input.description === null || input.description === undefined
           ? null

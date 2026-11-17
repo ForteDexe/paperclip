@@ -400,6 +400,8 @@ export type CapabilitySemanticCommand =
       status?: "backlog" | "todo";
       title: string;
       description?: string | null;
+      initialPlan?: string | null;
+      initialWorkingSpec?: string | null;
       assigneeActorId?: string | null;
       priority?: CapabilityFixtureTask["priority"];
       blockedByTaskIds?: string[];

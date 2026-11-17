@@ -1,7 +1,5 @@
 import type { Issue } from "@outpost/shared";
-
-export const TASK_RECORD_DOCUMENT_KEY = "working-spec";
-export const TASK_RECORD_DOCUMENT_TITLE = "Task Record";
+export { TASK_RECORD_DOCUMENT_KEY, TASK_RECORD_DOCUMENT_TITLE } from "@outpost/shared";
 
 export interface TaskRecordSection {
   heading: string;

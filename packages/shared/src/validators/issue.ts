@@ -898,6 +898,7 @@ function requireBlockedStatusForUnblockDescriptor(
 
 const createIssueDuplicateGuardSchema = {
   initialPlan: z.string().min(1).max(200000).optional().nullable(),
+  initialWorkingSpec: z.string().min(1).max(200000).optional().nullable(),
   idempotencyKey: z.string().trim().min(1).max(255).optional().nullable(),
   allowDuplicate: z
     .boolean()
@@ -1345,6 +1346,7 @@ export const suggestedTaskDraftSchema = z
       .nullable()
       .optional(),
     initialPlan: z.string().trim().min(1).max(200000).nullable().optional(),
+    initialWorkingSpec: z.string().trim().min(1).max(200000).nullable().optional(),
     requiredQualityReview: requiredQualityReviewSchema.optional(),
     priority: z.enum(ISSUE_PRIORITIES).nullable().optional(),
     workMode: z.enum(ISSUE_WORK_MODES).nullable().optional(),

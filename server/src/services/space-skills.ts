@@ -656,6 +656,7 @@ function readCanonicalSkillKey(frontmatter: Record<string, unknown>, metadata: R
 /** Focused bundled skills used by Outpost agents. */
 export const OUTPOST_CORE_SKILL_KEYS = [
   "outpost/outpost/outpost-task",
+  "outpost/outpost/outpost-task-record",
   "outpost/outpost/outpost-decision",
   "outpost/outpost/outpost-artifact",
   "outpost/outpost/outpost-case",

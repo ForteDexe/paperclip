@@ -11,7 +11,7 @@ import { getIssueContinuationSummaryDocument } from "../issue-continuation-summa
 import type { issueService } from "../issues.js";
 import { createRunSecretRedactionRegistry } from "../run-secret-redaction.js";
 import { redactQuarantinedBodyForHigherTrust, sanitizeQuarantinedCommentForHigherTrust } from "../source-trust.js";
-import { getTaskPlanContext } from "../task-plan-context.js";
+import { getTaskPlanContext, getTaskRecordContext } from "../task-plan-context.js";
 import { caseExecutionMarkdown, getCaseExecutionContext } from "../case-context.js";
 import type { TrustPresetResolution } from "../trust-preset-resolver.js";
 import { liveVoiceExecutionGuidance } from "../voice/voice-execution-guidance.js";
@@ -311,15 +311,23 @@ export async function prepareHeartbeatTaskContext(db: Db, input: HeartbeatTaskCo
       };
     })(),
   };
-  const taskPlan = issueRef && !isConversation(issueContext)
-    ? await getTaskPlanContext({
-        db,
-        spaceId: agent.spaceId,
-        issueId: issueRef.id,
-        approvedRevisionId: taskMarkdownInput.acceptedPlan?.revisionId,
-        exposeLowTrustRaw,
-      })
-    : null;
+  const [taskPlan, taskRecord] = issueRef && !isConversation(issueContext)
+    ? await Promise.all([
+        getTaskPlanContext({
+          db,
+          spaceId: agent.spaceId,
+          issueId: issueRef.id,
+          approvedRevisionId: taskMarkdownInput.acceptedPlan?.revisionId,
+          exposeLowTrustRaw,
+        }),
+        getTaskRecordContext({
+          db,
+          spaceId: agent.spaceId,
+          issueId: issueRef.id,
+          exposeLowTrustRaw,
+        }),
+      ])
+    : [null, null];
   // Unlike the frozen initial communication preferences, live-call context
   // must also reach resumed turns. Rebuild it from server records each wake.
   const liveVoiceTaskPrefix = liveVoiceGuidance ? `${liveVoiceGuidance}\n\n` : "";
@@ -330,20 +338,23 @@ export async function prepareHeartbeatTaskContext(db: Db, input: HeartbeatTaskCo
   if (workflowCase) context.outpostCase = workflowCase;
   else delete context.outpostCase;
   const assignmentPrefix = liveVoiceTaskPrefix + caseExecutionMarkdown(workflowCase);
-  let taskMarkdown = assignmentPrefix + buildOutpostTaskMarkdown({ ...taskMarkdownInput, taskPlan }) + chatCompletionInstruction(context);
+  let taskMarkdown = assignmentPrefix + buildOutpostTaskMarkdown({ ...taskMarkdownInput, taskPlan, taskRecord }) + chatCompletionInstruction(context);
   let taskMarkdownAssignment = assignmentPrefix + buildOutpostTaskMarkdown({
     ...taskMarkdownInput,
     taskPlan,
+    taskRecord,
     includeWakeComments: false,
   }) + chatCompletionInstruction(context);
   const taskMarkdownCompact = assignmentPrefix + buildOutpostTaskMarkdown({
     ...taskMarkdownInput,
     taskPlan,
+    taskRecord,
     includeDescription: false,
   }) + chatCompletionInstruction(context);
   const taskMarkdownAssignmentCompact = assignmentPrefix + buildOutpostTaskMarkdown({
     ...taskMarkdownInput,
     taskPlan,
+    taskRecord,
     includeDescription: false,
     includeWakeComments: false,
   }) + chatCompletionInstruction(context);

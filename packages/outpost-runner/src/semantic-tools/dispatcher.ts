@@ -404,6 +404,8 @@ export class CapabilitySemanticDispatcher {
           taskId,
           title: requiredString(input.title),
           description: nullableOptionalString(input.description),
+          initialPlan: nullableOptionalString(input.initialPlan),
+          initialWorkingSpec: nullableOptionalString(input.initialWorkingSpec),
           assigneeActorId: nullableOptionalString(input.assigneeActorId),
           priority: optionalString(input.priority) as Extract<CapabilitySemanticCommand, { kind: "create_task" }>["priority"],
           blockedByTaskIds: optionalStringArray(input.blockedByTaskIds),

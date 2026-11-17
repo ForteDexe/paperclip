@@ -17,4 +17,34 @@ describe("mock backlog task creation", () => {
     expect(state.wakes).toEqual(base.wakes);
     expect(state.blockers).toHaveLength(base.blockers.length + (blocked ? 1 : 0));
   });
+
+  it("creates the initial Task Record before returning the task receipt", async () => {
+    const adapter = new CapabilityMockControlPlaneAdapter();
+    const base = adapter.snapshot();
+    await adapter.start();
+    await adapter.openFixtureRun({ identity: { runId: "run-1", sessionId: "session-1", spaceId: base.space.id, issueId: base.tasks[0]!.id, agentId: base.actors[0]!.id }, backendKind: "mock", sourceInstanceId: "task-record-test", capabilities: ["delegation:tasks:create"] });
+
+    const receipt = await adapter.applyCommand({
+      runId: "run-1",
+      idempotencyKey: "with-task-record",
+      command: {
+        kind: "create_task",
+        title: "Task with record",
+        status: "backlog",
+        initialWorkingSpec: "# Task with record\n\n## Status\n**Agreed**",
+      },
+    });
+
+    const state = adapter.snapshot();
+    const createdTask = state.tasks.find(task => task.title === "Task with record")!;
+    expect(receipt.entityRefs).toContain(`task:${createdTask.id}`);
+    expect(state.documents.find(document => document.taskId === createdTask.id && document.key === "working-spec"))
+      .toMatchObject({
+        title: "Task Record",
+        revisions: [expect.objectContaining({
+          revision: 1,
+          body: "# Task with record\n\n## Status\n**Agreed**",
+        })],
+      });
+  });
 });

@@ -35,7 +35,7 @@ import {
 } from "./helpers/recovery-postgres.js";
 import { issueService } from "../services/issues.js";
 import { documentService } from "../services/documents.js";
-import { getTaskPlanContext } from "../services/task-plan-context.js";
+import { getTaskPlanContext, getTaskRecordContext } from "../services/task-plan-context.js";
 import { terminalizeLegacyExecution, LEGACY_RECOVERY_CAUSE } from "../services/legacy-execution-recovery.js";
 import { settleUnrecoverableExecutions } from "../services/execution-recovery-resolution.js";
 import { renderOutpostWakePrompt } from "@outpost/adapter-utils/server-utils";
@@ -477,18 +477,24 @@ import {
         assigneeAgentId: agentId,
         status: "todo",
         initialPlan: "Write an output document containing HANDOFF_ACCEPTANCE_PHRASE.",
+        initialWorkingSpec: "# Handoff\n\n## Intent\nPreserve TASK_RECORD_ACCEPTANCE_PHRASE.",
       });
       const initial = await getTaskPlanContext({ db, spaceId, issueId: task.id });
+      const initialRecord = await getTaskRecordContext({ db, spaceId, issueId: task.id });
       expect(task.description).toBeNull();
       expect(initial?.body).toContain("HANDOFF_ACCEPTANCE_PHRASE");
+      expect(initialRecord?.body).toContain("TASK_RECORD_ACCEPTANCE_PHRASE");
       for (const includeDescription of [true, false]) {
         const prompt = buildOutpostTaskMarkdown({
           issue: task,
           taskPlan: initial,
+          taskRecord: initialRecord,
           includeDescription,
         });
         expect(prompt).toContain("HANDOFF_ACCEPTANCE_PHRASE");
+        expect(prompt).toContain("TASK_RECORD_ACCEPTANCE_PHRASE");
         expect(prompt).toContain(initial!.revisionId);
+        expect(prompt).toContain(initialRecord!.revisionId);
       }
       const { document: revision } = await documentService(db).upsertIssueDocument({
         issueId: task.id,
@@ -505,6 +511,7 @@ import {
       expect(approved?.body).toContain("HANDOFF_ACCEPTANCE_PHRASE");
       expect(approved?.body).not.toContain("unapproved");
       expect(await getTaskPlanContext({ db, spaceId: randomUUID(), issueId: task.id })).toBeNull();
+      expect(await getTaskRecordContext({ db, spaceId: randomUUID(), issueId: task.id })).toBeNull();
       expect(await getTaskPlanContext({
         db, spaceId, issueId: task.id, approvedRevisionId: randomUUID(),
       })).toBeNull();
@@ -512,7 +519,11 @@ import {
       await documentService(db).upsertIssueDocument({
         issueId: conversation.id, key: "plan", format: "markdown", body: "Pre-reset chat draft",
       });
+      await documentService(db).upsertIssueDocument({
+        issueId: conversation.id, key: "working-spec", format: "markdown", body: "Conversation record",
+      });
       expect(await getTaskPlanContext({ db, spaceId, issueId: conversation.id })).toBeNull();
+      expect(await getTaskRecordContext({ db, spaceId, issueId: conversation.id })).toBeNull();
       await documentService(db).upsertIssueDocument({
         issueId: task.id,
         key: "plan",

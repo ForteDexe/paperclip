@@ -6,6 +6,8 @@ export const SPACE_STATUSES = ["active", "paused", "archived"] as const;
 export const ISSUE_SUMMARIES_MAX_IDS = 50;
 /** Tasks per chat bootstrap request. The list preloads larger sets in chunks. */
 export const ISSUE_CHAT_BOOTSTRAP_MAX_IDS = 10;
+export const TASK_RECORD_DOCUMENT_KEY = "working-spec" as const;
+export const TASK_RECORD_DOCUMENT_TITLE = "Task Record" as const;
 export type SpaceStatus = (typeof SPACE_STATUSES)[number];
 
 export const DEPLOYMENT_MODES = ["local_trusted", "authenticated"] as const;

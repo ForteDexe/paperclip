@@ -168,6 +168,8 @@ import {
   isAgentCreatedIssue,
   isUuidLike,
   normalizeIssueIdentifier as normalizeIssueReferenceIdentifier,
+  TASK_RECORD_DOCUMENT_KEY,
+  TASK_RECORD_DOCUMENT_TITLE,
 } from "@outpost/shared";
 import { conflict, forbidden, HttpError, notFound, unprocessable } from "../errors.js";
 import { isForeignKeyViolation } from "../db-errors.js";
@@ -2059,6 +2061,7 @@ type IssueCreateInput = Omit<typeof issues.$inferInsert, "spaceId" | "title" | "
   workspaceSelectionActor?: AuthorizationActor;
   title?: string;
   initialPlan?: string | null;
+  initialWorkingSpec?: string | null;
   /** Internal, server-derived provenance for an accepted in-app chat suggestion. */
   conversationHandoff?: { conversationId: string; sessionGeneration: number };
   labelIds?: string[];
@@ -10357,6 +10360,7 @@ export function issueService(db: Db) {
       const {
         workspaceSelection, workspaceSelectionSource = "explicit", workspaceSelectionActor,
         initialPlan,
+        initialWorkingSpec,
         conversationHandoff,
         labelIds: inputLabelIds,
         blockedByIssueIds,
@@ -10422,7 +10426,7 @@ export function issueService(db: Db) {
           spaceId, actorAgentId: issueData.createdByAgentId,
           operation: "assign", targetAgentId: issueData.assigneeAgentId,
           assigneeUserId: issueData.assigneeUserId, parentIssueId: requestedParentId,
-          texts: [resolvedTitle, issueData.description ?? "", initialPlan ?? ""], lock: true,
+          texts: [resolvedTitle, issueData.description ?? "", initialPlan ?? "", initialWorkingSpec ?? ""], lock: true,
         });
         const parentResolution = confirmPlacement(
           await resolveNewTaskParent(tx, spaceId, requestedParentId, parentDepthPolicy),
@@ -11024,6 +11028,19 @@ export function issueService(db: Db) {
           await documentService(tx as unknown as Db).upsertIssueDocument({
             issueId: issue.id, key: "plan", title: "Plan", format: "markdown", body: initialPlan,
             createdByAgentId: issueData.createdByAgentId, createdByUserId: issueData.createdByUserId,
+            createdByRunId: actorRunId,
+            sourceTrust: issue.sourceTrust,
+          }, { initialTaskCreation: true });
+        }
+        if (initialWorkingSpec?.trim()) {
+          await documentService(tx as unknown as Db).upsertIssueDocument({
+            issueId: issue.id,
+            key: TASK_RECORD_DOCUMENT_KEY,
+            title: TASK_RECORD_DOCUMENT_TITLE,
+            format: "markdown",
+            body: initialWorkingSpec,
+            createdByAgentId: issueData.createdByAgentId,
+            createdByUserId: issueData.createdByUserId,
             createdByRunId: actorRunId,
             sourceTrust: issue.sourceTrust,
           }, { initialTaskCreation: true });

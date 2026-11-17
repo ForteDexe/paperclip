@@ -535,7 +535,7 @@ const descriptors: readonly OutpostSemanticActionDescriptor[] = [
   descriptor({
     operationId: "create_task",
     title: "Create task",
-    description: "Create a task. When the user names an existing teammate or project, resolve their IDs with list_agents or list_projects and set assigneeActorId or projectId in this creation call. A todo task can start its assignee immediately; creating it for yourself and reassigning later can start the wrong agent. Persist initialPlan before execution. Use backlog to save or plan without starting work; backlog tasks never wake an agent. Omitted status means todo, subject to blockers. Include required inputs and constraints in self-contained task instructions.",
+    description: "Create a task. When the user names an existing teammate or project, resolve their IDs with list_agents or list_projects and set assigneeActorId or projectId in this creation call. A todo task can start its assignee immediately; creating it for yourself and reassigning later can start the wrong agent. Persist initialPlan and initialWorkingSpec before execution. Use backlog to save or plan without starting work; backlog tasks never wake an agent. Omitted status means todo, subject to blockers. Include required inputs and constraints in self-contained task instructions.",
     placement: "optional",
     effect: "write",
     requiredClaims: ["delegation:tasks:create"],
@@ -546,6 +546,7 @@ const descriptors: readonly OutpostSemanticActionDescriptor[] = [
         title: text("Task title.", 500),
         projectId: nullableText("Project ID from list_projects. Set the requested project in this creation call so the task does not inherit a different project."),
         initialPlan: nullableText("Remaining execution steps to persist as the task plan. Exclude completed planning, approval, and handoff steps; cite the source plan revision and approval. A copied plan is not a new approval gate."),
+        initialWorkingSpec: nullableText("Living Task Record markdown to persist as working-spec before execution. Capture agreed outcomes, feature states, constraints, decisions, unresolved questions, evidence, and the next step.", 200_000),
         description: nullableText("Task description."),
         requiredQualityReview: object({
           version: { const: 1 },

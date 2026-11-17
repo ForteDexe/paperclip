@@ -28,6 +28,9 @@ X-Outpost-Run-Id: $OUTPOST_RUN_ID
 ## Task loop
 
 1. Read the wake payload. Fetch more history only when it is incomplete.
+   If it includes a Task Record, use `outpost-task-record` and keep that
+   document current when agreed outcomes, feature state, evidence, open
+   questions, or the next step materially changes.
 2. Check out the assigned task before changing it, unless this run already owns
    the checkout.
 3. Work only inside the current Space and your assigned scope.
@@ -69,6 +72,7 @@ asks for a durable task-local plan, report, or specification.
 Use these separate skills when relevant:
 
 - `outpost-decision` for a human choice or opinion.
+- `outpost-task-record` for the living agreed specification and execution state.
 - `outpost-artifact` for screenshots or files the human must inspect.
 - `outpost-case` for a durable recurring investigation.
 - `outpost-north-star` for long-term direction explicitly requested by the human.

@@ -4334,6 +4334,7 @@ export const OUTPOST_OPERATIONAL_SKILL_KEY =
 /** Focused Outpost capabilities mounted for local Codex and Claude agents. */
 export const OUTPOST_REQUIRED_SKILL_KEYS = [
   OUTPOST_OPERATIONAL_SKILL_KEY,
+  "outpost/outpost/outpost-task-record",
   "outpost/outpost/outpost-decision",
   "outpost/outpost/outpost-artifact",
   "outpost/outpost/outpost-case",

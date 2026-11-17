@@ -29,7 +29,7 @@ export const createTaskAction = {
   },
   "documentation": {
     "title": "Create task",
-    "description": "Create a task. When the user names an existing teammate or project, resolve their IDs with list_agents or list_projects and set assigneeActorId or projectId in this creation call. A todo task can start its assignee immediately; creating it for yourself and reassigning later can start the wrong agent. Persist initialPlan before execution. Use backlog to save or plan without starting work; backlog tasks never wake an agent. Omitted status means todo, subject to blockers. Include required inputs and constraints in self-contained task instructions.",
+    "description": "Create a task. When the user names an existing teammate or project, resolve their IDs with list_agents or list_projects and set assigneeActorId or projectId in this creation call. A todo task can start its assignee immediately; creating it for yourself and reassigning later can start the wrong agent. Persist initialPlan and initialWorkingSpec before execution. Use backlog to save or plan without starting work; backlog tasks never wake an agent. Omitted status means todo, subject to blockers. Include required inputs and constraints in self-contained task instructions.",
     "note": null
   },
   "examples": {
@@ -41,7 +41,8 @@ export const createTaskAction = {
         "description": "Implement the agreed API change in this project. Run the relevant tests and report the result.",
         "assigneeActorId": "example-agent",
         "projectId": "example-project",
-        "initialPlan": "1. Implement the agreed change.\n2. Run the relevant tests.\n3. Report the verified result."
+        "initialPlan": "1. Implement the agreed change.\n2. Run the relevant tests.\n3. Report the verified result.",
+        "initialWorkingSpec": "# API change\n\n## Intent\nShip the agreed API behavior.\n\n## Status\n**Agreed**"
       }
     },
     "scenarioCall": {
@@ -81,7 +82,7 @@ export const createTaskAction = {
       "operationId": "create_task",
       "version": 1,
       "title": "Create task",
-      "description": "Create a task. When the user names an existing teammate or project, resolve their IDs with list_agents or list_projects and set assigneeActorId or projectId in this creation call. A todo task can start its assignee immediately; creating it for yourself and reassigning later can start the wrong agent. Persist initialPlan before execution. Use backlog to save or plan without starting work; backlog tasks never wake an agent. Omitted status means todo, subject to blockers. Include required inputs and constraints in self-contained task instructions.",
+      "description": "Create a task. When the user names an existing teammate or project, resolve their IDs with list_agents or list_projects and set assigneeActorId or projectId in this creation call. A todo task can start its assignee immediately; creating it for yourself and reassigning later can start the wrong agent. Persist initialPlan and initialWorkingSpec before execution. Use backlog to save or plan without starting work; backlog tasks never wake an agent. Omitted status means todo, subject to blockers. Include required inputs and constraints in self-contained task instructions.",
       "exposure": "optional",
       "requiredClaims": [
         "delegation:tasks:create"
@@ -167,6 +168,14 @@ export const createTaskAction = {
             ],
             "maxLength": 200000,
             "description": "Relevant markdown plan saved on the new task before execution starts."
+          },
+          "initialWorkingSpec": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200000,
+            "description": "Living Task Record markdown saved as working-spec before execution starts."
           }
         },
         "required": [
@@ -304,6 +313,10 @@ export const createTaskAction = {
             "items": {
               "type": "string"
             }
+          },
+          "initialWorkingSpec": {
+            "type": "string",
+            "description": "Living Task Record markdown saved as working-spec before execution starts."
           }
         },
         "required": [

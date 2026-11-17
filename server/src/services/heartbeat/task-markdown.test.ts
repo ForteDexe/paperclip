@@ -43,6 +43,23 @@ describe("heartbeat task markdown rendering", () => {
     expect(markdown).toContain("Write a 300-word launch post for customers using the supplied brief.");
   });
 
+  it("delivers the current Task Record revision as the living source of truth", () => {
+    const markdown = buildOutpostTaskMarkdown({
+      issue,
+      taskRecord: {
+        documentId: "record-document",
+        revisionId: "record-revision",
+        revisionNumber: 3,
+        body: "# Inspect the evidence\n\n## Status\n**Testing**",
+      },
+    });
+
+    expect(markdown).toContain("Task Record document record-document, revision 3 (record-revision)");
+    expect(markdown).toContain("living source of truth");
+    expect(markdown).toContain("Use the outpost-task-record skill");
+    expect(markdown).toContain("## Status\n**Testing**");
+  });
+
   it.each([
     { nativeRunner: false, coordinatorWorkspace: true, conversationAgentId: null },
     { nativeRunner: undefined, coordinatorWorkspace: false, conversationAgentId: null },

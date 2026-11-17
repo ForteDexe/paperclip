@@ -122,7 +122,7 @@ describe("semantic action catalog", () => {
     const ajv = new Ajv2020({ allErrors: true, allowUnionTypes: true, strict: true });
     for (const schema of [createTaskAction.live.descriptor.inputSchema, outpostSemanticAction("create_task")!.inputSchema]) {
       const validate = ajv.compile(schema);
-      const input = { title: "Hello", idempotencyKey: "hello", assigneeUserId: "space-owner" };
+      const input = { title: "Hello", idempotencyKey: "hello", assigneeUserId: "space-owner", initialWorkingSpec: "# Hello\n\n## Status\n**Agreed**" };
       expect(validate(input), JSON.stringify(validate.errors)).toBe(true);
       expect(validate({ ...input, assigneeUserId: null })).toBe(true);
       expect(validate({ ...input, assigneeUserId: 42 })).toBe(false);
