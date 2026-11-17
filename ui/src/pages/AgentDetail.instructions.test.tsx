@@ -303,6 +303,12 @@ describe("PromptsTab instruction editor", () => {
     await flushReact();
   }
 
+  it("labels the entry file as agent-owned instead of a repository root file", async () => {
+    const summary = makeSummary("AGENTS.md", "AGENTS.md");
+    await renderPromptsTab(makeBundle("AGENTS.md", [summary]), { "AGENTS.md": makeDetail(summary, "Original") });
+    await waitFor(() => expect(container.querySelector('[title="This agent\'s private instruction entry file"]')?.textContent).toBe("AGENT"));
+  });
+
   it("opens preview text for editing without dirtying it, and clears dirty state after undo or discard", async () => {
     const summary = makeSummary("AGENTS.md", "AGENTS.md");
     const onDirtyChange = vi.fn();

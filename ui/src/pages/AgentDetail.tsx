@@ -2250,8 +2250,11 @@ export function PromptsTab({
                 );
               }
               return (
-                <span className={cn("ml-3 shrink-0 rounded text-muted-foreground px-1.5 py-0.5 font-sans text-(length:--text-nano) uppercase tracking-wide", file.isEntryFile && "bg-(--agent-detail-tile-chip)")}>
-                  {file.isEntryFile ? "ROOT" : `${file.size}b`}
+                <span
+                  className={cn("ml-3 shrink-0 rounded text-muted-foreground px-1.5 py-0.5 font-sans text-(length:--text-nano) uppercase tracking-wide", file.isEntryFile && "bg-(--agent-detail-tile-chip)")}
+                  title={file.isEntryFile ? "This agent's private instruction entry file" : undefined}
+                >
+                  {file.isEntryFile ? "AGENT" : `${file.size}b`}
                 </span>
               );
             }}
