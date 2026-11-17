@@ -33,6 +33,7 @@ vi.mock("../context/BreadcrumbContext", () => ({
 const CASES = 'button[aria-label="Toggle cases experimental setting"]';
 const CAMPFIRE = 'button[aria-label="Toggle Campfire experimental setting"]';
 const DECISIONS = 'button[aria-label="Toggle decisions experimental setting"]';
+const TASK_RECORD = 'button[aria-label="Toggle task record prototype experimental setting"]';
 const NORTH_STARS = 'button[aria-label="Toggle north stars sidebar link experimental setting"]';
 const DEVELOPER_MODE = 'button[aria-label="Toggle Outpost developer mode experimental setting"]';
 
@@ -69,6 +70,7 @@ function settings(
     enableCases: false,
     enableCampfire: false,
     enableDecisions: false,
+    enableTaskRecordPrototype: false,
     enableGoalsSidebarLink: false,
     enableManagedSandboxOnly: false,
     enableOutpostDeveloperMode: false,
@@ -143,6 +145,7 @@ describe("InstanceExperimentalSettings", () => {
       "Cases",
       "Campfire",
       "Decisions",
+      "Task Record Prototype",
       "North Stars",
       "Auto-Restart Dev Server When Idle",
       "Outpost Developer Mode",
@@ -164,6 +167,7 @@ describe("InstanceExperimentalSettings", () => {
     [CASES, "enableCases"],
     [CAMPFIRE, "enableCampfire"],
     [DECISIONS, "enableDecisions"],
+    [TASK_RECORD, "enableTaskRecordPrototype"],
     [NORTH_STARS, "enableGoalsSidebarLink"],
   ] as const)("persists %s", async (selector, key) => {
     await renderPage();

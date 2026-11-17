@@ -32,6 +32,7 @@ import {
   Lightbulb,
   ListChecks,
   ListTree,
+  NotebookText,
   Plus,
   SlidersHorizontal,
   X,
@@ -88,6 +89,7 @@ import {
   taskPanelDocumentTab,
   taskPanelFilesTab,
   taskPanelPropertiesTab,
+  taskPanelRecordTab,
   taskPanelSkillTab,
   taskPanelSubtasksTab,
   taskPanelWorkspaceFileTab,
@@ -99,6 +101,9 @@ import { TaskDocumentPanel } from "./TaskDocumentPanel";
 import { parseDocumentAnnotationHash } from "@/lib/document-annotation-hash";
 import { TaskWorkspaceFilePanel } from "./TaskWorkspaceFilePanel";
 import { TaskSkillPanel } from "./TaskSkillPanel";
+import { TaskRecordPanel } from "@/components/task-record/TaskRecordPanel";
+import { TASK_RECORD_DOCUMENT_KEY } from "@/components/task-record/task-record-model";
+import { useTaskRecordPrototypeEnabled } from "@/hooks/useTaskRecordPrototypeEnabled";
 
 export interface TaskSidePanelProps {
   issue: Issue;
@@ -148,6 +153,7 @@ function tabIcon(tab: SidePanelTabRecord<TaskSidePanelTabPayload>): ReactNode {
     case "browser": return <Globe />;
     case "plugin-panel": return <AppWindow />;
     case "properties": return <SlidersHorizontal />;
+    case "record": return <NotebookText />;
     case "subtasks": return <ListTree />;
     case "artifacts": return <Box />;
     case "agent-tasks": return <ListChecks />;
@@ -303,6 +309,7 @@ function TaskSidePanelForScope({
   // agent's output. With the flag off a chat keeps the issue's own panels.
   const { enabled: agentChatEnabled } = useAgentChatEnabled();
   const { enabled: coordinatorWorkspaceEnabled } = useCoordinatorWorkspaceEnabled();
+  const { enabled: taskRecordEnabled, loaded: taskRecordFlagLoaded } = useTaskRecordPrototypeEnabled();
   const conversationAgentId = agentChatEnabled ? issue.conversationAgentId ?? null : null;
   const showRelatedTasks = showSubtasksTab && !conversationAgentId;
   const viewer = useTaskSidePanelFileRouting();
@@ -328,13 +335,16 @@ function TaskSidePanelForScope({
   const autoPlanHandledRef = useRef(restoredRef.current?.autoPlanHandled ?? false);
   const handledArtifactsRequestRef = useRef<number | undefined>(undefined);
   const handledDocumentRequestRef = useRef<number | undefined>(undefined);
+  const taskRecordHandledRef = useRef(false);
   const initialState = useMemo(() => {
     const restored = restoredRef.current?.state;
     let tabs = coordinatorWorkspaceEnabled
       ? restoredRef.current?.userInteracted ? restored?.tabs ?? [] : []
       : restored?.tabs ?? (conversationAgentId
       ? [taskPanelAgentTasksTab()]
-      : issue.conversationAgentId ? [taskPanelArtifactsTab()] : [taskPanelPropertiesTab()]);
+      : issue.conversationAgentId ? [taskPanelArtifactsTab()] : taskRecordEnabled
+        ? [taskPanelRecordTab(), taskPanelPropertiesTab()]
+        : [taskPanelPropertiesTab()]);
     // A tab saved while Agent Chat was on has nothing to render without it;
     // a chat left with no tabs falls back to its Agent-Chat-off default.
     if (!conversationAgentId) {
@@ -353,7 +363,7 @@ function TaskSidePanelForScope({
     } else if (!coordinatorWorkspaceEnabled && !subtasksDismissedRef.current) {
       tabs = insertSubtasksAfterProperties(tabs);
     }
-    const requestedActive = restored?.activeTabId ?? "properties";
+    const requestedActive = restored?.activeTabId ?? (taskRecordEnabled && !conversationAgentId ? "record" : "properties");
     return {
       tabs,
       activeTabId: tabs.some((tab) => tab.id === requestedActive)
@@ -415,6 +425,22 @@ function TaskSidePanelForScope({
   const canUploadArtifacts = hasArtifactUploadSlot && activeTab?.payload.kind === "artifacts";
   const subtasksAvailable = showRelatedTasks && (taskCount > 0 || tasksTab?.hasError === true);
   const hasSubtasksTab = controller.tabs.some((tab) => tab.id === "subtasks");
+
+  useEffect(() => {
+    if (!taskRecordFlagLoaded || conversationAgentId) return;
+    if (!taskRecordEnabled) {
+      if (controller.tabs.some((tab) => tab.payload.kind === "record")) controller.closeTab("record");
+      taskRecordHandledRef.current = true;
+      return;
+    }
+    if (taskRecordHandledRef.current || controller.tabs.some((tab) => tab.payload.kind === "record")) return;
+    taskRecordHandledRef.current = true;
+    if (userInteractedRef.current) return;
+    controller.resetTabs({
+      tabs: [taskPanelRecordTab(), ...controller.tabs],
+      activeTabId: "record",
+    });
+  }, [controller.closeTab, controller.resetTabs, controller.tabs, conversationAgentId, taskRecordEnabled, taskRecordFlagLoaded]);
 
   useEffect(() => {
     if (!openSkillId) return;
@@ -650,6 +676,7 @@ function TaskSidePanelForScope({
       { id: "artifacts", label: "Artifacts", description: "Files this agent produced", icon: <Box />, alreadyOpen: controller.tabs.some((tab) => tab.id === "artifacts") },
       { id: "properties", label: "Properties", icon: <SlidersHorizontal />, alreadyOpen: controller.tabs.some((tab) => tab.id === "properties") },
     ] : [
+      ...(taskRecordEnabled ? [{ id: "record", label: "Record", description: "Living task source of truth", icon: <NotebookText />, alreadyOpen: controller.tabs.some((tab) => tab.id === "record") }] : []),
       { id: "properties", label: "Properties", icon: <SlidersHorizontal />, alreadyOpen: controller.tabs.some((tab) => tab.id === "properties") },
       ...(subtasksAvailable ? [{ id: "subtasks", label: taskLabel, description: tasksTab?.hasError ? "Could not load all tasks" : `${taskCount} total`, icon: <ListTree />, alreadyOpen: controller.tabs.some((tab) => tab.id === "subtasks") }] : []),
       { id: "artifacts", label: "Artifacts", icon: <Box />, alreadyOpen: controller.tabs.some((tab) => tab.id === "artifacts") },
@@ -705,7 +732,7 @@ function TaskSidePanelForScope({
       });
     }
     return sections;
-  }, [pluginPanels, browsersQuery.data, conversationAgentId, taskCount, taskLabel, tasksTab?.hasError, controller.tabs, documents, fileTabsEnabled, planDocument, recentFilesQuery.data, recentFilesView.kind, recentFilesQuery.isLoading, subtasksAvailable]);
+  }, [pluginPanels, browsersQuery.data, conversationAgentId, taskCount, taskLabel, tasksTab?.hasError, controller.tabs, documents, fileTabsEnabled, planDocument, recentFilesQuery.data, recentFilesView.kind, recentFilesQuery.isLoading, subtasksAvailable, taskRecordEnabled]);
 
   function selectLauncherItem(item: SidePanelLauncherItem) {
     markInteracted();
@@ -717,6 +744,7 @@ function TaskSidePanelForScope({
         controller.openTab(taskPanelPluginTab(panel));
       }
     }
+    else if (item.id === "record") controller.openTab(taskPanelRecordTab());
     else if (item.id === "properties") controller.openTab(taskPanelPropertiesTab());
     else if (item.id === "subtasks") {
       subtasksDismissedRef.current = false;
@@ -825,6 +853,13 @@ function TaskSidePanelForScope({
         onCheckMonitorNow={onCheckMonitorNow}
         checkingMonitorNow={checkingMonitorNow}
         sidePanelContentOnly
+      />
+    );
+  } else if (activeTab.payload.kind === "record") {
+    content = (
+      <TaskRecordPanel
+        issue={issue}
+        document={documents.find((candidate) => candidate.key === TASK_RECORD_DOCUMENT_KEY)}
       />
     );
   } else if (activeTab.payload.kind === "subtasks") {

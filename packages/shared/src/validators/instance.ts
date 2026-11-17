@@ -67,6 +67,7 @@ export const instanceExperimentalSettingsSchema = z.object({
   enableCombinedInboxTasks: z.boolean().default(false),
   enableArtifactsV1: z.boolean().default(true),
   enableClassicTaskInterface: z.boolean().default(false),
+  enableTaskRecordPrototype: z.boolean().default(false),
   enableLegacyComposerSubmit: z.boolean().default(false),
   enableIssuePlanDecompositions: z.boolean().default(false),
   enableExperimentalFileViewer: z.boolean().default(false),

@@ -209,6 +209,14 @@ export const INSTANCE_FEATURE_CATALOG: Record<InstanceFeatureKey, FeatureCatalog
     cloudDefault: false,
     selfHostedDefault: false,
   },
+  enableTaskRecordPrototype: {
+    title: "Task Record Prototype",
+    description:
+      "Add a living, revisioned task record for the refined brief, decisions, questions, evidence, and result beside the task conversation.",
+    tier: "preference",
+    cloudDefault: false,
+    selfHostedDefault: false,
+  },
   enableLegacyComposerSubmit: {
     title: "Command/Ctrl+Enter to Submit",
     description:

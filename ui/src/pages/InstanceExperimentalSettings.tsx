@@ -166,6 +166,7 @@ export function InstanceExperimentalSettings() {
   const enableGoalsSidebarLink = experimentalQuery.data?.enableGoalsSidebarLink === true;
   const enableCases = experimentalQuery.data?.enableCases === true;
   const enableCampfire = experimentalQuery.data?.enableCampfire === true;
+  const enableTaskRecordPrototype = experimentalQuery.data?.enableTaskRecordPrototype === true;
   const enableServerInfoDebugView = experimentalQuery.data?.enableServerInfoDebugView === true;
   const enableOutpostDeveloperMode =
     experimentalQuery.data?.enableOutpostDeveloperMode === true;
@@ -253,6 +254,18 @@ export function InstanceExperimentalSettings() {
           settingKey="enableDecisions"
           managed={managedKeys.enableDecisions}
           ariaLabel="Toggle decisions experimental setting"
+        />
+
+        <ExperimentalToggleCard
+          title="Task Record Prototype"
+          description="Add a living source of truth beside each task conversation for the refined brief, answered questions, decisions, evidence, and result."
+          footnote="This prototype uses a revisioned task document and can be removed without changing the conversation or task model."
+          checked={enableTaskRecordPrototype}
+          onCheckedChange={(checked) => toggleMutation.mutate({ enableTaskRecordPrototype: checked })}
+          disabled={toggleMutation.isPending}
+          settingKey="enableTaskRecordPrototype"
+          managed={managedKeys.enableTaskRecordPrototype}
+          ariaLabel="Toggle task record prototype experimental setting"
         />
 
         <ExperimentalToggleCard

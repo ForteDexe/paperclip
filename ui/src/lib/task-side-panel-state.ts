@@ -33,6 +33,7 @@ export type TaskSidePanelTabPayload =
   | { kind: "browser"; browserId: string }
   | { kind: "plugin-panel"; pluginKey: string; slotId: string; entityId: string }
   | { kind: "properties" }
+  | { kind: "record" }
   | { kind: "subtasks" }
   | { kind: "artifacts" }
   | { kind: "agent-tasks" }
@@ -96,6 +97,7 @@ function parsePayload(value: unknown): TaskSidePanelTabPayload | null {
   if (kind === "plugin-panel") return [input.pluginKey, input.slotId, input.entityId].every(value => typeof value === "string" && value.length > 0)
     ? { kind, pluginKey: input.pluginKey as string, slotId: input.slotId as string, entityId: input.entityId as string } : null;
   if (kind === "properties") return { kind };
+  if (kind === "record") return { kind };
   if (kind === "subtasks") return { kind };
   if (kind === "artifacts") return { kind };
   if (kind === "agent-tasks") return { kind };
@@ -224,6 +226,10 @@ export function writeTaskSidePanelState(
 
 export function taskPanelPropertiesTab(): SidePanelTabRecord<TaskSidePanelTabPayload> {
   return { id: "properties", type: "properties", label: "Properties", closable: true, contentMode: "padded", payload: { kind: "properties" } };
+}
+
+export function taskPanelRecordTab(): SidePanelTabRecord<TaskSidePanelTabPayload> {
+  return { id: "record", type: "record", label: "Record", closable: true, contentMode: "padded", payload: { kind: "record" } };
 }
 
 export function taskPanelSubtasksTab(): SidePanelTabRecord<TaskSidePanelTabPayload> {

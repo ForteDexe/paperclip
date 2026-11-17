@@ -7,6 +7,7 @@ import {
   taskPanelPluginTab,
   taskPanelFilesTab,
   taskPanelPropertiesTab,
+  taskPanelRecordTab,
   taskPanelSkillTab,
   taskPanelSubtasksTab,
   writeTaskSidePanelState,
@@ -64,6 +65,20 @@ describe("task side-panel persistence", () => {
     expect(readTaskSidePanelState("user-1", "space-1", "task-skill", true)?.state).toMatchObject({
       activeTabId: "skill:skill-1",
       tabs: [{ id: "properties" }, { id: "skill:skill-1", payload: { kind: "skill", skillId: "skill-1" } }],
+    });
+  });
+
+  it("persists and restores the experimental task record tab", () => {
+    writeTaskSidePanelState("user-1", "space-1", "task-record", {
+      state: { tabs: [taskPanelRecordTab(), taskPanelPropertiesTab()], activeTabId: "record" },
+      launcherOpen: false,
+      userInteracted: false,
+      autoPlanHandled: false,
+      updatedAt: 1,
+    });
+    expect(readTaskSidePanelState("user-1", "space-1", "task-record", true)?.state).toMatchObject({
+      activeTabId: "record",
+      tabs: [{ id: "record", payload: { kind: "record" } }, { id: "properties" }],
     });
   });
 

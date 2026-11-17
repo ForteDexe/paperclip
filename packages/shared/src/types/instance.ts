@@ -87,6 +87,8 @@ export interface InstanceExperimentalSettings {
   /** The artifact presentation from the artifact directions lab (MVP V1) on the Artifacts page, the panel's Artifacts tab and the task thread. */
   enableArtifactsV1: boolean;
   enableClassicTaskInterface: boolean;
+  /** Show the experimental living task record beside task conversations. */
+  enableTaskRecordPrototype: boolean;
   /** Require Cmd/Ctrl+Enter to submit task replies and new tasks. */
   enableLegacyComposerSubmit: boolean;
   enableIssuePlanDecompositions: boolean;
