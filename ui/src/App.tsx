@@ -61,6 +61,7 @@ const PluginSettings = lazy(() => import("./pages/PluginSettings").then((module)
 const AdapterManager = lazy(() => import("./pages/AdapterManager").then((module) => ({ default: module.AdapterManager })));
 const PluginPage = lazy(() => import("./pages/PluginPage").then((module) => ({ default: module.PluginPage })));
 const NewAgent = lazy(() => import("./pages/NewAgent").then((module) => ({ default: module.NewAgent })));
+const InstalledSkills = lazy(() => import("./pages/InstalledSkills").then((module) => ({ default: module.InstalledSkills })));
 
 
 const ProductionAgents = lazy(() => import("./pages/Agents.production").then((module) => ({ default: module.Agents })));
@@ -114,7 +115,7 @@ function operatorRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled
         <Route path="space/settings/instance/adapters" element={<AdapterManager />} />
       </Route>
       <Route path="space/settings/:settingsRoutePath/*" element={<SpaceSettingsPluginPage />} />
-      <Route path="skills/*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="skills/*" element={<InstalledSkills />} />
       <Route path="settings" element={<LegacySettingsRedirect />} />
       <Route path="settings/*" element={<LegacySettingsRedirect />} />
       <Route path="plugins/:pluginId" element={<PluginPage />} />

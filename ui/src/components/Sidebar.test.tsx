@@ -311,7 +311,8 @@ describe("Sidebar", () => {
     expect(container.querySelector('[data-testid="sidebar-agents"]')?.getAttribute("data-streamlined")).toBe("true");
     expect(container.textContent).toContain("Space");
     expect(labels).toEqual(expect.arrayContaining(["Spaces", "Agents"]));
-    expect(labels).not.toEqual(expect.arrayContaining(["Skills", "Audit"]));
+    expect(labels).toContain("Skills");
+    expect(labels).not.toContain("Audit");
     expect(labels).not.toContain("Connectors");
     expect(labels).not.toContain("Projects");
     expect(container.querySelector('a[href="/agents"]')).not.toBeNull();
@@ -498,7 +499,7 @@ describe("Sidebar", () => {
       .map((anchor) => anchor.textContent?.trim());
 
     expect(labels(workSection)).toEqual(["Chat", "Tasks", "Spaces", "Routines", "Artifacts"]);
-    expect(labels(orgSection)).toEqual(["Agents"]);
+    expect(labels(orgSection)).toEqual(["Agents", "Skills"]);
     expect(sections.indexOf(workSection!)).toBeLessThan(sections.indexOf(orgSection!));
     expect(
       workSection?.querySelector('a[href="/issues"] svg')?.classList.contains("lucide-circle-check"),

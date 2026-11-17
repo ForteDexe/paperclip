@@ -15,6 +15,7 @@ import {
   MessageCircle,
   Users,
   Flame,
+  Boxes,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -256,6 +257,7 @@ function ClassicSidebar({ children }: { children?: ReactNode }) {
             collapsible={{ open: organizationOpen, onOpenChange: setOrganizationOpen }}
           >
             <SidebarNavItem to="/agents" label={sidebarVocabulary.agents} icon={Users} />
+            <SidebarNavItem to="/skills" label="Skills" icon={Boxes} />
           </SidebarSection>
         ) : null}
 
