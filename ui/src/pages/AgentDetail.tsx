@@ -102,6 +102,7 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/component
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { AgentToolsTab } from "./AgentToolsTab";
+import { AgentSkillsTab } from "./agent-skills/AgentSkillsTab";
 import { AgentChannelsPanel } from "../components/chat/AgentChannelsPanel";
 import {
   isUuidLike,
@@ -326,6 +327,8 @@ function agentViewDescription(view: AgentDetailView, name: string): string | nul
   switch (view) {
     case "runtime":
       return `How ${name} runs: harness, model and environment.`;
+    case "skills":
+      return `Additional skills available to ${name}.`;
     case "permissions":
       return `What ${name} may do without asking, and where.`;
     case "activity":
@@ -950,6 +953,10 @@ export function AgentDetail() {
             hideInstructionsFile
           />
         </div>
+      )}
+
+      {activeView === "skills" && resolvedSpaceId && (
+        <AgentSkillsTab agent={agent} spaceId={resolvedSpaceId} />
       )}
 
       {activeView === "tools" && resolvedSpaceId && (

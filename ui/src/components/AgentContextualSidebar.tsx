@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
+  Boxes,
   FileCode2,
   Fingerprint,
   History,
@@ -29,6 +30,7 @@ import {
 const localIcons = {
   overview: Sparkles,
   instructions: Fingerprint,
+  skills: Boxes,
   runtime: Settings2,
   tools: Wrench,
   channels: MessageSquare,

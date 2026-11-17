@@ -48,6 +48,7 @@ const descriptions: Record<AgentLocalDetailView, string> = {
   advanced: "Edit the agent’s configuration as YAML.",
   overview: "A snapshot of Nova’s work, capabilities, and current setup.",
   instructions: "The files that guide how your agent thinks and works.",
+  skills: "Choose the additional skills available to this agent.",
   runtime:
     "Configure the harness, model, environment, and how your agent runs.",
   tools: "Manage installed connections, available tools, and access policies.",

@@ -5,6 +5,7 @@ export type AgentAuditView = Extract<AuditSection, "activity" | "runs">;
 export type AgentDetailView =
   | "overview"
   | "instructions"
+  | "skills"
   | "runtime"
   | "tools"
   | "channels"
@@ -26,6 +27,7 @@ export const AGENT_DETAIL_NAVIGATION: ReadonlyArray<{
     items: [
       { value: "overview", label: "Overview" },
       { value: "instructions", label: "Identity" },
+      { value: "skills", label: "Skills" },
       { value: "runtime", label: "Harness / Runtime" },
       { value: "permissions", label: "Permissions / Trust" },
       { value: "advanced", label: "Advanced" },
@@ -60,7 +62,7 @@ export function agentDetailViewLabel(view: AgentLocalDetailView): string {
 
 export function parseAgentDetailView(value: string | null): AgentLocalDetailView {
   if (value === "identity" || value === "instructions" || value === "prompts") return "instructions";
-  if (value === "skills") return "overview";
+  if (value === "skills") return "skills";
   if (value === "runtime" || value === "configure" || value === "configuration") return "runtime";
   if (value === "secrets") return "overview";
   if (value === "tools") return "tools";
