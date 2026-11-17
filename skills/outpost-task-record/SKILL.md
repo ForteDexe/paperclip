@@ -1,6 +1,6 @@
 ---
 name: outpost-task-record
-description: Create or maintain the living Task Record for work whose agreed outcomes, feature states, evidence, questions, and next step must survive task turns. Use before creating a task from clarified discussion or whenever an assigned task has a working-spec document; do not use for ordinary one-step status updates or append-only review history.
+description: Create or maintain the living Task Record for work whose agreed outcomes, feature states, constraints, decisions, and next step must survive task turns. Use before creating a task from clarified discussion or whenever an assigned task has a working-spec document; do not use for questions, ordinary one-step status updates, or append-only review history.
 ---
 
 # Outpost Task Record
@@ -29,21 +29,37 @@ with key `working-spec` if the assignment may be stale. Update it with
 revision conflict, read the new revision, reconcile both changes, and retry;
 never overwrite another update blindly.
 
-Update the record automatically when discussion or evidence clearly adds,
+Update the record automatically when discussion or actual work clearly adds,
 removes, or changes an agreed behavior, constraint, decision, feature state,
-open question, or recommended next step. Keep the agreed outcome distinct from
-whether implementation has been validated.
+or recommended next step. Keep the agreed outcome distinct from whether
+implementation has been validated.
+
+When a resolved choice changes user-visible behavior, create or update the
+corresponding Features and Behaviors row. Do not append duplicate rows or keep
+the superseded outcome as history. Use a Decisions section only for current
+cross-cutting choices that do not belong in a feature outcome or constraint.
 
 Use this compact structure as needed:
 
 - Intent
-- Features and Behaviors: behavior, agreed outcome, state, and evidence
+- Features and Behaviors: behavior, agreed outcome, and state
 - Constraints and Non-Goals
-- Decisions
-- Open Questions: unresolved items only
-- Status
-- Evidence and Results
-- Next Step: one recommended action
+- Decisions: optional cross-cutting choices only
+- Next Step: optional feature reference and optional comment
+
+Questions and answers belong in chat or task interactions, not in the Record.
+Ask there and pause execution when a missing answer blocks progress. Once the
+answer is settled, update the corresponding feature outcome, constraint, or
+cross-cutting decision; do not copy the question transcript into the Record.
+
+When there is an immediate action, record its exact `Feature or behavior` name
+under Next Step and add a `Comment` only when useful. Do not copy the feature
+State into Next Step; consumers derive it from the feature row. Omit Next Step
+when no feature has an immediate action.
+
+Add a Results and Verification section only when concrete runtime or test
+results exist and are useful to the current task. It is optional, is not a
+per-feature requirement, and must not be prefilled with placeholder content.
 
 Useful feature states are `Agreed`, `Testing`, `Validated`, `Implemented`, and
 `Skipped by agreement`. Replace stale conclusions instead of preserving a

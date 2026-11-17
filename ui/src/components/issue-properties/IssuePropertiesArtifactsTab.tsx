@@ -13,6 +13,7 @@ import {
   artifactReviewDocumentKey,
   getMarkdownWorkProductAttachmentMetadata,
   isArtifactReviewDocumentKey,
+  TASK_RECORD_DOCUMENT_KEY,
 } from "@outpost/shared";
 import { Download, ExternalLink, FileText } from "lucide-react";
 import { ApiError } from "@/api/client";
@@ -471,7 +472,9 @@ export function IssuePropertiesArtifactsTab({
   // Proxy review documents (`artifact-review-*`) present only through their
   // originating Work product row, never as standalone Documents rows.
   const documentRows = (documents ?? []).filter(
-    (doc) => !isArtifactReviewDocumentKey(doc.key) && (!documentAuthoring || doc.key === "plan"),
+    (doc) => doc.key !== TASK_RECORD_DOCUMENT_KEY
+      && !isArtifactReviewDocumentKey(doc.key)
+      && (!documentAuthoring || doc.key === "plan"),
   );
   const reviewDocsByKey = new Map(
     (documents ?? []).map((doc) => [doc.key, doc]),

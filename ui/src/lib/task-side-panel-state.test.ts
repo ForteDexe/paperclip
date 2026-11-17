@@ -10,6 +10,7 @@ import {
   taskPanelRecordTab,
   taskPanelSkillTab,
   taskPanelSubtasksTab,
+  withoutTaskDocumentTabs,
   writeTaskSidePanelState,
   shouldSuppressTaskPanelUntilPlan,
   openSkillPanelState,
@@ -80,6 +81,17 @@ describe("task side-panel persistence", () => {
       activeTabId: "record",
       tabs: [{ id: "record", payload: { kind: "record" } }, { id: "properties" }],
     });
+  });
+
+  it("suppresses every generic Task Record document tab", () => {
+    const localCurrent = taskPanelDocumentTab("working-spec", "Task Record");
+    const localRevision = taskPanelDocumentTab("working-spec", "Task Record revision", "revision-1");
+    const reviewedTask = taskPanelDocumentTab("working-spec", "Reviewed Task Record", undefined, "task-b");
+
+    expect(withoutTaskDocumentTabs(
+      [taskPanelPropertiesTab(), localCurrent, localRevision, reviewedTask],
+      "working-spec",
+    ).map((tab) => tab.id)).toEqual(["properties"]);
   });
 
   it("keeps an onboarding panel open after skill acknowledgement", () => {

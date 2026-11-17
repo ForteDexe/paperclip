@@ -138,6 +138,22 @@ describe("IssueDocumentsSection keyless rows", () => {
     expect(container.textContent).not.toContain("Keyless row content");
   });
 
+  it.each([false, true])("keeps working-spec exclusive to Record (general only: %s)", async generalDocumentsOnly => {
+    mockIssuesApi.listDocuments.mockResolvedValue([
+      createIssueDocument({ id: "record", key: "working-spec", title: "Task Record", body: "Internal Record storage" }),
+      createIssueDocument({ id: "note", key: "notes", title: "Task note", body: "Visible general document" }),
+    ]);
+    await act(async () => root.render(
+      <QueryClientProvider client={client}>
+        <IssueDocumentsSection issue={createIssue()} canDeleteDocuments={false} generalDocumentsOnly={generalDocumentsOnly} />
+      </QueryClientProvider>,
+    ));
+    await flush();
+    expect(container.textContent).toContain("Visible general document");
+    expect(container.textContent).not.toContain("Internal Record storage");
+    expect(container.textContent).not.toContain("Task Record");
+  });
+
   it("keeps a keyless mutation response out of the cached document list", async () => {
     const document = createIssueDocument({ body: "Lockable plan body" });
     // Hold the post-lock refetch so the test observes the synced cache, not fresh server rows.

@@ -16,7 +16,7 @@ before execution can start.
   "title": "Build the agreed parser",
   "description": "Implement and verify the parser behavior agreed in chat.",
   "status": "todo",
-  "initialWorkingSpec": "# Parser\n\n## Intent\nBuild the agreed parser behavior.\n\n## Features and Behaviors\n| Feature or behavior | Agreed outcome | State | Evidence |\n| --- | --- | --- | --- |\n| Parse input | Return normalized records. | Agreed | |\n\n## Next Step\nImplement the focused parser test."
+  "initialWorkingSpec": "# Parser\n\n## Intent\nBuild the agreed parser behavior.\n\n## Features and Behaviors\n| Feature or behavior | Agreed outcome | State |\n| --- | --- | --- |\n| Parse input | Return normalized records. | Agreed |\n\n## Next Step\n- Feature or behavior: Parse input\n- Comment: Implement the focused parser test."
 }
 ```
 
@@ -39,7 +39,7 @@ revision id:
   "idempotencyKey": "task-record-validated-parser-v1",
   "key": "working-spec",
   "title": "Task Record",
-  "body": "# Parser\n\n## Status\n**Validated**",
+  "body": "# Parser\n\n## Features and Behaviors\n| Feature or behavior | Agreed outcome | State |\n| --- | --- | --- |\n| Parse input | Return normalized records. | Validated |\n\n## Results and Verification\n- Focused parser tests pass.",
   "baseRevisionId": "00000000-0000-4000-8000-000000000001",
   "changeSummary": "Record validated parser behavior"
 }

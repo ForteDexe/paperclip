@@ -10,7 +10,7 @@ import type {
   Issue,
   IssueDocument,
 } from "@outpost/shared";
-import { isArtifactReviewDocumentKey, isSystemIssueDocumentKey } from "@outpost/shared";
+import { isArtifactReviewDocumentKey, isSystemIssueDocumentKey, TASK_RECORD_DOCUMENT_KEY } from "@outpost/shared";
 import { useLocation } from "@/lib/router";
 import { ApiError } from "../api/client";
 import { issuesApi } from "../api/issues";
@@ -532,6 +532,7 @@ function AccountIssueDocumentsSection({
     // A keyless row cannot be rendered or edited; skip it instead of failing the whole page.
     return (documents ?? []).filter((doc) =>
       typeof doc?.key === "string"
+      && doc.key !== TASK_RECORD_DOCUMENT_KEY
       && (!generalDocumentsOnly || isGeneralTaskDocumentKey(doc.key))
       && (!documentSubject.hideSystemDocuments || !isSystemIssueDocumentKey(doc.key)),
     ).sort((a, b) => {

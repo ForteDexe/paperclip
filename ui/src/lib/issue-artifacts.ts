@@ -1,5 +1,5 @@
 import type { IssueAttachment, IssueDocumentSummary, IssueWorkProduct } from "@outpost/shared";
-import { getAttachmentArtifactWorkProductMetadata, isArtifactReviewDocumentKey, isSystemIssueDocumentKey } from "@outpost/shared";
+import { getAttachmentArtifactWorkProductMetadata, isArtifactReviewDocumentKey, isSystemIssueDocumentKey, TASK_RECORD_DOCUMENT_KEY } from "@outpost/shared";
 
 /**
  * Documents authored here; Plans and file reviews retain their own workflows.
@@ -7,7 +7,11 @@ import { getAttachmentArtifactWorkProductMetadata, isArtifactReviewDocumentKey, 
  */
 export function isGeneralTaskDocumentKey(key: string | null | undefined): boolean {
   if (typeof key !== "string") return false;
-  return key.trim().toLowerCase() !== "plan" && !isArtifactReviewDocumentKey(key) && !isSystemIssueDocumentKey(key);
+  const normalized = key.trim().toLowerCase();
+  return normalized !== "plan"
+    && normalized !== TASK_RECORD_DOCUMENT_KEY
+    && !isArtifactReviewDocumentKey(key)
+    && !isSystemIssueDocumentKey(key);
 }
 
 /**

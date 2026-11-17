@@ -40,8 +40,9 @@ For each feature or behavior:
    engine behavior in the real host. Keep disposable logic in `.experiment`.
 3. Implement the production behavior from the validated approach. Simple,
    understood behavior may go directly to focused implementation and testing.
-4. Record the resulting state and useful evidence. If evidence changes the
-   agreed behavior, discuss that change and update the outcome before continuing.
+4. Record the resulting feature state. Add concrete results or verification
+   only after they exist. If a result changes the agreed behavior, discuss that
+   change and update the outcome before continuing.
 
 Experiments and implementation stages are working details, not approval gates.
 Pause only when missing information, an external action, or a decision could
@@ -50,9 +51,17 @@ materially change the required result.
 ## Agent responsibility
 
 - At the start of each task turn, read the injected Task Record and identify
-  the current agreed behavior, unresolved questions, and next step.
-- Update it when discussion or evidence changes a feature, decision, state, or
-  next step; do not wait to be asked.
+  the current agreed behavior and next step.
+- Update it when discussion or observed results change a feature, decision,
+  state, or next step; do not wait to be asked.
+- Put a behavior-changing decision into the corresponding feature outcome.
+  Use Decisions only for current cross-cutting choices that do not map to a
+  feature or constraint.
+- Anchor Next Step to the exact name of the feature with the immediate action.
+  Add an optional comment, but do not duplicate the feature state there.
+- Ask questions in chat or task interactions. After an answer is settled,
+  update the affected feature, constraint, or cross-cutting decision instead
+  of storing the question in the Task Record.
 - Point out conflicts with an agreed behavior and ask which direction replaces
   it.
 - Keep implementation details out unless they are part of the user-visible
@@ -60,6 +69,6 @@ materially change the required result.
 - Keep the record short and current. Remove stale conclusions.
 
 When all behaviors are implemented and validated or explicitly skipped, delete
-`.experiment`. Retain the final Task Record with the task as durable execution
-evidence. Move stable operator instructions into the production tool's README
+`.experiment`. Retain the final Task Record with the task as a durable execution
+record. Move stable operator instructions into the production tool's README
 only when they are genuinely needed; do not duplicate the whole record there.

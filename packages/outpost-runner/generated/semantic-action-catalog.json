@@ -3400,7 +3400,7 @@
           ]
         },
         "initialWorkingSpec": {
-          "description": "Living Task Record markdown to persist as working-spec before execution. Capture agreed outcomes, feature states, constraints, decisions, unresolved questions, evidence, and the next step.",
+          "description": "Living Task Record markdown to persist as working-spec before execution. Put behavior-changing decisions in feature outcomes; capture cross-cutting decisions separately only when needed. Include feature states, constraints, and an optional next step anchored to a feature name with an optional comment. Keep questions in chat and reflect only settled answers in the Record. Do not duplicate feature state in Next Step. Add concrete results or verification only after they exist.",
           "maxLength": 200000,
           "type": [
             "string",

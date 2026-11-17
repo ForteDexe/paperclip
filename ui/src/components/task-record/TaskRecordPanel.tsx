@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Issue, IssueDocument } from "@outpost/shared";
-import { Bot, Check, CircleCheck, CircleHelp, Clock3, FilePenLine, FlaskConical, Image, Loader2, MessageSquareText, Pause, Play, Plus, Rocket, User, X } from "lucide-react";
+import { Bot, Check, FilePenLine, FlaskConical, Image, Loader2, MessageSquareText, Pause, Play, Plus, Rocket, User, X } from "lucide-react";
 import { issuesApi } from "@/api/issues";
 import { DocumentMarkdownBody } from "@/components/DocumentMarkdownBody";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { RadioCardGroup } from "@/components/ui/radio-card";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleSwitch } from "@/components/ui/toggle-switch";
 import { queryKeys } from "@/lib/queryKeys";
@@ -14,9 +13,12 @@ import {
   buildTaskRecord,
   parseTaskRecord,
   parseTaskRecordFeatures,
+  parseTaskRecordNextStep,
+  resolveTaskRecordNextStepFeature,
   TASK_RECORD_DOCUMENT_KEY,
   TASK_RECORD_DOCUMENT_TITLE,
   type TaskRecordFeature,
+  type TaskRecordNextStep,
 } from "./task-record-model";
 
 export function TaskRecordPanel({ issue, document }: { issue: Issue; document?: IssueDocument }) {
@@ -25,7 +27,7 @@ export function TaskRecordPanel({ issue, document }: { issue: Issue; document?: 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(document?.body ?? buildTaskRecord(issue));
   const [automaticExecution, setAutomaticExecution] = useState(false);
-  const [executionState, setExecutionState] = useState<"blocked" | "paused" | "running">("blocked");
+  const [executionState, setExecutionState] = useState<"blocked" | "paused" | "running">("paused");
   const [pendingChanges, setPendingChanges] = useState(0);
 
   useEffect(() => {
@@ -54,28 +56,28 @@ export function TaskRecordPanel({ issue, document }: { issue: Issue; document?: 
   const body = current?.body ?? draft;
   const sections = useMemo(() => parseTaskRecord(body), [body]);
   const features = useMemo(() => parseTaskRecordFeatures(body), [body]);
+  const nextStep = useMemo(() => parseTaskRecordNextStep(body), [body]);
   const reviewBody = sections.find((section) => ["review timeline", "stages"].includes(section.heading.toLowerCase()))?.body ?? "";
   const reviewIsPlaceholder = !reviewBody || reviewBody.includes("The agent will add its result summary");
   const previewFeatures = useMemo<TaskRecordFeature[]>(() => [{
     behavior: "Example behavior",
     outcome: "The agreed result the user can test.",
     agentState: "Implemented",
-    evidence: "Screenshot or verification link",
   }], []);
+  const previewNextStep = useMemo<TaskRecordNextStep>(() => ({
+    behavior: "Example behavior",
+    comment: "Review the result the user can test.",
+  }), []);
   const displayedFeatures = features.length ? features : previewFeatures;
   const allFeaturesReady = displayedFeatures.every((feature) => ["implemented", "validated", "skipped", "skipped by agreement"].includes(feature.agentState.trim().toLowerCase()));
   const canWrapUp = executionState === "paused" && allFeaturesReady;
   const wrapUpReason = executionState === "blocked"
-    ? "Resolve blocking questions first"
+    ? "Resolve the blocker in chat first"
     : executionState === "running"
       ? "Pause the task before wrapping up"
       : !allFeaturesReady
         ? "Every feature must be Implemented, Validated, or skipped"
         : null;
-  const resolveBlockingQuestion = () => {
-    setExecutionState("paused");
-    setPendingChanges((count) => count + 1);
-  };
   const resumeTask = () => {
     setExecutionState("running");
     setPendingChanges(0);
@@ -108,7 +110,7 @@ export function TaskRecordPanel({ issue, document }: { issue: Issue; document?: 
         </div>
         <PrototypeNotice />
         <FeatureTable features={previewFeatures} preview />
-        <QuestionsPrototype onBlockingResolved={resolveBlockingQuestion} readOnly={executionState === "running"} />
+        <NextStepCard nextStep={previewNextStep} features={previewFeatures} preview />
         <ContinuousReview body="The agent's result summary, verification notes, screenshots, videos, and related files will appear here as continuous submissions." preview readOnly={executionState === "running"} canWrapUp={canWrapUp} wrapUpReason={wrapUpReason} onFeedbackSaved={() => setPendingChanges((count) => count + 1)} onWrapUp={resumeTask} />
         {save.error ? <p className="text-sm text-destructive">{save.error.message}</p> : null}
       </div>
@@ -155,7 +157,7 @@ export function TaskRecordPanel({ issue, document }: { issue: Issue; document?: 
         <div className="space-y-5">
           <PrototypeNotice />
           <div className="space-y-3">
-          {sections.filter((section) => !["features and behaviors", "open questions", "questions", "review timeline", "stages"].includes(section.heading.toLowerCase())).map((section) => (
+          {sections.filter((section) => !["features and behaviors", "next step", "open questions", "questions", "review timeline", "stages"].includes(section.heading.toLowerCase())).map((section) => (
             <section key={section.heading} className="rounded-lg border bg-card/30 p-4">
               <h3 className="mb-3 text-sm font-semibold">{section.heading}</h3>
               {section.body ? (
@@ -167,7 +169,7 @@ export function TaskRecordPanel({ issue, document }: { issue: Issue; document?: 
           ))}
           </div>
           <FeatureTable features={displayedFeatures} preview={features.length === 0} />
-          <QuestionsPrototype onBlockingResolved={resolveBlockingQuestion} readOnly={executionState === "running"} />
+          {nextStep ? <NextStepCard nextStep={nextStep} features={features} /> : null}
           <ContinuousReview
             body={reviewBody || "The agent's result summary, verification notes, screenshots, videos, and related files will appear here as continuous submissions."}
             preview={reviewIsPlaceholder}
@@ -191,7 +193,7 @@ function PrototypeNotice() {
   return (
     <div className="rounded-md border border-sky-500/25 bg-sky-500/5 px-3 py-2 text-xs text-muted-foreground">
       <span className="font-medium text-foreground">UI/UX prototype.</span>{" "}
-      Nothing wakes an agent in this prototype. In the implemented workflow, only Resume task and Final — Wrap up will wake it; answers and feedback only accumulate pending changes.
+      Nothing wakes an agent in this prototype. In the implemented workflow, only Resume task and Final — Wrap up will wake it; edits and feedback only accumulate pending changes.
     </div>
   );
 }
@@ -213,42 +215,42 @@ function AutomationSwitch({
   onResume: () => void;
   resumeDisabled?: boolean;
 }) {
+  const statusLabel = executionState === "running" ? "Running" : executionState === "blocked" ? "Needs input" : "Paused";
+  const statusDetail = executionState === "running"
+    ? checked ? "The agent continues until blocked or ready for final review." : "The agent runs one turn, then returns to Paused."
+    : executionState === "blocked"
+      ? "Resolve the blocker in chat before resuming the task."
+      : "Resume to wake the agent with the current Record revision.";
+  const resumeTitle = resumeDisabled
+    ? "Save or cancel the Record edit before resuming"
+    : executionState === "blocked"
+      ? "Resolve the blocker in chat before resuming"
+      : "Wake the agent with the current Record revision";
+
   return (
-    <div className="space-y-3 rounded-lg border bg-card/30 p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-semibold">Automatic execution</p>
-            <Badge variant="outline" className={checked ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "text-muted-foreground"}>
-              {checked ? "Automatic" : "Manual"}
-            </Badge>
-          </div>
-          <p className="max-w-2xl text-xs text-muted-foreground">
-            Once the Brief and Features &amp; Behaviors are clear, let the agent continue from implementation through review submissions without waiting between routine steps.
-          </p>
-        </div>
-        <ToggleSwitch checked={checked} onCheckedChange={onCheckedChange} disabled={executionState === "running"} aria-label="Toggle automatic task execution" />
+    <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded-lg border bg-card/30 px-3 py-2">
+      <div className="flex min-w-0 items-center gap-2 overflow-hidden">
+        <p className="truncate text-sm font-semibold" title="Automatic execution continues through routine steps; Manual returns to Paused after one agent turn.">Automatic execution</p>
+        <Badge variant="outline" className={`shrink-0 ${checked ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "text-muted-foreground"}`}>
+          {checked ? "Automatic" : "Manual"}
+        </Badge>
+        <span className="h-4 w-px shrink-0 bg-border" aria-hidden />
+        <span className={`size-2 shrink-0 rounded-full ${executionState === "running" ? "bg-emerald-500" : executionState === "blocked" ? "bg-amber-500" : "bg-muted-foreground"}`} aria-hidden />
+        <span className="truncate text-sm font-medium" title={statusDetail}>{statusLabel}</span>
+        {pendingChanges ? <span className="shrink-0 text-xs text-muted-foreground">· {pendingChanges} pending</span> : null}
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className={`size-2 rounded-full ${executionState === "running" ? "bg-emerald-500" : executionState === "blocked" ? "bg-amber-500" : "bg-muted-foreground"}`} aria-hidden />
-            <span className="text-sm font-medium">{executionState === "running" ? "Running" : executionState === "blocked" ? "Paused · needs input" : "Paused"}</span>
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {executionState === "running"
-              ? checked ? "The agent continues until blocked or ready for final review." : "The agent runs one turn, then returns to Paused."
-              : executionState === "blocked"
-                ? "Resolve the blocking question before resuming the task."
-                : `${pendingChanges ? `${pendingChanges} pending change${pendingChanges === 1 ? "" : "s"}. ` : ""}Resume when the Task Record is ready; the agent wakes with one coherent revision.`}
-          </p>
-        </div>
-        {executionState === "running" ? (
-          <Button variant="outline" size="sm" onClick={() => onExecutionStateChange("paused")}><Pause aria-hidden /> Pause task</Button>
-        ) : (
-          <Button size="sm" disabled={executionState === "blocked" || resumeDisabled} title={resumeDisabled ? "Save or cancel the Task Record edit before resuming" : undefined} onClick={onResume}><Play aria-hidden /> Resume task</Button>
-        )}
-      </div>
+      <ToggleSwitch
+        checked={checked}
+        onCheckedChange={onCheckedChange}
+        disabled={executionState === "running"}
+        aria-label="Toggle automatic task execution"
+        title={checked ? "Automatic: continue until blocked or ready for final review" : "Manual: pause after one agent turn"}
+      />
+      {executionState === "running" ? (
+        <Button variant="outline" size="sm" onClick={() => onExecutionStateChange("paused")} title="Pause after the current agent action"><Pause aria-hidden /> Pause task</Button>
+      ) : (
+        <Button size="sm" disabled={executionState === "blocked" || resumeDisabled} title={resumeTitle} onClick={onResume}><Play aria-hidden /> Resume task</Button>
+      )}
     </div>
   );
 }
@@ -262,7 +264,7 @@ function FeatureTable({ features, preview = false }: { features: TaskRecordFeatu
             <h3 className="text-sm font-semibold">Features and Behaviors</h3>
             {preview ? <Badge variant="outline" className="text-muted-foreground">Example</Badge> : null}
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">The agent keeps each agreed outcome, state, and current evidence up to date.</p>
+          <p className="mt-1 text-xs text-muted-foreground">The agent keeps each agreed outcome and state up to date.</p>
         </div>
         <span className="text-xs text-muted-foreground">{features.length} item{features.length === 1 ? "" : "s"}</span>
       </div>
@@ -278,7 +280,6 @@ function FeatureTable({ features, preview = false }: { features: TaskRecordFeatu
               </div>
               <div>
                 <p className="text-sm">{feature.outcome || "No agreed outcome recorded."}</p>
-                {feature.evidence ? <p className="mt-1 text-xs text-muted-foreground">Evidence: {feature.evidence}</p> : null}
               </div>
             </div>
           );
@@ -288,110 +289,31 @@ function FeatureTable({ features, preview = false }: { features: TaskRecordFeatu
   );
 }
 
-function QuestionsPrototype({ onBlockingResolved, readOnly }: { onBlockingResolved: () => void; readOnly: boolean }) {
-  const [choice, setChoice] = useState("restore");
-  const [customAnswer, setCustomAnswer] = useState("");
-  const [confirmed, setConfirmed] = useState(false);
-  const answerLabel = choice === "restore"
-    ? "Restore the last used scale"
-    : choice === "default"
-      ? "Reset to the default scale"
-      : choice === "project"
-        ? "Follow the project setting"
-        : customAnswer.trim();
-
+function NextStepCard({
+  nextStep,
+  features,
+  preview = false,
+}: {
+  nextStep: TaskRecordNextStep;
+  features: TaskRecordFeature[];
+  preview?: boolean;
+}) {
+  const feature = resolveTaskRecordNextStepFeature(nextStep, features);
   return (
     <section className="space-y-3">
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <h3 className="text-sm font-semibold">Questions</h3>
-          <p className="mt-1 text-xs text-muted-foreground">Blocking choices pause automatic execution; non-blocking questions carry an agent assumption.</p>
-        </div>
-        <Badge variant="outline" className={confirmed ? "text-muted-foreground" : "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300"}>
-          {confirmed ? "No blockers" : "1 blocking"}
-        </Badge>
+      <div className="flex items-center gap-2">
+        <h3 className="text-sm font-semibold">Next Step</h3>
+        {preview ? <Badge variant="outline" className="text-muted-foreground">Example</Badge> : null}
       </div>
-
-      {!confirmed ? (
-        <div className="space-y-3 rounded-lg border border-amber-500/25 bg-amber-500/5 p-4">
-          <div className="flex items-start gap-2">
-            <CircleHelp className="mt-0.5 size-4 shrink-0 text-amber-600" aria-hidden />
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-sm font-medium">When the preview tool reopens, which scale should it use?</p>
-                <Badge variant="outline" className="text-xs text-muted-foreground">Blocks automatic execution</Badge>
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">The agent needs this behavior defined before persistence can be implemented.</p>
-            </div>
-          </div>
-          <RadioCardGroup
-            value={choice}
-            onValueChange={(value) => setChoice(value)}
-            ariaLabel="Choose preview scale persistence behavior"
-            disabled={readOnly}
-            options={[
-              { value: "restore", title: "Restore last used", description: "Recommended · preserves the user's choice." },
-              { value: "default", title: "Reset to default", description: "Every session starts from the same scale." },
-              { value: "project", title: "Follow project", description: "Use a shared project-level setting." },
-              { value: "custom", title: "Write my own answer", description: "Provide behavior that is not covered by the suggested choices." },
-            ]}
-          />
-          {choice === "custom" ? (
-            <div className="space-y-1.5">
-              <label htmlFor="custom-blocking-answer" className="text-sm font-medium">Your answer</label>
-              <Textarea
-                id="custom-blocking-answer"
-                value={customAnswer}
-                onChange={(event) => setCustomAnswer(event.target.value)}
-                placeholder="Describe the behavior you want…"
-                className="min-h-20"
-                disabled={readOnly}
-              />
-            </div>
-          ) : null}
-          <div className="flex justify-end">
-            <Button size="sm" title={readOnly ? "Pause the task before answering" : "Save this answer to the Task Record without waking the agent"} disabled={readOnly || (choice === "custom" && !customAnswer.trim())} onClick={() => {
-              setConfirmed(true);
-              onBlockingResolved();
-            }}><Check aria-hidden /> Confirm choice</Button>
-          </div>
+      <div className="rounded-lg border bg-card/30 p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm font-medium">{nextStep.behavior}</p>
+          <Badge variant="outline" className="text-xs text-muted-foreground">
+            {feature?.agentState || "Feature not found"}
+          </Badge>
         </div>
-      ) : (
-        <div className="flex items-start gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-3 text-sm">
-          <CircleCheck className="mt-0.5 size-4 shrink-0 text-emerald-600" aria-hidden />
-          <div>
-            <p className="font-medium">Blocking question answered</p>
-            <p className="mt-1 text-xs text-muted-foreground">The answer is saved with the Task Record. The task stays paused and the agent is not woken until you press Resume task.</p>
-          </div>
-        </div>
-      )}
-
-      <div className="flex items-start gap-2 rounded-lg border p-4">
-        <Clock3 className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-medium">Should the first version include a keyboard shortcut?</p>
-            <Badge variant="outline" className="text-xs text-muted-foreground">Non-blocking</Badge>
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground"><span className="font-medium text-foreground">Agent assumption:</span> ship without a shortcut and revisit it after the main workflow is validated.</p>
-        </div>
+        {nextStep.comment ? <p className="mt-2 text-sm text-muted-foreground">{nextStep.comment}</p> : null}
       </div>
-
-      <details className="rounded-lg border px-4 py-3">
-        <summary className="cursor-pointer text-sm font-medium">Resolved questions · {confirmed ? 2 : 1}</summary>
-        <div className="mt-3 space-y-3 border-t pt-3 text-sm">
-          <div>
-            <p className="font-medium">Where should the preview control live?</p>
-            <p className="mt-1 text-muted-foreground">Viewport toolbar, beside the existing display controls.</p>
-          </div>
-          {confirmed ? (
-            <div>
-              <p className="font-medium">When the preview tool reopens, which scale should it use?</p>
-              <p className="mt-1 text-muted-foreground">{answerLabel}.</p>
-            </div>
-          ) : null}
-        </div>
-      </details>
     </section>
   );
 }
@@ -548,7 +470,7 @@ function TaskRecordHeader() {
     <header className="space-y-2">
       <TaskRecordTitle />
       <p className="text-sm text-muted-foreground">
-        A living source of truth for the refined brief, answered questions, decisions, evidence, and result.
+        A living source of truth for agreed behaviors, constraints, decisions, current state, and next step.
       </p>
     </header>
   );

@@ -1,6 +1,6 @@
 ---
 name: outpost-task
-description: Work on an assigned Outpost task by reading wake context, checking out the task, posting evidence-based updates, managing status, and finishing or reporting a blocker.
+description: Work on an assigned Outpost task by reading wake context, checking out the task, posting verified updates, managing status, and finishing or reporting a blocker.
 ---
 
 # Outpost Task
@@ -29,8 +29,9 @@ X-Outpost-Run-Id: $OUTPOST_RUN_ID
 
 1. Read the wake payload. Fetch more history only when it is incomplete.
    If it includes a Task Record, use `outpost-task-record` and keep that
-   document current when agreed outcomes, feature state, evidence, open
-   questions, or the next step materially changes.
+   document current when agreed outcomes, feature state, constraints,
+   decisions, or the next step materially changes. Keep questions in the task
+   conversation; reflect only their settled outcome in the Record.
 2. Check out the assigned task before changing it, unless this run already owns
    the checkout.
 3. Work only inside the current Space and your assigned scope.

@@ -260,6 +260,16 @@ export function taskPanelDocumentTab(documentKey: string, label: string, revisio
   };
 }
 
+export function withoutTaskDocumentTabs(
+  tabs: SidePanelTabRecord<TaskSidePanelTabPayload>[],
+  documentKey: string,
+): SidePanelTabRecord<TaskSidePanelTabPayload>[] {
+  return tabs.filter((tab) => !(
+    tab.payload.kind === "issue-document"
+    && tab.payload.documentKey === documentKey
+  ));
+}
+
 export function taskPanelFilesTab(): SidePanelTabRecord<TaskSidePanelTabPayload> {
   return {
     id: "files",

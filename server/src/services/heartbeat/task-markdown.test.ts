@@ -56,6 +56,11 @@ describe("heartbeat task markdown rendering", () => {
 
     expect(markdown).toContain("Task Record document record-document, revision 3 (record-revision)");
     expect(markdown).toContain("living source of truth");
+    expect(markdown).toContain("current feature states, constraints, cross-cutting decisions, and next step");
+    expect(markdown).toContain("Ask questions in this task conversation, not in the Record");
+    expect(markdown).toContain("update the affected feature outcome, constraint, or cross-cutting decision");
+    expect(markdown).toContain("Anchor Next Step to the exact Feature or behavior name with an optional comment");
+    expect(markdown).toContain("Record concrete results or verification only when they exist and are useful");
     expect(markdown).toContain("Use the outpost-task-record skill");
     expect(markdown).toContain("## Status\n**Testing**");
   });

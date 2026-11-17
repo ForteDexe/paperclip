@@ -93,6 +93,7 @@ import {
   taskPanelSkillTab,
   taskPanelSubtasksTab,
   taskPanelWorkspaceFileTab,
+  withoutTaskDocumentTabs,
   writeTaskSidePanelState,
   type TaskSidePanelTabPayload,
 } from "@/lib/task-side-panel-state";
@@ -363,6 +364,7 @@ function TaskSidePanelForScope({
     } else if (!coordinatorWorkspaceEnabled && !subtasksDismissedRef.current) {
       tabs = insertSubtasksAfterProperties(tabs);
     }
+    tabs = withoutTaskDocumentTabs(tabs, TASK_RECORD_DOCUMENT_KEY);
     const requestedActive = restored?.activeTabId ?? (taskRecordEnabled && !conversationAgentId ? "record" : "properties");
     return {
       tabs,
@@ -427,20 +429,41 @@ function TaskSidePanelForScope({
   const hasSubtasksTab = controller.tabs.some((tab) => tab.id === "subtasks");
 
   useEffect(() => {
-    if (!taskRecordFlagLoaded || conversationAgentId) return;
+    const tabsWithoutGenericRecord = withoutTaskDocumentTabs(controller.tabs, TASK_RECORD_DOCUMENT_KEY);
+    const removedGenericRecord = tabsWithoutGenericRecord.length !== controller.tabs.length;
+    const retainedActiveTabId = tabsWithoutGenericRecord.some((tab) => tab.id === controller.activeTabId)
+      ? controller.activeTabId
+      : tabsWithoutGenericRecord[0]?.id ?? null;
+    if (!taskRecordFlagLoaded || conversationAgentId) {
+      if (removedGenericRecord) controller.resetTabs({ tabs: tabsWithoutGenericRecord, activeTabId: retainedActiveTabId });
+      return;
+    }
     if (!taskRecordEnabled) {
-      if (controller.tabs.some((tab) => tab.payload.kind === "record")) controller.closeTab("record");
+      const tabs = tabsWithoutGenericRecord.filter((tab) => tab.payload.kind !== "record");
+      if (tabs.length !== controller.tabs.length) {
+        controller.resetTabs({
+          tabs,
+          activeTabId: tabs.some((tab) => tab.id === retainedActiveTabId) ? retainedActiveTabId : tabs[0]?.id ?? null,
+        });
+      }
       taskRecordHandledRef.current = true;
       return;
     }
-    if (taskRecordHandledRef.current || controller.tabs.some((tab) => tab.payload.kind === "record")) return;
+    const hasStructuredRecord = tabsWithoutGenericRecord.some((tab) => tab.payload.kind === "record");
+    const shouldAutoOpenRecord = !taskRecordHandledRef.current && !hasStructuredRecord && !userInteractedRef.current;
     taskRecordHandledRef.current = true;
-    if (userInteractedRef.current) return;
+    if (!removedGenericRecord && !shouldAutoOpenRecord) return;
+    const tabs = shouldAutoOpenRecord ? [taskPanelRecordTab(), ...tabsWithoutGenericRecord] : tabsWithoutGenericRecord;
+    const activeTabId = shouldAutoOpenRecord
+      ? "record"
+      : tabs.some((tab) => tab.id === controller.activeTabId)
+        ? controller.activeTabId
+        : tabs.find((tab) => tab.payload.kind === "record")?.id ?? tabs[0]?.id ?? null;
     controller.resetTabs({
-      tabs: [taskPanelRecordTab(), ...controller.tabs],
-      activeTabId: "record",
+      tabs,
+      activeTabId,
     });
-  }, [controller.closeTab, controller.resetTabs, controller.tabs, conversationAgentId, taskRecordEnabled, taskRecordFlagLoaded]);
+  }, [controller.activeTabId, controller.resetTabs, controller.tabs, conversationAgentId, taskRecordEnabled, taskRecordFlagLoaded]);
 
   useEffect(() => {
     if (!openSkillId) return;
@@ -512,8 +535,12 @@ function TaskSidePanelForScope({
     // A refresh must not replay a link after the user selects another tab.
     handledDocumentRequestRef.current = documentDeepLink.requestId;
     if (coordinatorWorkspaceEnabled) userInteractedRef.current = true;
-    controller.openTab(taskPanelDocumentTab(documentDeepLink.documentKey, label, target?.revisionId, documentIssueId));
-  }, [controller.openTab, documentDeepLink, documents, planDocument, location.hash, issue.id]);
+    if (documentDeepLink.documentKey === TASK_RECORD_DOCUMENT_KEY) {
+      if (taskRecordEnabled && !target?.revisionId && !documentIssueId) controller.openTab(taskPanelRecordTab());
+    } else {
+      controller.openTab(taskPanelDocumentTab(documentDeepLink.documentKey, label, target?.revisionId, documentIssueId));
+    }
+  }, [controller.openTab, documentDeepLink, documents, planDocument, location.hash, issue.id, taskRecordEnabled]);
 
   // Existing URL-backed workspace links remain the external integration API.
   useEffect(() => {
@@ -631,7 +658,11 @@ function TaskSidePanelForScope({
 
   function openDocument(document: Pick<IssueDocument, "key" | "title">) {
     markInteracted();
-    controller.openTab(taskPanelDocumentTab(document.key, documentDisplayTitle(document)));
+    if (document.key === TASK_RECORD_DOCUMENT_KEY) {
+      if (taskRecordEnabled) controller.openTab(taskPanelRecordTab());
+    } else {
+      controller.openTab(taskPanelDocumentTab(document.key, documentDisplayTitle(document)));
+    }
   }
 
   function openWorkspaceFile(ref: {
@@ -697,7 +728,9 @@ function TaskSidePanelForScope({
         alreadyOpen: controller.tabs.some((tab) => tab.id === "document:plan"),
       }] : []),
       ...documents
-        .filter((document) => document.key !== "plan" && !isArtifactReviewDocumentKey(document.key))
+        .filter((document) => document.key !== "plan"
+          && !isArtifactReviewDocumentKey(document.key)
+          && document.key !== TASK_RECORD_DOCUMENT_KEY)
         .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
         .map((document) => ({
           id: `document:${document.key}`,
