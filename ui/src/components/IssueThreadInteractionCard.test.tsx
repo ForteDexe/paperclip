@@ -655,6 +655,14 @@ describe("IssueThreadInteractionCard", () => {
     expect(host.textContent).toContain("Child task");
   });
 
+  it("shows when an accepted suggestion will remain paused for briefing", () => {
+    const interaction = structuredClone(pendingSuggestedTasksInteraction);
+    interaction.payload.tasks[0]!.status = "backlog";
+    const host = renderCard({ interaction });
+
+    expect(host.textContent).toContain("Starts: Paused");
+  });
+
   it("shows an explicit placeholder when a rejected interaction has no reason", () => {
     const host = renderCard({
       interaction: {

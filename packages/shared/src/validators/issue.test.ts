@@ -540,6 +540,19 @@ describe("issue validators", () => {
     expect(parsed.description).toBe("Line 1\n\nLine 2");
   });
 
+  it("allows suggested tasks to stay in backlog while their brief is developed", () => {
+    expect(suggestedTaskDraftSchema.parse({
+      clientKey: "brief-first",
+      title: "Develop the task brief",
+      status: "backlog",
+    }).status).toBe("backlog");
+    expect(suggestedTaskDraftSchema.safeParse({
+      clientKey: "already-running",
+      title: "Invalid running suggestion",
+      status: "in_progress",
+    }).success).toBe(false);
+  });
+
   it("normalizes escaped line breaks in thread summaries and documents", () => {
     const response = respondIssueThreadInteractionSchema.parse({
       answers: [],

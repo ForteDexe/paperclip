@@ -1,6 +1,6 @@
 ---
 name: outpost-task-record
-description: Create or maintain the living Task Record for work whose agreed outcomes, feature states, constraints, decisions, and next step must survive task turns. Use before creating a task from clarified discussion or whenever an assigned task has a working-spec document; do not use for questions, ordinary one-step status updates, or append-only review history.
+description: Create or maintain the living Task Record for work whose intent, agreed outcomes, feature states, constraints, decisions, and next step must survive task turns. Use when a chat intent is clear enough to name a task and detailed briefing is about to begin, or whenever an assigned task has a working-spec document; do not use for casual questions, ordinary one-step status updates, or append-only review history.
 ---
 
 # Outpost Task Record
@@ -11,16 +11,33 @@ upfront architecture plan.
 
 ## Before task creation
 
-Once the intended outcome and meaningful success criteria are clear, draft the
-Task Record and pass it as `initialWorkingSpec` when creating the task. This
-persists it transactionally before a `todo` task can wake its assignee.
+Keep a discussion in ordinary chat while the user is still establishing the
+basic intent. Once the intent is clear enough to name one coherent task and the
+discussion is about to expand into detailed features, behaviors, constraints,
+or implementation choices, suggest creating the task. Do not wait for every
+success criterion or feature outcome to be settled; a long unrecorded briefing
+is more likely to drift.
+
+Unless the user has already authorized both task creation and immediate
+execution, propose the task with `status: "backlog"`. Seed its Task Record with
+the settled intent and any scope already known, pass it as
+`initialWorkingSpec`, and omit unknown sections rather than inventing
+placeholders. Acceptance creates a parked task without waking its assignee.
+Continue the detailed briefing in that task's conversation and update the
+Record as information becomes settled. Use `status: "todo"` only when the
+brief is sufficiently actionable and execution is already authorized.
+
+A recommendation to create a task is not authorization. Use `suggest_tasks`
+when the user has not explicitly authorized creation. If the user explicitly
+asks to create the briefing task, use `create_task` directly with backlog
+status.
 
 Do not attach the record to the conversation task and do not create a local
 `WORKING_SPEC.md`. The record belongs to the concrete task that will execute
 the work. Use `initialPlan` separately when remaining execution steps also need
 to be preserved.
 
-## During an active task
+## After task creation
 
 The current Task Record is included in the assignment when one exists. Treat
 that revision as authoritative context. Before writing, use `read_document`
@@ -29,7 +46,7 @@ with key `working-spec` if the assignment may be stale. Update it with
 revision conflict, read the new revision, reconcile both changes, and retry;
 never overwrite another update blindly.
 
-Update the record automatically when discussion or actual work clearly adds,
+Update the record automatically when task discussion or actual work clearly adds,
 removes, or changes an agreed behavior, constraint, decision, feature state,
 or recommended next step. Keep the agreed outcome distinct from whether
 implementation has been validated.

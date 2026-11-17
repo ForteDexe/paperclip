@@ -1292,6 +1292,8 @@ export interface SuggestedTaskDraft {
   parentId?: string | null;
   title: string;
   description?: string | null;
+  /** Backlog keeps an accepted briefing task parked; todo makes it executable. */
+  status?: "backlog" | "todo";
   /** Persisted atomically as the new task's initial plan after acceptance. */
   initialPlan?: string | null;
   /** Persisted atomically as the new task's living Task Record after acceptance. */

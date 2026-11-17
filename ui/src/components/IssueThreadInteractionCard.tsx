@@ -612,7 +612,8 @@ function TaskTreeNode({
     node.task.assigneeAgentId || node.task.assigneeUserId,
   );
   const labels = node.task.labels ?? [];
-  const hasMetadata = hasExplicitAssignee
+  const hasMetadata = Boolean(node.task.status)
+    || hasExplicitAssignee
     || Boolean(node.task.billingCode)
     || Boolean(node.task.projectId)
     || labels.length > 0;
@@ -681,6 +682,12 @@ function TaskTreeNode({
 
         {hasMetadata ? (
           <div className="mt-2 flex flex-wrap gap-1.5">
+            {node.task.status ? (
+              <TaskField
+                label="Starts"
+                value={node.task.status === "backlog" ? "Paused" : "Ready"}
+              />
+            ) : null}
             {hasExplicitAssignee ? (
               <TaskField label="Responsible" value={assigneeLabel} />
             ) : null}

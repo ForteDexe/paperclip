@@ -4280,7 +4280,7 @@ export function issueThreadInteractionService(
             initialPlan: task.initialPlan ?? null,
             initialWorkingSpec: task.initialWorkingSpec ?? null,
             ...(task.requiredQualityReview ? { executionPolicy: { mode: "normal" as const, commentRequired: true, stages: [], requiredQualityReview: task.requiredQualityReview } } : {}),
-            status: "todo",
+            status: task.status ?? "todo",
             workMode: task.workMode ?? "standard",
             priority: task.priority ?? "medium",
             ...resolveChatTaskAssignment(task, sourceConversation?.conversationAgentId),

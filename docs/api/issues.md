@@ -233,7 +233,9 @@ POST /api/issues/{issueId}/interactions
 
 Supported `kind` values:
 
-- `suggest_tasks`: propose child issues for the board/user to accept or reject
+- `suggest_tasks`: propose issues for the board/user to accept or reject. Each
+  task draft may set `status` to `backlog` or `todo`; omitted status defaults
+  to `todo`. Accepted backlog tasks are created without waking their assignee.
 - `ask_user_questions`: ask structured questions and store selected answers
 - `request_confirmation`: ask the board/user to accept or reject a proposal
 - `request_checkbox_confirmation`: ask for one accept/reject decision over selected option ids

@@ -10,9 +10,11 @@ behaviors agreed during discussion. The record is not an upfront implementation
 plan: do not predict classes, functions, files, or architecture before the
 useful behavior is understood.
 
-## Choose the production destination
+## Establish the task, then choose the production destination
 
-Before creating the task:
+Once the new tool's basic intent is clear, suggest or create a backlog task and
+seed its Task Record. Continue the detailed briefing in that task's
+conversation. Before implementation starts:
 
 1. Inspect nearby production tools and relevant package boundaries.
 2. Recommend one concrete production destination and briefly explain why it
@@ -20,7 +22,7 @@ Before creating the task:
 3. Confirm the location with the user when choosing differently would
    materially change ownership or architecture.
 4. Record the confirmed destination under Constraints or Decisions in the
-   initial Task Record.
+   Task Record.
 
 Do not create a placeholder tool folder or a local `WORKING_SPEC.md`. The Task
 Record lives in Outpost's database as a revisioned task document. Once the task

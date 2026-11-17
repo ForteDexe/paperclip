@@ -7,16 +7,18 @@ Use the native tools when available. The Task Record always uses key
 
 Pass the complete Markdown record as `initialWorkingSpec` to `create_task`.
 For an accepted `suggest_tasks` proposal, use the same field on each proposed
-task that needs a record. It is persisted in the same transaction as the task,
-before execution can start.
+task that needs a record. Use `status: "backlog"` when the task is being created
+early so its detailed brief can be developed without starting execution. The
+record is persisted in the same transaction as the task. Use `status: "todo"`
+only when execution is already authorized and the brief is actionable.
 
 ```json
 {
   "idempotencyKey": "create-parser-task-v1",
   "title": "Build the agreed parser",
-  "description": "Implement and verify the parser behavior agreed in chat.",
-  "status": "todo",
-  "initialWorkingSpec": "# Parser\n\n## Intent\nBuild the agreed parser behavior.\n\n## Features and Behaviors\n| Feature or behavior | Agreed outcome | State |\n| --- | --- | --- |\n| Parse input | Return normalized records. | Agreed |\n\n## Next Step\n- Feature or behavior: Parse input\n- Comment: Implement the focused parser test."
+  "description": "Develop the parser brief in the task conversation, then implement it when resumed.",
+  "status": "backlog",
+  "initialWorkingSpec": "# Parser\n\n## Intent\nBuild a parser that returns normalized records.\n\n## Features and Behaviors\n| Feature or behavior | Agreed outcome | State |\n| --- | --- | --- |\n| Parse input | Return normalized records. | Agreed |"
 }
 ```
 

@@ -91,8 +91,11 @@ describe("heartbeat task markdown rendering", () => {
     expect(classic).not.toContain("Coordinator task proposals:");
     const optedIn = buildOutpostTaskMarkdown({ issue, nativeRunner: true, coordinatorWorkspace: true });
     expect(optedIn).toContain('interactionKind: "suggest_tasks"');
+    expect(optedIn).toContain('status: "backlog"');
+    expect(optedIn).toContain("do not wait for complete success criteria");
+    expect(optedIn).toContain("paused task for continued briefing");
     expect(optedIn).toContain("acceptance creates the task atomically");
-    expect(optedIn).toContain("If the user explicitly authorized task creation, use create_task directly");
+    expect(optedIn).toContain("If the user explicitly authorized creation of a briefing task, use create_task directly");
     expect(buildOutpostTaskMarkdown({ issue, nativeRunner: false, coordinatorWorkspace: true }))
       .not.toContain("Coordinator task proposals:");
   });

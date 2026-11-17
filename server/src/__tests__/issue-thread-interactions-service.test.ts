@@ -1275,6 +1275,7 @@ describeEmbeddedPostgres("issueThreadInteractionService", () => {
           {
             clientKey: "root",
             title: "Create the root follow-up",
+            status: "backlog",
             workMode: "planning",
             assigneeAgentId,
             initialWorkingSpec: "# Root follow-up\n\n## Intent\nCreate the agreed follow-up.",
@@ -1308,7 +1309,7 @@ describeEmbeddedPostgres("issueThreadInteractionService", () => {
     expect(accepted.createdIssues).toEqual([
       expect.objectContaining({
         assigneeAgentId,
-        status: "todo",
+        status: "backlog",
       }),
       expect.objectContaining({
         assigneeAgentId: null,

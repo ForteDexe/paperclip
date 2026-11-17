@@ -1345,6 +1345,7 @@ export const suggestedTaskDraftSchema = z
       .pipe(z.string().trim().max(20000))
       .nullable()
       .optional(),
+    status: z.enum(["backlog", "todo"]).optional(),
     initialPlan: z.string().trim().min(1).max(200000).nullable().optional(),
     initialWorkingSpec: z.string().trim().min(1).max(200000).nullable().optional(),
     requiredQualityReview: requiredQualityReviewSchema.optional(),
