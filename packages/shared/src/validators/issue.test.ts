@@ -124,8 +124,8 @@ describe("issue validators", () => {
       title: "Follow up PR",
       description: "Line 1\n\nLine 2",
       initialTaskRecord: {
-        version: 1, intent: "Ship it.", features: [], constraintsAndNonGoals: [],
-        decisions: [], nextStep: null, resultsAndVerification: [],
+        version: 2, intent: "Ship it.", features: [], constraintsAndNonGoals: [],
+        decisions: [], openQuestions: [], nextStep: null, resultsAndVerification: [],
       },
     });
 
@@ -135,8 +135,8 @@ describe("issue validators", () => {
       clientKey: "follow-up",
       title: "Follow up PR",
       initialTaskRecord: {
-        version: 1, intent: "Ship it.", features: [], constraintsAndNonGoals: [],
-        decisions: [], nextStep: null, resultsAndVerification: [],
+        version: 2, intent: "Ship it.", features: [], constraintsAndNonGoals: [],
+        decisions: [], openQuestions: [], nextStep: null, resultsAndVerification: [],
       },
     }).initialTaskRecord?.intent).toBe("Ship it.");
   });

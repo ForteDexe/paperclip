@@ -317,7 +317,7 @@ export function buildOutpostTaskMarkdown(input: {
       lines.push(
         "",
         `Task Record document ${input.taskRecord.documentId}, revision ${input.taskRecord.revisionNumber} (${input.taskRecord.revisionId}):`,
-        "This is the living source of truth for the agreed outcome, current feature states, constraints, cross-cutting decisions, and next step. Use the outpost-task-record skill to keep it current when those facts materially change. Ask questions in this task conversation, not in the Record; after an answer is settled, update the affected feature outcome, constraint, or cross-cutting decision. Anchor Next Step to the exact Feature or behavior name with an optional comment; do not duplicate State there. Record concrete results or verification only when they exist and are useful.",
+        "This is the living source of truth for the agreed outcome, current feature states and validation, constraints, cross-cutting decisions, unresolved questions, and next step. Use the outpost-task-record skill to keep it current when those facts materially change. Ask unresolved questions in this task conversation and list them in Open Questions while they remain unresolved; after an answer is settled, remove the question and update the affected feature outcome, constraint, or cross-cutting decision. Anchor Next Step to the stable feature id with an optional action comment; do not duplicate State there. Fill feature Validation only after a run, pointing to the experiment output or test that proved it or naming what was not run. Record cross-cutting Results and Verification only when they exist and are useful.",
         fenceTaskText(input.taskRecord.body.trim()),
       );
     }

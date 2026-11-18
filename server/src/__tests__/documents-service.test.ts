@@ -139,16 +139,18 @@ describeEmbeddedPostgres("documentService system issue documents", () => {
     const { issueId, spaceId } = await createIssueWithDocuments();
     const records = taskRecordService(db);
     const record = {
-      version: 1 as const,
+      version: 2 as const,
       intent: "Return normalized parser records.",
       features: [{
         id: "parse_input",
         behavior: "Parse input",
         outcome: "Return normalized records.",
         state: "agreed" as const,
+        validation: null,
       }],
       constraintsAndNonGoals: ["Do not change the transport."],
       decisions: [],
+      openQuestions: ["Should malformed rows be skipped?"],
       nextStep: { featureId: "parse_input", comment: "Implement the parser." },
       resultsAndVerification: [],
     };
@@ -172,12 +174,14 @@ describeEmbeddedPostgres("documentService system issue documents", () => {
 
     const context = await getTaskRecordContext({ db, spaceId, issueId });
     expect(context?.body).toContain("| Parse input | Return normalized records. | agreed |");
+    expect(context?.body).toContain("| Feature or behavior | Agreed outcome | State | Validation |");
+    expect(context?.body).toContain("## Open Questions");
     expect(context?.body).toContain("- Feature or behavior: Parse input");
     expect(context?.body).not.toContain('"features"');
 
     const updatedRecord = {
       ...record,
-      features: [{ ...record.features[0]!, state: "validated" as const }],
+      features: [{ ...record.features[0]!, state: "validated" as const, validation: "Focused parser tests pass." }],
       resultsAndVerification: ["Focused parser tests pass."],
     };
     const updated = await records.upsert({

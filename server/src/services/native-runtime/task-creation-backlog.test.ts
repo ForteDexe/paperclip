@@ -81,7 +81,7 @@ describe("runner backlog task creation", () => {
 
   it.each([false, true])("persists the plan and task record without waking an assigned backlog task (conversation=%s)", async conversation => {
     const f = await fixture(conversation);
-    const call = { tool: "create_task", callId: "save-later", arguments: { idempotencyKey: "save-later", title: "Plan for later", status: "backlog", initialPlan: "1. Check status.\n2. Save the plan.\n3. Confirm creation.", initialTaskRecord: { version: 1, intent: "Ship the agreed behavior.", features: [{ id: "ship_behavior", behavior: "Ship behavior", outcome: "Ship the agreed behavior.", state: "agreed" }], constraintsAndNonGoals: [], decisions: [], nextStep: { featureId: "ship_behavior", comment: "Start implementation." }, resultsAndVerification: [] } } };
+    const call = { tool: "create_task", callId: "save-later", arguments: { idempotencyKey: "save-later", title: "Plan for later", status: "backlog", initialPlan: "1. Check status.\n2. Save the plan.\n3. Confirm creation.", initialTaskRecord: { version: 2, intent: "Ship the agreed behavior.", features: [{ id: "ship_behavior", behavior: "Ship behavior", outcome: "Ship the agreed behavior.", state: "agreed", validation: null }], constraintsAndNonGoals: [], decisions: [], openQuestions: [], nextStep: { featureId: "ship_behavior", comment: "Start implementation." }, resultsAndVerification: [] } } };
     const receipt = await f.authority.execute(call) as { task: { id: string } };
     expect(receipt).toMatchObject({ scheduledWakeIds: [], task: { status: "backlog", assigneeActorId: f.agentId, parentId: conversation ? null : f.issueId } });
     const [task] = await db.select().from(issues).where(eq(issues.id, receipt.task.id));

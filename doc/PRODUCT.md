@@ -126,6 +126,23 @@ parent/subtasks, blockers, a single assignee, comments, documents, attachments,
 and work products. That structure keeps work inspectable by both the human and
 agents while still allowing agents to decompose work into smaller tasks.
 
+Serious tool and workflow tasks may also use a structured **Task Record** after
+the user agrees to that workflow. It replaces a repository-local working spec:
+the database stores the current intent, feature outcomes and states,
+per-feature validation, constraints and non-goals, cross-cutting decisions,
+unresolved questions, one feature-linked next step, and optional cross-cutting
+results. The UI and agent assignment render that data; agents do not maintain a
+parallel Markdown source. Simple patches, quick fixes, and ordinary debugging
+do not require a Record. An early Record task stays in backlog while its brief
+is clarified so creation does not start execution.
+
+The Record is current shared memory rather than an append-only history. Agents
+update settled facts during task discussion and work, remove resolved questions,
+and fill a feature's validation only after a real run or test. Wrap-up requires
+every feature to be implemented with validation or skipped by agreement, and no
+Open Questions may remain. Document revisions retain the change history without
+keeping obsolete requirements in the current Record.
+
 When an agent creates a subtask or follow-up task, its source task's feed shows
 a linked card at creation time with the current title, task number, and status.
 The Tasks tab keeps the full relationship list.

@@ -3449,13 +3449,22 @@
                       "implemented",
                       "skipped_by_agreement"
                     ]
+                  },
+                  "validation": {
+                    "maxLength": 20000,
+                    "minLength": 1,
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   }
                 },
                 "required": [
                   "id",
                   "behavior",
                   "outcome",
-                  "state"
+                  "state",
+                  "validation"
                 ],
                 "type": "object"
               },
@@ -3496,6 +3505,15 @@
                 }
               ]
             },
+            "openQuestions": {
+              "items": {
+                "maxLength": 20000,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 100,
+              "type": "array"
+            },
             "resultsAndVerification": {
               "items": {
                 "maxLength": 20000,
@@ -3506,7 +3524,7 @@
               "type": "array"
             },
             "version": {
-              "const": 1
+              "const": 2
             }
           },
           "required": [
@@ -3515,6 +3533,7 @@
             "features",
             "constraintsAndNonGoals",
             "decisions",
+            "openQuestions",
             "nextStep",
             "resultsAndVerification"
           ],

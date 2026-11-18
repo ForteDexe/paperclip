@@ -123,7 +123,7 @@ describe("semantic action catalog", () => {
     for (const schema of [createTaskAction.live.descriptor.inputSchema, outpostSemanticAction("create_task")!.inputSchema]) {
       const validate = ajv.compile(schema);
       const input = { title: "Hello", idempotencyKey: "hello", assigneeUserId: "space-owner", initialTaskRecord: {
-        version: 1, intent: "Say hello.", features: [], constraintsAndNonGoals: [], decisions: [], nextStep: null, resultsAndVerification: [],
+        version: 2, intent: "Say hello.", features: [], constraintsAndNonGoals: [], decisions: [], openQuestions: [], nextStep: null, resultsAndVerification: [],
       } };
       expect(validate(input), JSON.stringify(validate.errors)).toBe(true);
       expect(validate({ ...input, assigneeUserId: null })).toBe(true);

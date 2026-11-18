@@ -11,11 +11,12 @@ describe("task record model", () => {
       title: "Preview texel density",
       description: "Show a checkerboard preview.",
     })).toEqual({
-      version: 1,
+      version: 2,
       intent: "Show a checkerboard preview.",
       features: [],
       constraintsAndNonGoals: [],
       decisions: [],
+      openQuestions: [],
       nextStep: null,
       resultsAndVerification: [],
     });
@@ -28,6 +29,7 @@ describe("task record model", () => {
       behavior: "Parse renamed input",
       outcome: "Return normalized records.",
       state: "testing",
+      validation: null,
     }];
     record.nextStep = { featureId: "parse_input", comment: "Run the focused test." };
     expect(resolveTaskRecordNextStepFeature(record)?.behavior).toBe("Parse renamed input");

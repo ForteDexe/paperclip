@@ -20,16 +20,18 @@ import {
 } from "./task-record-model";
 
 const PREVIEW_RECORD: TaskRecord = {
-  version: 1,
+  version: 2,
   intent: "The agreed task outcome appears here.",
   features: [{
     id: "example_behavior",
     behavior: "Example behavior",
     outcome: "The agreed result the user can test.",
     state: "implemented",
+    validation: "Focused workflow test passed.",
   }],
   constraintsAndNonGoals: [],
   decisions: [],
+  openQuestions: [],
   nextStep: { featureId: "example_behavior", comment: "Review the result the user can test." },
   resultsAndVerification: [],
 };
@@ -67,15 +69,19 @@ export function TaskRecordPanel({ issue }: { issue: Issue }) {
   const draftIsValid = taskRecordSchema.safeParse(draft).success;
   const displayedRecord = current ? record : PREVIEW_RECORD;
   const allFeaturesReady = record.features.length > 0 && record.features.every((feature) =>
-    ["implemented", "validated", "skipped_by_agreement"].includes(feature.state));
-  const canWrapUp = executionState === "paused" && allFeaturesReady;
+    feature.state === "skipped_by_agreement"
+    || (feature.state === "implemented" && Boolean(feature.validation?.trim())));
+  const hasOpenQuestions = record.openQuestions.length > 0;
+  const canWrapUp = executionState === "paused" && allFeaturesReady && !hasOpenQuestions;
   const wrapUpReason = executionState === "blocked"
     ? "Resolve the blocker in chat first"
     : executionState === "running"
       ? "Pause the task before wrapping up"
-      : !allFeaturesReady
-        ? "Every feature must be Implemented, Validated, or skipped"
-        : null;
+      : hasOpenQuestions
+        ? "Resolve or remove every Open Question before wrapping up"
+        : !allFeaturesReady
+          ? "Every feature must be Implemented with Validation, or skipped by agreement"
+          : null;
   const resumeTask = () => {
     setExecutionState("running");
     setPendingChanges(0);
@@ -159,6 +165,7 @@ export function TaskRecordPanel({ issue }: { issue: Issue }) {
           <FeatureTable features={displayedRecord.features} preview={!current} />
           {displayedRecord.constraintsAndNonGoals.length > 0 ? <RecordTextSection title="Constraints and Non-Goals" items={displayedRecord.constraintsAndNonGoals} list /> : null}
           {displayedRecord.decisions.length > 0 ? <RecordTextSection title="Decisions" items={displayedRecord.decisions} list /> : null}
+          {displayedRecord.openQuestions.length > 0 ? <RecordTextSection title="Open Questions" items={displayedRecord.openQuestions} list /> : null}
           {displayedRecord.nextStep ? <NextStepCard record={displayedRecord} preview={!current} /> : null}
           <ContinuousReview
             body={displayedRecord.resultsAndVerification.map((item) => `- ${item}`).join("\n") || "The agent's result summary, verification notes, screenshots, videos, and related files will appear here as continuous submissions."}
@@ -200,6 +207,7 @@ function TaskRecordEditor({ record, onChange }: { record: TaskRecord; onChange: 
       behavior: "",
       outcome: "",
       state: "agreed",
+      validation: null,
     }],
   });
   const removeFeature = (index: number) => {
@@ -227,12 +235,14 @@ function TaskRecordEditor({ record, onChange }: { record: TaskRecord; onChange: 
                 <SelectContent>{TASK_RECORD_FEATURE_STATES.map((state) => <SelectItem key={state} value={state}>{taskRecordFeatureStateLabel(state)}</SelectItem>)}</SelectContent>
               </Select>
               <Button type="button" variant="ghost" size="icon" aria-label={`Remove ${feature.behavior || `feature ${index + 1}`}`} onClick={() => removeFeature(index)}><Trash2 aria-hidden /></Button>
+              <Textarea className="md:col-span-4" aria-label={`Feature ${index + 1} validation`} value={feature.validation ?? ""} placeholder="Validation (leave empty until a run or test exists)" onChange={(event) => updateFeature(index, { validation: event.target.value || null })} />
             </div>
           ))}
         </div>
       </StructuredField>
       <TextListEditor title="Constraints and Non-Goals" items={record.constraintsAndNonGoals} onChange={(items) => onChange({ ...record, constraintsAndNonGoals: items })} />
       <TextListEditor title="Decisions" items={record.decisions} onChange={(items) => onChange({ ...record, decisions: items })} />
+      <TextListEditor title="Open Questions" items={record.openQuestions} onChange={(items) => onChange({ ...record, openQuestions: items })} />
       <StructuredField title="Next Step">
         <div className="grid gap-3 md:grid-cols-2">
           <Select value={record.nextStep?.featureId ?? "none"} onValueChange={(featureId) => onChange({ ...record, nextStep: featureId === "none" ? null : { featureId, comment: record.nextStep?.comment ?? null } })}>
@@ -342,7 +352,7 @@ function FeatureTable({ features, preview = false }: { features: TaskRecordFeatu
       <div className="overflow-hidden rounded-lg border">
         {features.map((feature, index) => {
           return (
-            <div key={feature.id} className="grid gap-3 border-b p-4 last:border-b-0 md:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
+            <div key={feature.id} className="grid gap-3 border-b p-4 last:border-b-0 md:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_minmax(0,1fr)]">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-sm font-medium">{feature.behavior}</p>
@@ -351,6 +361,10 @@ function FeatureTable({ features, preview = false }: { features: TaskRecordFeatu
               </div>
               <div>
                 <p className="text-sm">{feature.outcome || "No agreed outcome recorded."}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">Validation</p>
+                <p className="mt-1 text-sm">{feature.validation || "Not run yet."}</p>
               </div>
             </div>
           );

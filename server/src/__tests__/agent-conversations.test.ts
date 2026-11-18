@@ -478,11 +478,12 @@ import {
         status: "todo",
         initialPlan: "Write an output document containing HANDOFF_ACCEPTANCE_PHRASE.",
         initialTaskRecord: {
-          version: 1,
+          version: 2,
           intent: "Preserve TASK_RECORD_ACCEPTANCE_PHRASE.",
           features: [],
           constraintsAndNonGoals: [],
           decisions: [],
+          openQuestions: [],
           nextStep: null,
           resultsAndVerification: [],
         },
@@ -1006,6 +1007,13 @@ describe("conversation execution wake policy", () => {
 });
 
 describe("chat prompt policy", () => {
+  it("offers the Record workflow only for agreed serious tool or workflow work", () => {
+    expect(AGENT_CHAT_DIRECTIVE).toContain("grows beyond about three or four features or behaviors");
+    expect(AGENT_CHAT_DIRECTIVE).toContain("Use it once the user agrees");
+    expect(AGENT_CHAT_DIRECTIVE).toContain("do not impose it on simple patches, quick fixes, ordinary debugging");
+    expect(AGENT_CHAT_DIRECTIVE).toContain("including unresolved decisions in openQuestions and null feature validation until a run exists");
+  });
+
   it("tells chat to save a requested start order as a blocker on the waiting task, not only a promise to hold it", () => {
     expect(AGENT_CHAT_DIRECTIVE).toContain("must not start until another task is done or approved");
     expect(AGENT_CHAT_DIRECTIVE).toContain("add the prerequisite to the waiting task's blockedByIssueIds with PATCH /api/issues/{id}, keeping its existing blockers");

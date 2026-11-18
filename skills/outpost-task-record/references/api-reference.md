@@ -19,16 +19,18 @@ only when execution is already authorized and the brief is actionable.
   "description": "Develop the parser brief in the task conversation, then implement it when resumed.",
   "status": "backlog",
   "initialTaskRecord": {
-    "version": 1,
+    "version": 2,
     "intent": "Build a parser that returns normalized records.",
     "features": [{
       "id": "parse_input",
       "behavior": "Parse input",
       "outcome": "Return normalized records.",
-      "state": "agreed"
+      "state": "agreed",
+      "validation": null
     }],
     "constraintsAndNonGoals": [],
     "decisions": [],
+    "openQuestions": ["Should malformed rows be skipped?"],
     "nextStep": null,
     "resultsAndVerification": []
   }
@@ -63,18 +65,20 @@ The update call contains the full record and the returned revision id:
   "pathParams": { "id": "task-id" },
   "body": {
     "record": {
-      "version": 1,
+      "version": 2,
       "intent": "Build a parser that returns normalized records.",
       "features": [{
         "id": "parse_input",
         "behavior": "Parse input",
         "outcome": "Return normalized records.",
-        "state": "validated"
+        "state": "validated",
+        "validation": "Focused parser tests pass."
       }],
       "constraintsAndNonGoals": [],
       "decisions": [],
+      "openQuestions": [],
       "nextStep": null,
-      "resultsAndVerification": ["Focused parser tests pass."]
+      "resultsAndVerification": []
     },
     "baseRevisionId": "00000000-0000-4000-8000-000000000001",
     "changeSummary": "Record validated parser behavior"

@@ -45,11 +45,12 @@ export const createTaskAction = {
         "projectId": "example-project",
         "initialPlan": "1. Implement the agreed change.\n2. Run the relevant tests.\n3. Report the verified result.",
         "initialTaskRecord": {
-          "version": 1,
+          "version": 2,
           "intent": "Ship the agreed API behavior.",
           "features": [],
           "constraintsAndNonGoals": [],
           "decisions": [],
+          "openQuestions": [],
           "nextStep": null,
           "resultsAndVerification": []
         }

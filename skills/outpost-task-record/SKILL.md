@@ -1,6 +1,6 @@
 ---
 name: outpost-task-record
-description: Create or maintain the living structured Task Record for work whose intent, agreed outcomes, feature states, constraints, decisions, and next step must survive task turns. Use when a chat intent is clear enough to name a task and detailed briefing is about to begin, or whenever an assigned task has a Task Record; do not use for casual questions, ordinary one-step status updates, or append-only review history.
+description: Create or maintain a structured Task Record for a serious tool or workflow task with several behaviors or enough uncertainty to need experiments. Use after the user agrees to the workflow, or whenever an assigned task already has a Task Record. Do not use for simple patches, quick fixes, routine debugging, casual questions, or append-only review history.
 ---
 
 # Outpost Task Record
@@ -10,20 +10,25 @@ Record API. It is the current source of truth, not a transcript, an upfront
 architecture plan, or agent-authored Markdown. Markdown shown in assignments
 and the UI is generated from these fields.
 
-## Before task creation
+## Decide when to use a Record
 
-Keep a discussion in ordinary chat while the user is still establishing the
-basic intent. Once the intent is clear enough to name one coherent task and the
-discussion is about to expand into detailed features, behaviors, constraints,
-or implementation choices, suggest creating the task. Do not wait for every
-success criterion or feature outcome to be settled; a long unrecorded briefing
-is more likely to drift.
+Suggest this workflow when a new tool or a change to an existing tool or
+workflow has more than about three or four features or behaviors, or when the
+behavior is uncertain enough that experiments would help. Use it once the user
+agrees. Simple patches, quick fixes, and ordinary debugging do not need a
+Record merely because they are tasks.
+
+Keep the discussion in ordinary chat while the basic intent is still unclear.
+For a serious task, propose a backlog task and its Record before a long detailed
+brief drifts. The user may agree while feature outcomes, constraints, or open
+questions are still incomplete.
 
 Unless the user has already authorized both task creation and immediate
 execution, propose the task with `status: "backlog"`. Seed its Task Record with
 the settled intent and any scope already known, pass it as
 `initialTaskRecord`, and use empty arrays plus `nextStep: null` for unknown
-sections rather than inventing facts. Acceptance creates a parked task without waking its assignee.
+sections rather than inventing facts. Acceptance creates a parked task without
+waking its assignee.
 Continue the detailed briefing in that task's conversation and update the
 Record as information becomes settled. Use `status: "todo"` only when the
 brief is sufficiently actionable and execution is already authorized.
@@ -49,10 +54,12 @@ On a revision conflict, read the new revision, reconcile both changes, and
 retry; never overwrite another update blindly. Do not use `read_document` or
 `write_document` for the Task Record.
 
-Update the record automatically when task discussion or actual work clearly adds,
-removes, or changes an agreed behavior, constraint, decision, feature state,
-or recommended next step. Keep the agreed outcome distinct from whether
-implementation has been validated.
+At the start of a new task session, read the current Record and briefly
+summarize the agreed behaviors, unresolved questions, and recommended next
+step. Update the Record automatically when discussion or work clearly adds,
+removes, or changes an agreed behavior, constraint, decision, question,
+feature state, validation, or recommended next step. Keep the agreed outcome
+distinct from whether an implementation has been validated.
 
 When a resolved choice changes user-visible behavior, create or update the
 corresponding Features and Behaviors row. Do not append duplicate rows or keep
@@ -62,32 +69,36 @@ cross-cutting choices that do not belong in a feature outcome or constraint.
 Maintain these fields:
 
 - Intent
-- Features and Behaviors: stable id, behavior, agreed outcome, and state
+- Features and Behaviors: stable id, behavior, agreed outcome, state, and optional validation
 - Constraints and Non-Goals: an array, empty when none are settled
 - Decisions: an array of optional cross-cutting choices only
+- Open Questions: unresolved decisions only; remove an item when it is settled
 - Next Step: a feature id and optional comment, or `null`
-- Results and Verification: an array, empty until concrete results exist
+- Results and Verification: cross-cutting review evidence, empty until concrete results exist
 
-Questions and answers belong in chat or task interactions, not in the Record.
-Ask there and pause execution when a missing answer blocks progress. Once the
-answer is settled, update the corresponding feature outcome, constraint, or
-cross-cutting decision; do not copy the question transcript into the Record.
+Ask questions in chat or task interactions and pause when a missing answer
+blocks progress. Keep only unresolved questions in Open Questions, not the
+transcript or agent assumptions. Once an answer is settled, remove the question
+and update the corresponding feature outcome, constraint, or cross-cutting
+decision.
 
 When there is an immediate action, set Next Step's `featureId` to the stable id
 of that feature and add `comment` only when useful. Do not copy the feature
 State into Next Step; consumers derive it from the feature. Set Next Step to
 `null` when no feature has an immediate action.
 
-Add Results and Verification items only when concrete runtime or test results
-exist and are useful to the current task. They are not a per-feature
-requirement; leave the array empty instead of adding placeholder content.
+Fill a feature's Validation only after a run. Point to the experiment output or
+test that proved it, or say what was not run. Keep it `null` until then. Use
+Results and Verification only for useful cross-cutting review evidence; do not
+duplicate every feature validation there.
 
 Feature state values are `agreed`, `testing`, `validated`, `implemented`, and
 `skipped_by_agreement`. Replace stale conclusions instead of preserving a
 history of abandoned directions. Keep speculative architecture, debugging
 transcripts, routine progress chatter, and review history elsewhere.
 
-Read [references/new-tool-workflow.md](references/new-tool-workflow.md) only for
-a genuinely new standalone tool or production workflow. Read
+For serious implementation work, read
+[references/working-spec-workflow.md](references/working-spec-workflow.md).
+Read
 [references/api-reference.md](references/api-reference.md) for exact structured
 tool and API calls.

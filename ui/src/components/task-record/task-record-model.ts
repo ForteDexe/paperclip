@@ -5,11 +5,12 @@ export type { TaskRecord, TaskRecordFeature, TaskRecordNextStep } from "@outpost
 
 export function buildTaskRecord(issue: Pick<Issue, "title" | "description">): TaskRecord {
   return {
-    version: 1,
+    version: 2,
     intent: issue.description?.trim() || issue.title.trim() || "Untitled task",
     features: [],
     constraintsAndNonGoals: [],
     decisions: [],
+    openQuestions: [],
     nextStep: null,
     resultsAndVerification: [],
   };

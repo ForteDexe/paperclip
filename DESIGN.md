@@ -196,6 +196,23 @@ reminder; dismissing one clears the composer and stays effective after reload fo
 that person and task. Other inputs keep a pending indicator that can reopen them;
 resolving or skipping the input removes that indicator.
 
+### Structured Task Record
+
+The task Record presents its stored fields directly rather than exposing an
+agent-authored Markdown editor. Intent, constraints and non-goals, decisions,
+Open Questions, Next Step, and cross-cutting results use distinct sections.
+Each feature row keeps its behavior, agreed outcome, state, and validation
+together. Empty validation reads as “Not run yet” and its editor explains that
+the field stays empty until a run or test exists.
+
+Record editing uses the existing structured inputs and explicit Save revision
+and Cancel actions. Automatic execution and task execution state remain separate
+controls. A disabled Final — Wrap up action explains its blocker in its title:
+the task must be paused, every feature must be implemented with validation or
+skipped by agreement, and Open Questions must be empty. Record revisions and
+feedback accumulate without waking the agent; only the explicit execution
+controls do so.
+
 ## Proposed color foundation
 
 Review **Design proposals → Foundations → Colors** in Storybook

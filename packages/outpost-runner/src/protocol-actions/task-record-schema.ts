@@ -12,7 +12,7 @@ export const taskRecordInputSchema: OutpostJsonSchema = {
   type: ["object", "null"],
   description: "Structured Task Record. Use stable feature IDs so Next Step remains linked when behavior text changes.",
   properties: {
-    version: { const: 1 },
+    version: { const: 2 },
     intent: textItem,
     features: {
       type: "array",
@@ -24,13 +24,15 @@ export const taskRecordInputSchema: OutpostJsonSchema = {
           behavior: { type: "string", minLength: 1, maxLength: 500 },
           outcome: textItem,
           state: { enum: ["agreed", "testing", "validated", "implemented", "skipped_by_agreement"] },
+          validation: { type: ["string", "null"], minLength: 1, maxLength: 20_000 },
         },
-        required: ["id", "behavior", "outcome", "state"],
+        required: ["id", "behavior", "outcome", "state", "validation"],
         additionalProperties: false,
       },
     },
     constraintsAndNonGoals: { type: "array", maxItems: 100, items: textItem },
     decisions: { type: "array", maxItems: 100, items: textItem },
+    openQuestions: { type: "array", maxItems: 100, items: textItem },
     nextStep: {
       oneOf: [
         { type: "null" },
@@ -47,6 +49,6 @@ export const taskRecordInputSchema: OutpostJsonSchema = {
     },
     resultsAndVerification: { type: "array", maxItems: 100, items: textItem },
   },
-  required: ["version", "intent", "features", "constraintsAndNonGoals", "decisions", "nextStep", "resultsAndVerification"],
+  required: ["version", "intent", "features", "constraintsAndNonGoals", "decisions", "openQuestions", "nextStep", "resultsAndVerification"],
   additionalProperties: false,
 };

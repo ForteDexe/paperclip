@@ -50,19 +50,19 @@ describe("heartbeat task markdown rendering", () => {
         documentId: "record-document",
         revisionId: "record-revision",
         revisionNumber: 3,
-        body: "# Inspect the evidence\n\n## Status\n**Testing**",
+        body: "# Inspect the evidence\n\n## Features and Behaviors\n\n| Feature or behavior | Agreed outcome | State | Validation |\n| --- | --- | --- | --- |\n| Inspect evidence | Confirm the workflow | testing | |",
       },
     });
 
     expect(markdown).toContain("Task Record document record-document, revision 3 (record-revision)");
     expect(markdown).toContain("living source of truth");
-    expect(markdown).toContain("current feature states, constraints, cross-cutting decisions, and next step");
-    expect(markdown).toContain("Ask questions in this task conversation, not in the Record");
-    expect(markdown).toContain("update the affected feature outcome, constraint, or cross-cutting decision");
-    expect(markdown).toContain("Anchor Next Step to the exact Feature or behavior name with an optional comment");
-    expect(markdown).toContain("Record concrete results or verification only when they exist and are useful");
+    expect(markdown).toContain("current feature states and validation, constraints, cross-cutting decisions, unresolved questions, and next step");
+    expect(markdown).toContain("list them in Open Questions while they remain unresolved");
+    expect(markdown).toContain("remove the question and update the affected feature outcome, constraint, or cross-cutting decision");
+    expect(markdown).toContain("Anchor Next Step to the stable feature id with an optional action comment");
+    expect(markdown).toContain("Fill feature Validation only after a run");
     expect(markdown).toContain("Use the outpost-task-record skill");
-    expect(markdown).toContain("## Status\n**Testing**");
+    expect(markdown).toContain("| Inspect evidence | Confirm the workflow | testing | |");
   });
 
   it.each([
@@ -92,10 +92,11 @@ describe("heartbeat task markdown rendering", () => {
     const optedIn = buildOutpostTaskMarkdown({ issue, nativeRunner: true, coordinatorWorkspace: true });
     expect(optedIn).toContain('interactionKind: "suggest_tasks"');
     expect(optedIn).toContain('status: "backlog"');
-    expect(optedIn).toContain("do not wait for complete success criteria");
+    expect(optedIn).toContain("more than about three or four features or behaviors");
+    expect(optedIn).toContain("Do not impose it on a simple patch");
     expect(optedIn).toContain("paused task for continued briefing");
     expect(optedIn).toContain("acceptance creates the task atomically");
-    expect(optedIn).toContain("If the user explicitly authorized creation of a briefing task, use create_task directly");
+    expect(optedIn).toContain("If the user explicitly authorized creation of an agreed Record briefing task, use create_task directly");
     expect(buildOutpostTaskMarkdown({ issue, nativeRunner: false, coordinatorWorkspace: true }))
       .not.toContain("Coordinator task proposals:");
   });

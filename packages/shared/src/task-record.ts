@@ -22,6 +22,7 @@ export const taskRecordFeatureSchema = z.object({
   behavior: z.string().trim().min(1).max(500),
   outcome: z.string().trim().min(1).max(20_000),
   state: taskRecordFeatureStateSchema,
+  validation: z.string().trim().min(1).max(20_000).nullable(),
 }).strict();
 
 export const taskRecordNextStepSchema = z.object({
@@ -32,11 +33,12 @@ export const taskRecordNextStepSchema = z.object({
 const recordTextItemSchema = z.string().trim().min(1).max(20_000);
 
 export const taskRecordSchema = z.object({
-  version: z.literal(1),
+  version: z.literal(2),
   intent: z.string().trim().min(1).max(20_000),
   features: z.array(taskRecordFeatureSchema).max(100),
   constraintsAndNonGoals: z.array(recordTextItemSchema).max(100),
   decisions: z.array(recordTextItemSchema).max(100),
+  openQuestions: z.array(recordTextItemSchema).max(100),
   nextStep: taskRecordNextStepSchema.nullable(),
   resultsAndVerification: z.array(recordTextItemSchema).max(100),
 }).strict().superRefine((record, ctx) => {
@@ -110,16 +112,17 @@ export function renderTaskRecordMarkdown(record: TaskRecord, title = "Task Recor
       "",
       "## Features and Behaviors",
       "",
-      "| Feature or behavior | Agreed outcome | State |",
-      "| --- | --- | --- |",
+      "| Feature or behavior | Agreed outcome | State | Validation |",
+      "| --- | --- | --- | --- |",
       ...parsed.features.map((feature) =>
-        `| ${tableCell(feature.behavior)} | ${tableCell(feature.outcome)} | ${feature.state} |`),
+        `| ${tableCell(feature.behavior)} | ${tableCell(feature.outcome)} | ${feature.state} | ${tableCell(feature.validation ?? "")} |`),
     );
   }
 
   for (const section of [
     bulletSection("Constraints and Non-Goals", parsed.constraintsAndNonGoals),
     bulletSection("Decisions", parsed.decisions),
+    bulletSection("Open Questions", parsed.openQuestions),
   ]) {
     if (section.length > 0) sections.push("", ...section);
   }
