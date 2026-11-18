@@ -33,6 +33,19 @@ Continue the detailed briefing in that task's conversation and update the
 Record as information becomes settled. Use `status: "todo"` only when the
 brief is sufficiently actionable and execution is already authorized.
 
+The task conversation follows the same turn-by-turn interaction model as
+ordinary Chat while retaining the task, Record, workspace, and audit context.
+A useful reply completes the current turn without implying that the whole task
+is complete. There are no separate Ask or Plan task modes; follow the user's
+current conversational direction and normal authorization boundaries.
+
+Run intent is task context, not automation. `manual` means follow only the
+current requested increment. `automatic` means that, once execution is
+authorized, the agent should pursue the requested task from start to finish.
+Neither value schedules a run, retries a response, wakes an idle agent, or
+expands the user's authority. Set or change it through the task update API when
+the user settles a different intent.
+
 A recommendation to create a task is not authorization. Use `suggest_tasks`
 when the user has not explicitly authorized creation. If the user explicitly
 asks to create the briefing task, use `create_task` directly with backlog

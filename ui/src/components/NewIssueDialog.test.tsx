@@ -907,72 +907,26 @@ describe("NewIssueDialog", () => {
     act(() => root.unmount());
   });
 
-  it("restores the planning mode from dialog defaults", async () => {
+  it("normalizes removed Ask and Plan defaults to the ordinary task mode", async () => {
     dialogState.newIssueDefaults = {
-      title: "Planned from defaults",
+      title: "Ordinary task from legacy defaults",
       workMode: "planning",
     };
 
     const { root } = renderDialog(container);
     await flush();
 
-    const planningButton = container.querySelector('[data-testid="composer-add-plan"]');
-    expect(container.querySelector("[data-pending-work-mode=planning]")).not.toBeNull();
-
+    expect(container.querySelector('[data-testid="composer-add-plan"]')).toBeNull();
+    expect(container.querySelector('[data-testid="composer-add-ask"]')).toBeNull();
     const submitButton = Array.from(container.querySelectorAll("button"))
       .find((button) => button.getAttribute("aria-label") === "Create task");
-    expect(submitButton).not.toBeUndefined();
-    await vi.waitFor(() => {
-      expect(submitButton?.hasAttribute("disabled")).toBe(false);
-    });
-
-    await act(async () => {
-      submitButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
+    await vi.waitFor(() => expect(submitButton?.hasAttribute("disabled")).toBe(false));
+    await act(async () => { submitButton!.click(); });
     await flush();
-
-    expect(mockIssuesApi.create).toHaveBeenCalledWith(
-      "space-1",
-      expect.objectContaining({
-        title: "Planned from defaults",
-        workMode: "planning",
-      }),
-    );
-
-    act(() => root.unmount());
-  });
-
-  it("restores ask mode from dialog defaults", async () => {
-    dialogState.newIssueDefaults = {
-      title: "Question from defaults",
-      workMode: "ask",
-    };
-
-    const { root } = renderDialog(container);
-    await flush();
-
-    const askButton = container.querySelector('[data-testid="composer-add-ask"]');
-    expect(container.querySelector("[data-pending-work-mode=ask]")).not.toBeNull();
-
-    const submitButton = Array.from(container.querySelectorAll("button"))
-      .find((button) => button.getAttribute("aria-label") === "Create task");
-    expect(submitButton).not.toBeUndefined();
-    await vi.waitFor(() => {
-      expect(submitButton?.hasAttribute("disabled")).toBe(false);
-    });
-
-    await act(async () => {
-      submitButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-    await flush();
-
-    expect(mockIssuesApi.create).toHaveBeenCalledWith(
-      "space-1",
-      expect.objectContaining({
-        title: "Question from defaults",
-        workMode: "ask",
-      }),
-    );
+    expect(mockIssuesApi.create).toHaveBeenCalledWith("space-1", expect.objectContaining({
+      title: "Ordinary task from legacy defaults",
+      workMode: "standard",
+    }));
 
     act(() => root.unmount());
   });
@@ -1936,190 +1890,25 @@ describe("NewIssueDialog", () => {
     act(() => root.unmount());
   });
 
-  it("submits planning work mode when planning is selected", async () => {
+  it("creates ordinary tasks without Ask or Plan controls", async () => {
     const { root } = renderDialog(container);
     await flush();
 
     const titleInput = container.querySelector('textarea[aria-label="Describe a task…"]') as HTMLTextAreaElement | null;
-    expect(titleInput).not.toBeNull();
-    await typeTextareaValue(titleInput!, "Plan this first");
-
-    const planningButton = container.querySelector('[data-testid="composer-add-plan"]');
-    expect(planningButton).not.toBeNull();
-    await act(async () => {
-      planningButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-    await flush();
+    await typeTextareaValue(titleInput!, "Handle this in the conversation");
+    expect(container.querySelector('[data-testid="composer-add-plan"]')).toBeNull();
+    expect(container.querySelector('[data-testid="composer-add-ask"]')).toBeNull();
+    expect(container.querySelector("[data-testid=task-chat-composer-mode]")).toBeNull();
 
     const submitButton = Array.from(container.querySelectorAll("button"))
       .find((button) => button.getAttribute("aria-label") === "Create task");
-    expect(submitButton).not.toBeUndefined();
-    await vi.waitFor(() => {
-      expect(submitButton?.hasAttribute("disabled")).toBe(false);
-    });
-
-    await act(async () => {
-      submitButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
+    await vi.waitFor(() => expect(submitButton?.hasAttribute("disabled")).toBe(false));
+    await act(async () => { submitButton!.click(); });
     await flush();
-
-    expect(mockIssuesApi.create).toHaveBeenCalledWith(
-      "space-1",
-      expect.objectContaining({
-        description: "Plan this first",
-        workMode: "planning",
-      }),
-    );
-
-    act(() => root.unmount());
-  });
-
-  it("submits ask work mode when ask is selected", async () => {
-    const { root } = renderDialog(container);
-    await flush();
-
-    const titleInput = container.querySelector('textarea[aria-label="Describe a task…"]') as HTMLTextAreaElement | null;
-    expect(titleInput).not.toBeNull();
-    await typeTextareaValue(titleInput!, "Answer this first");
-
-    const askButton = container.querySelector('[data-testid="composer-add-ask"]');
-    expect(askButton).not.toBeNull();
-    await act(async () => {
-      askButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-    await flush();
-
-    const submitButton = Array.from(container.querySelectorAll("button"))
-      .find((button) => button.getAttribute("aria-label") === "Create task");
-    expect(submitButton).not.toBeUndefined();
-    await vi.waitFor(() => {
-      expect(submitButton?.hasAttribute("disabled")).toBe(false);
-    });
-
-    await act(async () => {
-      submitButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-    await flush();
-
-    expect(mockIssuesApi.create).toHaveBeenCalledWith(
-      "space-1",
-      expect.objectContaining({
-        description: "Answer this first",
-        workMode: "ask",
-      }),
-    );
-
-    act(() => root.unmount());
-  });
-
-  it("cycles work modes with cmd-period", async () => {
-    const { root } = renderDialog(container);
-    await flush();
-
-    const modeChip = () => container.querySelector("[data-testid=task-chat-composer-mode]");
-    expect(modeChip()).toBeNull();
-
-    await act(async () => {
-      container.querySelector('[data-editor-autocomplete-anchor]')?.dispatchEvent(new KeyboardEvent("keydown", {
-        bubbles: true,
-        code: "",
-        key: ".",
-        metaKey: true,
-      }));
-    });
-    expect(modeChip()?.getAttribute("data-pending-work-mode")).toBe("planning");
-    expect(modeChip()?.textContent).toContain("Plan mode");
-
-    await act(async () => {
-      container.querySelector('[data-editor-autocomplete-anchor]')?.dispatchEvent(new KeyboardEvent("keydown", {
-        bubbles: true,
-        code: "Period",
-        key: ".",
-        metaKey: true,
-      }));
-    });
-    expect(modeChip()?.getAttribute("data-pending-work-mode")).toBe("ask");
-    expect(modeChip()?.textContent).toContain("Ask mode");
-
-    await act(async () => {
-      container.querySelector('[data-editor-autocomplete-anchor]')?.dispatchEvent(new KeyboardEvent("keydown", {
-        bubbles: true,
-        code: "Period",
-        key: ".",
-        metaKey: true,
-      }));
-    });
-    expect(modeChip()).toBeNull();
-
-    act(() => root.unmount());
-  });
-
-  it("cycles work modes when iOS reports cmd-period as Escape", async () => {
-    const { root } = renderDialog(container);
-    await flush();
-
-    const modeChip = () => container.querySelector("[data-testid=task-chat-composer-mode]");
-    expect(modeChip()).toBeNull();
-    expect(dialogContentState.onEscapeKeyDown).not.toBeNull();
-
-    const commandPeriodAsEscape = new KeyboardEvent("keydown", {
-      bubbles: true,
-      cancelable: true,
-      key: "Escape",
-      metaKey: true,
-    });
-    await act(async () => {
-      dialogContentState.onEscapeKeyDown?.(commandPeriodAsEscape);
-    });
-
-    expect(commandPeriodAsEscape.defaultPrevented).toBe(true);
-    expect(modeChip()?.getAttribute("data-pending-work-mode")).toBe("planning");
-    expect(dialogState.closeNewIssue).not.toHaveBeenCalled();
-
-    const plainEscape = new KeyboardEvent("keydown", {
-      bubbles: true,
-      cancelable: true,
-      key: "Escape",
-    });
-    await act(async () => {
-      dialogContentState.onEscapeKeyDown?.(plainEscape);
-    });
-
-    expect(plainEscape.defaultPrevented).toBe(false);
-    expect(modeChip()?.getAttribute("data-pending-work-mode")).toBe("planning");
-
-    const controlEscape = new KeyboardEvent("keydown", {
-      bubbles: true,
-      cancelable: true,
-      ctrlKey: true,
-      key: "Escape",
-    });
-    await act(async () => {
-      dialogContentState.onEscapeKeyDown?.(controlEscape);
-    });
-
-    expect(controlEscape.defaultPrevented).toBe(false);
-    expect(modeChip()?.getAttribute("data-pending-work-mode")).toBe("planning");
-
-    act(() => root.unmount());
-  });
-
-  it("cycles work modes with ctrl-period", async () => {
-    const { root } = renderDialog(container);
-    await flush();
-
-    const modeChip = () => container.querySelector("[data-testid=task-chat-composer-mode]");
-    expect(modeChip()).toBeNull();
-
-    await act(async () => {
-      container.querySelector('[data-editor-autocomplete-anchor]')?.dispatchEvent(new KeyboardEvent("keydown", {
-        bubbles: true,
-        code: "Period",
-        key: ".",
-        ctrlKey: true,
-      }));
-    });
-    expect(modeChip()?.getAttribute("data-pending-work-mode")).toBe("planning");
+    expect(mockIssuesApi.create).toHaveBeenCalledWith("space-1", expect.objectContaining({
+      description: "Handle this in the conversation",
+      workMode: "standard",
+    }));
 
     act(() => root.unmount());
   });
@@ -2438,26 +2227,22 @@ describe("NewIssueDialog", () => {
     await waitForAssertion(() => expect(container.textContent).toContain("Coder"));
     await act(async () => { container.querySelector<HTMLButtonElement>('[aria-label="Create task"]')!.click(); });
     await waitForAssertion(() => expect(mockIssuesApi.create).toHaveBeenCalledWith("space-1", expect.objectContaining({
-      assigneeAgentId: "agent-1", workMode: "planning",
+      assigneeAgentId: "agent-1", workMode: "standard",
       assigneeAdapterOverrides: { adapterConfig: { model: "gpt-6-astra", modelReasoningEffort: "ultra", fastMode: true } },
     })));
     act(() => root.unmount());
   });
 
-  describe("work-mode labels", () => {
-    function workModeOption(value: string) {
-      return container.querySelector(`[data-testid="composer-add-${value === "planning" ? "plan" : value}"]`);
-    }
-
-    it("uses the shared composer mode labels", async () => {
+  describe("composer modes", () => {
+    it("does not expose Ask or Plan task modes", async () => {
       const { root } = renderDialog(container);
       await waitForAssertion(() => {
         expect(container.querySelector("[data-testid=task-chat-composer-add]")).not.toBeNull();
       });
 
       expect(container.querySelector("[data-testid=task-chat-composer-add]")).not.toBeNull();
-      expect(workModeOption("ask")?.textContent).toContain("Ask mode");
-      expect(workModeOption("planning")?.textContent).toContain("Plan mode");
+      expect(container.querySelector('[data-testid="composer-add-ask"]')).toBeNull();
+      expect(container.querySelector('[data-testid="composer-add-plan"]')).toBeNull();
 
 
       act(() => root.unmount());

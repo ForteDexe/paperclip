@@ -12,6 +12,8 @@ export function buildOutpostTaskMarkdown(input: {
     title: string;
     titleNeedsGeneration?: boolean;
     workMode?: string | null;
+    runIntent?: string | null;
+    harnessKind?: string | null;
     conversationAgentId?: string | null;
     description?: string | null;
     executionPolicy?: unknown;
@@ -117,7 +119,6 @@ export function buildOutpostTaskMarkdown(input: {
         issue?.workMode === "planning"));
   const acceptedChatPlan = Boolean(
     !rejectedPlan && issue?.conversationAgentId &&
-    issue.workMode !== "ask" &&
     !wakeComment &&
     input.interaction?.kind === "request_confirmation" &&
     input.interaction.status === "accepted" &&
@@ -219,16 +220,19 @@ export function buildOutpostTaskMarkdown(input: {
       `- Issue: ${quoteTaskScalar(issue.identifier || issue.id)}`,
       `- Title: ${quoteTaskScalar(issue.title)}`,
     );
+    if (!issue.conversationAgentId) {
+      lines.push(`- Run intent: ${quoteTaskScalar(issue.runIntent ?? "manual")}`);
+    }
     if (issue.titleNeedsGeneration && !issue.conversationAgentId) {
       lines.push(
         "",
         "Task title directive:",
-        "The current title is a provisional slice of the user's prompt. As one of your first tool calls, use set_task_title with a concise title describing the requested outcome and onlyIfProvisional: true. If that tool is unavailable, PUT /api/issues/" + issue.id + "/title with {title, onlyIfProvisional: true} using your normal Outpost authentication. Do this in Ask and Plan modes too. Preserve the full task description and any title already chosen by the user; then continue the task.",
+        "The current title is a provisional slice of the user's prompt. As one of your first tool calls, use set_task_title with a concise title describing the requested outcome and onlyIfProvisional: true. If that tool is unavailable, PUT /api/issues/" + issue.id + "/title with {title, onlyIfProvisional: true} using your normal Outpost authentication. Preserve the full task description and any title already chosen by the user; then continue the task.",
         "Check the title tool result before claiming the title was saved. Use a new idempotency key if retrying with changed arguments.",
       );
     }
     if (issue.conversationAgentId) {
-      lines.push("", "Chat mode directive:", AGENT_CHAT_DIRECTIVE, `Current composer mode: ${issue.workMode ?? "standard"}.`);
+      lines.push("", "Chat mode directive:", AGENT_CHAT_DIRECTIVE);
       if (input.personTimeZone) {
         lines.push(`The person's time zone is ${input.personTimeZone} (from their browser). Read times and dates they give, such as "nine in the morning" or "today", in that zone, and save schedules such as routine triggers with that timezone; say the zone when you report a schedule.`);
       }
@@ -285,12 +289,23 @@ export function buildOutpostTaskMarkdown(input: {
         "Accepted plan directive:",
         "Implement the accepted plan on this issue. Follow any task assignments explicitly included in the approved plan. Plan acceptance alone does not require subtasks.",
       );
+    } else {
+      const runIntent = issue.runIntent === "automatic" ? "automatic" : "manual";
+      lines.push(
+        "",
+        "Task conversation directive:",
+        "Treat this as an ordinary conversation scoped to this task. The latest user direction defines the current turn; a useful direct answer is a valid completed turn. Do not assume that every message authorizes implementation. If the user says to stop, stop and reply; do not resume without later direction.",
+        runIntent === "automatic"
+          ? "Run intent is Automatic: once the user authorizes execution, pursue the requested task from start to finish within that authorized scope. This intent does not schedule, retry, or wake work by itself."
+          : "Run intent is Manual: handle only the increment the user currently requests. This intent does not schedule, retry, or wake work by itself.",
+        "Do not change task status or invent a blocker, wait, or continuation merely to finish a reply.",
+      );
     }
     if (rejectedPlan) {
       lines.push(
         "",
         "Rejected plan review directive:",
-        "The user rejected the plan and requested changes. Revise the plan to address their feedback through the existing plan document and review workflow. In Ask mode, discuss the requested changes without mutating documents or tasks. This is not approval to implement or hand off execution tasks. Do not treat the issue's in_progress status as plan approval.",
+        "The user rejected the plan and requested changes. Revise the plan to address their feedback through the existing plan document and review workflow. This is not approval to implement or hand off execution tasks. Do not treat the issue's in_progress status as plan approval.",
         "When revising the plan, first GET /api/issues/{issueId}/documents/plan and read its body and latestRevisionId. PUT the revised document to the same endpoint with baseRevisionId set to that latestRevisionId. An existing document requires this concurrency guard; do not omit it or blindly retry a stale revision. Bind the new approval request to the revision returned by the successful update.",
       );
       if (input.planReview?.reason?.trim()) {

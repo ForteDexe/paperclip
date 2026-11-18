@@ -1276,7 +1276,7 @@ describeEmbeddedPostgres("issueThreadInteractionService", () => {
             clientKey: "root",
             title: "Create the root follow-up",
             status: "backlog",
-            workMode: "planning",
+            workMode: "standard",
             assigneeAgentId,
             initialTaskRecord: {
               version: 2,
@@ -1335,7 +1335,7 @@ describeEmbeddedPostgres("issueThreadInteractionService", () => {
       .where(eq(issues.spaceId, spaceId));
     expect(createdIssueRows).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ title: "Create the root follow-up", workMode: "planning" }),
+        expect.objectContaining({ title: "Create the root follow-up", workMode: "standard" }),
         expect.objectContaining({ title: "Create the nested follow-up", workMode: "standard" }),
       ]),
     );

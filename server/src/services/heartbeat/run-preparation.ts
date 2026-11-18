@@ -2916,6 +2916,8 @@ export function createHeartbeatRunPreparation(db: Db) {
         description: issues.description,
         status: issues.status,
         workMode: issues.workMode,
+        runIntent: issues.runIntent,
+        harnessKind: issues.harnessKind,
         reviewPolicy: issues.reviewPolicy,
         priority: issues.priority,
         projectId: issues.projectId,

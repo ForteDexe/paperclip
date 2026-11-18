@@ -7,6 +7,7 @@ import type { NativeCompletionSource, StrictCompletionContractInput } from "../.
 
 import { nativeSha256 } from "./canonical.js";
 import { isConversation, type ConversationIdentity } from "../agent-conversations.js";
+import { usesChatTurnSemantics } from "../task-turn-semantics.js";
 
 export const NATIVE_COMPLETION_CONTRACT_SCHEMA = "outpost.completion-contract.v1";
 export const NATIVE_COMPLETION_POLICY_VERSION = "phase6-v4";
@@ -88,7 +89,7 @@ export function resolveNativeCompletionPolicy(issue: {
 }
 
 export function buildNativeCompletionContract(
-  issue: { title: string; description: string | null } & ConversationIdentity,
+  issue: { title: string; description: string | null; harnessKind?: string | null } & ConversationIdentity,
   options: {
     readonly revision?: number;
     readonly immediateRequest?: string | null;
@@ -106,7 +107,8 @@ export function buildNativeCompletionContract(
   const humanResponseId = options.humanResponseId?.trim();
   const hasFollowUp = immediateRequests.length > 0 || Boolean(humanResponseId);
   const conversation = isConversation(issue);
-  const requirement = (request: string) => conversation
+  const chatTurn = usesChatTurnSemantics(issue);
+  const requirement = (request: string) => chatTurn
     ? `Address this request in the current authorized conversation response: ${request}`
     : request;
   // Reference existing context rather than copying the brief/history into every
@@ -115,7 +117,7 @@ export function buildNativeCompletionContract(
   const conversationObjective = "Complete the current conversation response using the supplied context and current user direction. Carry out requested chat actions within current authority and verify their results before claiming success. For delegated work, verify the saved handoff and report it without waiting for or performing the worker's task. For an unavailable action, explain the specific limitation and supported handoff without claiming the action occurred. Finishing this response leaves underlying delegated or unavailable work incomplete until separately verified. Later human direction replaces conflicting scope; preserve other requirements, assigned-skill instructions, and approval gates. Apply authenticated humanResponses only to their question or decision. Clarification is not approval.";
   return {
     revision: String(options.revision ?? 1),
-    objective: conversation
+    objective: chatTurn
       ? conversationObjective
       : hasFollowUp
         ? followUpObjective
@@ -135,7 +137,7 @@ export function buildNativeCompletionContract(
           {
             id: "objective",
             requirement:
-              requirement(issue.description?.trim() || (conversation ? "Respond to the current conversation context." : `Complete: ${issue.title}`)),
+              requirement(issue.description?.trim() || (chatTurn ? "Respond to the current conversation context." : `Complete: ${issue.title}`)),
           },
         ],
   };
@@ -167,6 +169,7 @@ export async function ensureNativeCompletionContract(input: {
     reviewPolicy?: string | null;
     conversationAgentId?: string | null;
     conversationUserId?: string | null;
+    harnessKind?: string | null;
   };
   actorId: string;
   immediateRequest?: string | null;

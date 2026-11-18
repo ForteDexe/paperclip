@@ -9,6 +9,28 @@ const issue = {
 };
 
 describe("heartbeat task markdown rendering", () => {
+  it.each([
+    [undefined, "Manual", "handle only the increment the user currently requests"],
+    ["automatic", "Automatic", "pursue the requested task from start to finish"],
+  ] as const)("renders %s run intent as descriptive chat context", (runIntent, label, guidance) => {
+    const markdown = buildOutpostTaskMarkdown({ issue: { ...issue, runIntent } });
+
+    expect(markdown).toContain(`- Run intent: ${JSON.stringify(runIntent ?? "manual")}`);
+    expect(markdown).toContain(`Run intent is ${label}`);
+    expect(markdown).toContain(guidance);
+    expect(markdown).toContain("does not schedule, retry, or wake work by itself");
+    expect(markdown).toContain("a useful direct answer is a valid completed turn");
+    expect(markdown).toContain("If the user says to stop, stop and reply");
+  });
+
+  it("renders the ordinary task conversation without composer-mode guidance", () => {
+    const markdown = buildOutpostTaskMarkdown({ issue: { ...issue, workMode: "standard", runIntent: "automatic" } });
+
+    expect(markdown).toContain("Task conversation directive:");
+    expect(markdown).not.toContain("Ask and Plan composer modes");
+    expect(markdown).not.toContain("Current composer mode:");
+  });
+
   it.each([true, false])("keeps native task clarification in the current task on full and resumed assignments (description=%s)", (includeDescription) => {
     const markdown = buildOutpostTaskMarkdown({
       issue: { ...issue, description: "Write a blog post about our launch." },

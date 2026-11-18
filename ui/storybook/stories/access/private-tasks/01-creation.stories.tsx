@@ -209,16 +209,12 @@ export const SmallPhoneComposer: Story = {
     await userEvent.type(page.getByRole("textbox", { name: "Task title" }), " with a longer title");
     await expectInsideViewport(page.getByTestId("composer-private-chip"));
     await expectInsideViewport(page.getByRole("button", { name: "Create task" }));
-    await userEvent.click(page.getByRole("button", { name: "Add to composer" }));
-    await userEvent.click(page.getByTestId("composer-add-plan"));
-    await expectInsideViewport(page.getByTestId("task-chat-composer-mode"));
-    await expectInsideViewport(page.getByRole("button", { name: "Create task" }));
     await userEvent.click(page.getByRole("button", { name: "Remove private task" }));
     await expect(page.queryByTestId("composer-private-chip")).not.toBeInTheDocument();
     await expect(page.getByRole("textbox", { name: "Task title" })).toHaveValue("Prepare my board briefing with a longer title");
     await choosePrivateTask(page);
     await expectInsideViewport(page.getByTestId("composer-private-chip"));
-    await waitFor(() => expect(page.getByTestId("task-chat-composer-mode").getBoundingClientRect().right)
+    await waitFor(() => expect(page.getByTestId("composer-private-chip").getBoundingClientRect().right)
       .toBeLessThanOrEqual(page.getByTestId("task-chat-composer-selection").getBoundingClientRect().left));
     await userEvent.click(page.getByRole("button", { name: "Select assignee" }));
     await expectInsideViewport(await page.findByRole("dialog", { name: "Select assignee" }));

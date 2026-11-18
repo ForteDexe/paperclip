@@ -1,10 +1,9 @@
 import { useRef, useState } from "react";
 import { ArrowUp } from "lucide-react";
-import type { Agent, IssueWorkMode } from "@outpost/shared";
+import type { Agent } from "@outpost/shared";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { ComposerRunSettingsPicker } from "@/components/task-chat/ComposerRunSettingsPicker";
-import { ComposerAddMenu, ComposerModeChip } from "@/components/task-chat/ComposerAddMenu";
-import { nextWorkMode } from "@/lib/work-mode-meta";
+import { ComposerAddMenu } from "@/components/task-chat/ComposerAddMenu";
 import { DEFAULT_COMPOSER_RUN_SETTINGS, mergeComposerRunSettings, type ComposerRunSettings } from "@/components/task-chat/composer-run-settings";
 import { cn } from "@/lib/utils";
 import { composerAgentAppearance, composerAgents } from "./fixtures";
@@ -33,7 +32,6 @@ export interface LiveStoryProps {
   initialPanel?: "closed" | "settings" | "models" | "agents";
   initialSearch?: string;
   initialAssigneeSearch?: string;
-  initialMode?: IssueWorkMode;
   mobile?: boolean;
   compact?: boolean;
 }
@@ -41,7 +39,6 @@ export interface LiveStoryProps {
 export function ComposerRunSettingsLiveStory({
   agentId = "codex", initialModel, initialEffort, initialFast = false,
   initialPanel = "closed", initialSearch = "", initialAssigneeSearch = "",
-  initialMode = "standard",
   mobile = false, compact = false,
 }: LiveStoryProps) {
   const [assignee, setAssignee] = useState(`agent:${agentId}`);
@@ -51,7 +48,6 @@ export function ComposerRunSettingsLiveStory({
       : null,
   );
   const [draft, setDraft] = useState("");
-  const [mode, setMode] = useState<IssueWorkMode>(initialMode);
   const [attachments, setAttachments] = useState<string[]>([]);
   const [sent, setSent] = useState<Array<{ body: string; agent: string; overrides: unknown }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -92,7 +88,6 @@ export function ComposerRunSettingsLiveStory({
         <textarea aria-label="Message" placeholder={`Message ${selectedAgent?.name ?? "the task"} — describe what you want done…`}
           rows={2} value={draft} onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
-            if ((event.metaKey || event.ctrlKey) && event.key === ".") { event.preventDefault(); setMode(nextWorkMode); }
             if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); send(); }
           }}
           className="block min-h-16 w-full resize-y bg-transparent text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground" />
@@ -100,9 +95,8 @@ export function ComposerRunSettingsLiveStory({
         <div className={cn("mt-3 flex min-w-0 items-center gap-x-1.5 gap-y-3", mobile ? "flex-nowrap" : "flex-wrap")}>
           <div className="flex min-w-0 max-w-full items-center gap-1.5">
             <input ref={fileInputRef} type="file" className="hidden" onChange={(event) => { setAttachments((items) => [...items, ...Array.from(event.target.files ?? []).map((file) => file.name)]); event.target.value = ""; }} />
-            <ComposerAddMenu mode={mode} onModeChange={setMode} onAttachFile={() => fileInputRef.current?.click()}
+            <ComposerAddMenu onAttachFile={() => fileInputRef.current?.click()}
               onGoal={selectedAgent?.adapterType === "codex_local" ? () => setDraft((current) => /^\/goal(?:\s|$)/.test(current) ? current : `/goal ${current}`) : undefined} mobile={mobile} />
-            <ComposerModeChip mode={mode} onRemove={() => setMode("standard")} mobile={mobile} />
           </div>
           <div className={cn("ml-auto flex min-w-0 max-w-full items-center gap-1.5", mobile && "flex-1 justify-end")}>
             <ComposerRunSettingsPicker spaceId="storybook" assigneeValue={assignee} currentAssigneeValue={assignee}

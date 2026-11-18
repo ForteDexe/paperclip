@@ -289,6 +289,10 @@ import {
   prepareConversationTurn,
   settleConversationTurn,
 } from "./agent-conversations.js";
+import {
+  TASK_CHAT_PRIOR_STATUS_CONTEXT_KEY,
+  usesChatTurnSemantics,
+} from "./task-turn-semantics.js";
 import { withAdapterExecutionPhase } from "@outpost/adapter-utils/execution-phase";
 import {
   recordNativeLocalProcessStopInTransaction,
@@ -2257,6 +2261,14 @@ export function heartbeatService(
       let issueContext = issueId
         ? await timePreparation("issue_context", () => getIssueExecutionContext(agent.spaceId, issueId))
         : null;
+      if (
+        issueContext &&
+        !isConversation(issueContext) &&
+        usesChatTurnSemantics(issueContext) &&
+        !readNonEmptyString(context[TASK_CHAT_PRIOR_STATUS_CONTEXT_KEY])
+      ) {
+        context[TASK_CHAT_PRIOR_STATUS_CONTEXT_KEY] = issueContext.status;
+      }
       const issueDependencyReadiness = issueId
         ? await timePreparation("dependency_readiness", () => issuesSvc
             .listDependencyReadiness(agent.spaceId, [issueId])
@@ -2724,6 +2736,8 @@ export function heartbeatService(
             status: issueContext.status,
             priority: issueContext.priority,
             workMode: issueContext.workMode,
+            runIntent: issueContext.runIntent,
+            harnessKind: issueContext.harnessKind,
             conversationAgentId: issueContext.conversationAgentId,
             conversationUserId: issueContext.conversationUserId,
             reviewPolicy: issueContext.reviewPolicy,

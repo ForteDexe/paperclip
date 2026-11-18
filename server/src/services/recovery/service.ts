@@ -41,6 +41,7 @@ import { CONTROLLER_LEASE_LOST_FAILURE_CODE, hasLiveLegacyController, liveLegacy
 import { isCompletedOnboardingHandoffWake } from "../chat-completion-delivery.js";
 import { instanceSettingsService } from "../instance-settings.js";
 import { isWaitingConversation, settleConversationTurnForRun, deliverConversationComments } from "../agent-conversations.js";
+import { usesChatTurnSemantics } from "../task-turn-semantics.js";
 import {
   and,
   asc,
@@ -3866,7 +3867,7 @@ export function recoveryService(
           isContextCompactionRun(context) ||
           isPluginManagedIssueLifecycle(issue) || routine.length > 0 || workspaceChildren.length > 0 ||
           Boolean(goal[0]?.status && goal[0].status !== "complete") || Boolean(active && !ownsRepair),
-        conversation: Boolean(issue.conversationAgentId) || isWaitingConversation(issue),
+        conversation: usesChatTurnSemantics(issue),
         agentInvokable: Boolean(agent && await isAgentInvokable(agent) && isHeartbeatWakeOnDemandEnabled(agent)),
       },
     });
@@ -4716,6 +4717,14 @@ export function recoveryService(
         latestRun?.status === "succeeded" &&
         parseObject(latestRun.resultJson).finalizationReasonCode === "conversation_turn_finished"
       ) {
+        result.skipped += 1;
+        continue;
+      }
+
+      // A successful Chat or task-chat turn is complete as a response. Generic
+      // recovery must not manufacture another turn merely because the task
+      // itself remains open.
+      if (latestRun?.status === "succeeded" && usesChatTurnSemantics(issue)) {
         result.skipped += 1;
         continue;
       }

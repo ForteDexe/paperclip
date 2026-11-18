@@ -6,6 +6,7 @@ function seededIssue(input: Partial<Issue> & Pick<Issue, "id" | "spaceId" | "tit
   const now = new Date();
   return {
     workMode: "standard",
+    runIntent: "manual",
     reviewPolicy: null,
     responsibleUserId: null,
     projectId: null,

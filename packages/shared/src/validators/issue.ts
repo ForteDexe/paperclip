@@ -27,7 +27,7 @@ import {
   ISSUE_RECOVERY_ACTION_OWNER_TYPES,
   ISSUE_RECOVERY_ACTION_STATUSES,
   ISSUE_REVIEW_POLICIES,
-  ISSUE_WORK_MODES,
+  ISSUE_RUN_INTENTS,
   clampIssueRequestDepth,
   ISSUE_STATUSES,
   ISSUE_THREAD_INTERACTION_CONTINUATION_POLICIES,
@@ -41,6 +41,8 @@ import {
   REQUEST_CHECKBOX_CONFIRMATION_OPTION_LIMIT,
   REQUEST_ITEM_VERDICTS_ITEM_LIMIT,
 } from "../constants.js";
+
+const SETTABLE_ISSUE_WORK_MODES = ["standard", "skill_test"] as const;
 import { multilineTextSchema } from "./text.js";
 import {
   lowTrustReviewPresetPolicySchema,
@@ -838,7 +840,8 @@ const createIssueBaseSchema = z.object({
   title: z.string().min(1),
   description: multilineTextSchema.optional().nullable(),
   status: z.enum(ISSUE_STATUSES),
-  workMode: z.enum(ISSUE_WORK_MODES).optional().default("standard"),
+  workMode: z.enum(SETTABLE_ISSUE_WORK_MODES).optional().default("standard"),
+  runIntent: z.enum(ISSUE_RUN_INTENTS).optional().default("manual"),
   harnessKind: z.enum(ISSUE_HARNESS_KINDS).optional().nullable(),
   priority: z.enum(ISSUE_PRIORITIES).optional().default("medium"),
   reviewPolicy: z.enum(ISSUE_REVIEW_POLICIES).optional().nullable(),
@@ -1351,7 +1354,7 @@ export const suggestedTaskDraftSchema = z
     initialTaskRecord: taskRecordSchema.nullable().optional(),
     requiredQualityReview: requiredQualityReviewSchema.optional(),
     priority: z.enum(ISSUE_PRIORITIES).nullable().optional(),
-    workMode: z.enum(ISSUE_WORK_MODES).nullable().optional(),
+    workMode: z.enum(SETTABLE_ISSUE_WORK_MODES).nullable().optional(),
     assigneeAgentId: z.string().guid().nullable().optional(),
     assigneeUserId: z.string().trim().min(1).nullable().optional(),
     projectId: z.string().guid().nullable().optional(),

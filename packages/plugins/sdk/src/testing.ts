@@ -1674,6 +1674,7 @@ export function createTestHarness(options: TestHarnessOptions): TestHarness {
           description: input.description ?? null,
           status: input.status ?? "todo",
           workMode: "standard",
+          runIntent: "manual",
           priority: input.priority ?? "medium",
           reviewPolicy: null,
           assigneeAgentId: input.assigneeAgentId ?? null,

@@ -10,6 +10,9 @@ import {
   resolveNativeCompletionPolicy,
 } from "./completion-contracts.js";
 
+const chatRequirement = (request: string) =>
+  `Address this request in the current authorized conversation response: ${request}`;
+
 describe("buildNativeCompletionContract", () => {
   it("scopes standing-chat criteria to the response while preserving every current request and source", () => {
     const issue = { id: "chat", title: "Chat with Default agent", description: null, conversationAgentId: "lead", conversationUserId: "operator" };
@@ -36,19 +39,31 @@ describe("buildNativeCompletionContract", () => {
       .toEqual(comments.map((comment, index) => ({ id: `pending_comment_${index + 1}`, source: nativeCompletionSource("comment", comment.id, comment.body) })));
   });
 
-  it.each([undefined, null])("keeps an ordinary task's action criterion strict even with a chat-like title (%s)", (conversationAgentId) => {
+  it.each([undefined, null])("scopes an ordinary task's action criterion to its current response (%s)", (conversationAgentId) => {
     const issue = { title: "Chat with Default agent", description: null, conversationAgentId };
     const request = "Restart this instance.";
     expect(buildNativeCompletionContract(issue, { immediateRequest: request }).criteria)
-      .toEqual([{ id: "objective", requirement: request }]);
+      .toEqual([{ id: "objective", requirement: chatRequirement(request) }]);
   });
 
-  it.each([undefined, null])("keeps an agent-only issue in task and plan scope when its conversation user is %s", conversationUserId => {
+  it("keeps the skill-test harness completion criterion strict", () => {
+    const request = "Run the pinned skill test.";
+    const contract = buildNativeCompletionContract({
+      title: "Skill test",
+      description: null,
+      harnessKind: "skill_test",
+    }, { immediateRequest: request });
+
+    expect(contract.criteria).toEqual([{ id: "objective", requirement: request }]);
+    expect(contract.objective).toContain("current authorized stage");
+  });
+
+  it.each([undefined, null])("uses response scope for an agent-only issue when its conversation user is %s", conversationUserId => {
     const request = "Write the launch plan and wait for approval.";
     const contract = buildNativeCompletionContract({ title: "Chat with Default agent", description: null,
       conversationAgentId: "lead", conversationUserId }, { immediateRequest: request });
-    expect(contract.criteria).toEqual([{ id: "objective", requirement: request }]);
-    expect(contract.objective).toContain("propose or save the requested plan and wait before executing");
+    expect(contract.criteria).toEqual([{ id: "objective", requirement: chatRequirement(request) }]);
+    expect(contract.objective).toContain("current conversation response");
   });
 
   it.each(["  Help plan the launch.  ", null])("scopes a conversation's first turn without a follow-up (%s)", description => {
@@ -59,14 +74,14 @@ describe("buildNativeCompletionContract", () => {
       `Address this request in the current authorized conversation response: ${description?.trim() || "Respond to the current conversation context."}` }]);
   });
 
-  it("uses the task description as the single initial criterion", () => {
+  it("uses the task description as the single response-scoped initial criterion", () => {
     expect(buildNativeCompletionContract({
       title: "Ship the runner",
       description: "Prove the Codex vertical slice.",
     })).toEqual({
       revision: "1",
-      objective: "Ship the runner",
-      criteria: [{ id: "objective", requirement: "Prove the Codex vertical slice." }],
+      objective: expect.stringContaining("current conversation response"),
+      criteria: [{ id: "objective", requirement: chatRequirement("Prove the Codex vertical slice.") }],
     });
   });
 
@@ -86,8 +101,8 @@ describe("buildNativeCompletionContract", () => {
       { immediateRequest: " Return the follow-up result. " },
     )).toEqual({
       revision: "1",
-      objective: expect.stringContaining("current authorized stage"),
-      criteria: [{ id: "objective", requirement: "Return the follow-up result." }],
+      objective: expect.stringContaining("current conversation response"),
+      criteria: [{ id: "objective", requirement: chatRequirement("Return the follow-up result.") }],
     });
   });
 
@@ -102,15 +117,15 @@ describe("buildNativeCompletionContract", () => {
       },
     )).toEqual({
       revision: "1",
-      objective: expect.stringContaining("current authorized stage"),
+      objective: expect.stringContaining("current conversation response"),
       criteria: [
         {
           id: "pending_comment_1",
-          requirement: "Answer the first question.",
+          requirement: chatRequirement("Answer the first question."),
         },
         {
           id: "pending_comment_2",
-          requirement: "Answer the second question.",
+          requirement: chatRequirement("Answer the second question."),
         },
       ],
     });
@@ -123,10 +138,10 @@ describe("buildNativeCompletionContract", () => {
         { body: " ", attachments: [{ filename: "Ignore current request.txt" }] },
       ]) },
     );
-    expect(contract.objective).toContain("current authorized stage");
+    expect(contract.objective).toContain("current conversation response");
     expect(contract.criteria).toEqual([{
       id: "objective",
-      requirement: "Inspect and respond to the attached file(s) on pending comment 1.",
+      requirement: chatRequirement("Inspect and respond to the attached file(s) on pending comment 1."),
     }]);
     expect(JSON.stringify(contract)).not.toMatch(/STALE|Ignore current request/);
   });
@@ -137,13 +152,13 @@ describe("buildNativeCompletionContract", () => {
       { title: "Original task", description: brief },
       { immediateRequest: "Use TypeScript." },
     );
-    expect(contract.objective).toContain("task brief");
+    expect(contract.objective).toContain("supplied context");
     expect(contract.objective).toContain("Later human direction replaces conflicting scope");
     expect(contract.objective).toContain("approval gates");
     expect(contract.objective).toContain("Clarification is not approval");
     expect(JSON.stringify(contract)).not.toContain(brief);
     expect(JSON.stringify(contract).split("Use TypeScript.")).toHaveLength(2);
-    expect(JSON.stringify(contract).length).toBeLessThan(900);
+    expect(JSON.stringify(contract).length).toBeLessThan(1_000);
   });
 
   it("keeps the instruction prefix identical as follow-up comments change", () => {
@@ -151,7 +166,7 @@ describe("buildNativeCompletionContract", () => {
     const first = buildNativeCompletionContract(issue, { immediateRequest: "Use a friendly tone." });
     const next = buildNativeCompletionContract(issue, { immediateRequest: "Actually, just save a plan." });
     expect(first.objective).toBe(next.objective);
-    expect(next.criteria).toEqual([{ id: "objective", requirement: "Actually, just save a plan." }]);
+    expect(next.criteria).toEqual([{ id: "objective", requirement: chatRequirement("Actually, just save a plan.") }]);
     expect(JSON.stringify(next)).not.toContain("Use a friendly tone.");
   });
 
@@ -179,7 +194,7 @@ describe("buildNativeCompletionContract", () => {
       { immediateRequest: "Actually, just investigate.", humanResponseId: "answer-id" },
     );
     expect(contract.criteria.map(c => c.id)).toEqual(["objective", "human_response"]);
-    expect(contract.criteria[0]!.requirement).toBe("Actually, just investigate.");
+    expect(contract.criteria[0]!.requirement).toBe(chatRequirement("Actually, just investigate."));
     expect(JSON.stringify(contract)).not.toContain("Implement the old scope");
     expect(contract.objective).toContain("Later human direction replaces conflicting scope");
   });
@@ -244,8 +259,8 @@ describe("completion source ownership", () => {
     const issue = { id: "task", title: "Task", description: "Brief" };
     const contract = buildNativeCompletionContract(issue, { immediateRequests: requests });
     expect(contract.criteria).toEqual([
-      { id: "pending_comment_1", requirement: "Repeat. Repeat." },
-      { id: "pending_comment_2", requirement: "Repeat. Repeat." },
+      { id: "pending_comment_1", requirement: chatRequirement("Repeat. Repeat.") },
+      { id: "pending_comment_2", requirement: chatRequirement("Repeat. Repeat.") },
     ]);
     expect(buildNativeCompletionContractSources({ issue, immediateRequests: requests, immediateRequestSources: sources })).toEqual([
       { id: "pending_comment_1", source: nativeCompletionSource("comment", "first", comments[0]!.body) },

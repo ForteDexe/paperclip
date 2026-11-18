@@ -2948,6 +2948,7 @@ function toCompactIssue(issue: any): CompactIssue {
     description: issue.description,
     status: issue.status,
     workMode: issue.workMode,
+    runIntent: issue.runIntent,
     priority: issue.priority,
     reviewPolicy: issue.reviewPolicy,
     assigneeAgentId: issue.assigneeAgentId,
@@ -9682,6 +9683,7 @@ export function issueRoutes(
         description: issue.description,
         status: issue.status,
         workMode: issue.workMode,
+        runIntent: issue.runIntent,
         ...(blockerAttention ? { blockerAttention } : {}),
         ...(reviewAttention ? { reviewAttention } : {}),
         scheduledRetry,
@@ -18684,6 +18686,7 @@ export function issueRoutes(
             _previous: {
               status: issue.status,
               workMode: issue.workMode,
+              runIntent: issue.runIntent,
               assigneeAgentId: issue.assigneeAgentId ?? null,
               assigneeUserId: issue.assigneeUserId ?? null,
             },

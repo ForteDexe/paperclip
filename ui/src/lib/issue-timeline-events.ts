@@ -1,5 +1,8 @@
 import type { ActivityEvent, IssueWorkMode } from "@outpost/shared";
-import { isIssueWorkMode } from "@/lib/work-mode-meta";
+
+function isIssueWorkMode(value: unknown): value is IssueWorkMode {
+  return value === "standard" || value === "ask" || value === "planning" || value === "skill_test";
+}
 
 export interface IssueTimelineAssignee {
   agentId: string | null;

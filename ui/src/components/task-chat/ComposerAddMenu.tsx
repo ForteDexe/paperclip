@@ -1,9 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import type { IssueWorkMode } from "@outpost/shared";
-import { Check, ClipboardList, MessageCircleQuestion, Lock, Paperclip, Plus, Target, X, type LucideIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Check, Lock, Paperclip, Plus, Target, X, type LucideIcon } from "lucide-react";
 import { useMobileEntityPickerViewportStyle } from "@/hooks/useMobileEntityPickerViewportStyle";
-import { workModeMetaFor } from "@/lib/work-mode-meta";
 import { Dialog, DialogClose, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -17,8 +14,6 @@ import "./composer-run-settings.css";
 const MOBILE_SHELL_QUERY = "(max-width: 767px)";
 
 interface ComposerAddMenuProps {
-  mode: IssueWorkMode;
-  onModeChange?: (mode: IssueWorkMode) => void;
   onAttachFile?: () => void;
   attachDisabled?: boolean;
   onGoal?: () => void;
@@ -30,7 +25,7 @@ interface ComposerAddMenuProps {
 }
 
 export function ComposerAddMenu({
-  mode, onModeChange, onAttachFile, attachDisabled, onGoal, privacy, disabled, mobile: mobileProp, triggerTestId, menuTestId,
+  onAttachFile, attachDisabled, onGoal, privacy, disabled, mobile: mobileProp, triggerTestId, menuTestId,
 }: ComposerAddMenuProps) {
   const [open, setOpen] = useState(false);
   const mobileViewportStyle = useMobileEntityPickerViewportStyle();
@@ -44,17 +39,13 @@ export function ComposerAddMenu({
     return () => query.removeEventListener("change", update);
   }, []);
   const mobile = mobileProp ?? narrow;
-  if (!onModeChange && !onAttachFile && !onGoal && !privacy) return null;
+  if (!onAttachFile && !onGoal && !privacy) return null;
   const actions: Array<{ id: string; label: string; detail?: string; Icon: LucideIcon; select: () => void; disabled?: boolean; selected?: boolean }> = [
     ...(onAttachFile ? [{ id: "composer-add-file", label: "Files and images", Icon: Paperclip, select: onAttachFile, disabled: attachDisabled }] : []),
     ...(privacy ? [{ id: "composer-add-private", label: "Private task", detail: privacy.inherited, Icon: Lock, select: () => privacy.onChange(!privacy.private), selected: privacy.private, disabled: Boolean(privacy.inherited) }] : []),
     ...(onGoal ? [{ id: "composer-add-goal", label: "North Star", detail: "Keep pursuing", Icon: Target, select: onGoal }] : []),
-    ...(onModeChange ? [
-      { id: "composer-add-plan", label: "Plan mode", detail: "Plan before acting", Icon: ClipboardList, select: () => onModeChange(mode === "planning" ? "standard" : "planning"), selected: mode === "planning" },
-      { id: "composer-add-ask", label: "Ask mode", detail: "Answer without changes", Icon: MessageCircleQuestion, select: () => onModeChange(mode === "ask" ? "standard" : "ask"), selected: mode === "ask" },
-    ] : []),
   ];
-  const trigger = <button type="button" aria-label="Add to composer" aria-keyshortcuts={onModeChange ? "Meta+Period Control+Period Shift+Tab" : undefined}
+  const trigger = <button type="button" aria-label="Add to composer"
     disabled={disabled} data-testid={triggerTestId}
     className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">
     <Plus className="size-4" aria-hidden />
@@ -90,27 +81,6 @@ export function ComposerAddMenu({
       </DropdownMenuItem>)}
     </DropdownMenuContent>
   </DropdownMenu>;
-}
-
-interface ComposerModeChipProps {
-  mode: IssueWorkMode;
-  onRemove?: () => void;
-  disabled?: boolean;
-  testId?: string;
-  mobile?: boolean;
-}
-
-export function ComposerModeChip({ mode, onRemove, disabled, testId, mobile = false }: ComposerModeChipProps) {
-  if (mode === "standard") return null;
-  const meta = workModeMetaFor(mode);
-  const Icon = meta.icon;
-  return <button type="button" onClick={onRemove} disabled={disabled || !onRemove}
-    aria-label={`Remove ${meta.label}`} data-pending-work-mode={mode} data-testid={testId}
-    className={cn("inline-flex h-8 shrink-0 items-center rounded-full border text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50", mobile ? "gap-1 px-2" : "gap-1 px-2 sm:gap-1.5 sm:px-2.5", meta.classes.chip)}>
-    <Icon className="size-3.5" aria-hidden />
-    <span className={mobile ? "sr-only" : "max-sm:sr-only"}>{meta.label}</span>
-    <X className="size-3.5" aria-hidden />
-  </button>;
 }
 
 export function ComposerPrivacyChip({ inherited, onRemove, disabled }: { inherited?: string; onRemove: () => void; disabled?: boolean }) {

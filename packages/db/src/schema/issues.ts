@@ -48,6 +48,9 @@ export const issues = pgTable(
     statusVersion: bigint("status_version", { mode: "number" }).notNull().default(0),
     lastStatusDecisionId: uuid("last_status_decision_id"),
     workMode: text("work_mode").notNull().default("standard"),
+    // Describes how broadly the agent should pursue an authorized execution
+    // request. This is context, not a scheduler or continuation switch.
+    runIntent: text("run_intent").notNull().default("manual"),
     harnessKind: text("harness_kind"),
     priority: text("priority").notNull().default("medium"),
     reviewPolicy: text("review_policy").$type<IssueReviewPolicy>(),

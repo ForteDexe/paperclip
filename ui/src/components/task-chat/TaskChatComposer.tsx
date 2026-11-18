@@ -61,7 +61,6 @@ import {
   MarkdownEditor,
   type MarkdownEditorRef,
 } from "@/components/MarkdownEditor";
-import { nextWorkMode } from "@/lib/work-mode-meta";
 import { trackRecentAssignee, trackRecentAssigneeUser } from "@/lib/recent-assignees";
 import {
   InlineEntitySelector,
@@ -78,7 +77,7 @@ import { TaskChatPausedTakeover, type TaskComposerPause } from "./TaskChatPaused
 import { ComposerImageAttachments, type ComposerImageAttachment } from "./ComposerImageAttachments";
 import { ComposerRunSettingsPicker } from "./ComposerRunSettingsPicker";
 import { TaskChatComposerBar } from "./TaskChatComposerBar";
-import { ComposerAddMenu, ComposerModeChip, ComposerPrivacyChip } from "./ComposerAddMenu";
+import { ComposerAddMenu, ComposerPrivacyChip } from "./ComposerAddMenu";
 import { supportsComposerModel, type ComposerRunSettings } from "./composer-run-settings";
 import { useCoordinatorPresentation } from "@/components/coordinator/CoordinatorPresentation";
 import type { Agent, IssueAssigneeAdapterOverrides } from "@outpost/shared";
@@ -705,12 +704,6 @@ export function TaskChatComposer({
     }
     setPendingAssignee(value);
     onPendingAssigneeChange?.(value);
-  }
-
-  function changeMode(mode: IssueWorkMode) {
-    modeChoiceGeneration.current += 1;
-    setPendingMode(mode);
-    if (creation) void onWorkModeChange?.(mode);
   }
 
   function settleSentMode(attemptId: string) {
@@ -1360,22 +1353,6 @@ export function TaskChatComposer({
       <div
         data-editor-autocomplete-anchor=""
         className={taskChatComposerSurfaceClasses(mobile, streamlined)}
-        onKeyDownCapture={(e) => {
-        // Capture mode shortcuts on the wrapper so they work while the rich
-        // editor is focused and win over Lexical/browser bindings. Match the
-        // period by key and code because hardware keyboards on iOS can omit
-        // `code` for Cmd+Period.
-        if (disabled || queuedEdit) return;
-        const isPeriod = e.key === "." || e.code === "Period";
-        const isModeShortcut =
-          (isPeriod && (e.metaKey || e.ctrlKey)) ||
-          (e.key === "Tab" && e.shiftKey);
-        if (isModeShortcut) {
-          e.preventDefault();
-          e.stopPropagation();
-          changeMode(nextWorkMode(pendingMode));
-        }
-      }}
         onPasteCapture={handlePasteCapture}
       >
         {creation?.header}
@@ -1546,8 +1523,6 @@ export function TaskChatComposer({
             ) : null}
             <ComposerAddMenu
               privacy={creation?.privacy}
-              mode={pendingMode}
-              onModeChange={!queuedEdit && onWorkModeChange ? changeMode : undefined}
               onAttachFile={canAcceptFiles ? () => fileInputRef.current?.click() : undefined}
               onGoal={!queuedEdit && !conversationMode && attachments.length === 0 &&
                 runnerGoalCapability?.availability === "available" && onRunnerGoalCommand
@@ -1564,10 +1539,7 @@ export function TaskChatComposer({
                   ? "Queued message changed"
                   : "Editing queued message"}
               </span>
-            ) : (
-              <ComposerModeChip mode={pendingMode} onRemove={onWorkModeChange ? () => changeMode("standard") : undefined}
-                disabled={disabled || !!uncertainSubmission} testId="task-chat-composer-mode" mobile={mobile} />
-            )}
+            ) : null}
             </div>
 
             <div className={cn("ml-auto flex min-w-0 max-w-full items-center gap-2", mobile && !queuedEdit && "flex-1 justify-end")}>

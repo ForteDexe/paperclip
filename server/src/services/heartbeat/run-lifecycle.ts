@@ -44,6 +44,7 @@ import {
 import { cancellationResultJson } from "../run-cancellation.js";
 import { CONTROLLER_LEASE_LOST_FAILURE_CODE } from "../legacy-controller-lease.js";
 import { isWaitingConversation } from "../agent-conversations.js";
+import { usesChatTurnSemantics } from "../task-turn-semantics.js";
 import { PROCESS_IDENTITY_RECORDED } from "../native-local-process-stop.js";
 import {
   hasAcknowledgedNativeReassignmentStopIntent,
@@ -1581,6 +1582,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
     if (!issueId) return;
     const waitingContext = await getIssueExecutionContext(run.spaceId, issueId);
     if (isWaitingConversation(waitingContext) || waitingContext?.externalConversationState === "waiting") return;
+    if (usesChatTurnSemantics(waitingContext)) return;
 
     const [issue, agent] = await Promise.all([
       db
@@ -1785,6 +1787,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
     if (!issueId) return;
     const waitingContext = await getIssueExecutionContext(run.spaceId, issueId);
     if (isWaitingConversation(waitingContext) || waitingContext?.externalConversationState === "waiting") return;
+    if (usesChatTurnSemantics(waitingContext)) return;
     if (
       readNonEmptyString(context.goalControlRequestId) ||
       context.resumeSessionGoalHeartbeat === true
@@ -2104,6 +2107,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
     if (!issueId) return;
     const waitingContext = await getIssueExecutionContext(run.spaceId, issueId);
     if (isWaitingConversation(waitingContext) || waitingContext?.externalConversationState === "waiting") return;
+    if (usesChatTurnSemantics(waitingContext)) return;
 
     const issue = await db
       .select({

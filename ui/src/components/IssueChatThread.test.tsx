@@ -719,178 +719,27 @@ describe("IssueChatThread", () => {
     });
   });
 
-  it("renders the composer in planning mode when the issue is in planning mode", () => {
+  it("keeps Ask and Plan controls out of the task composer", () => {
     const root = createRoot(container);
-
-    act(() => {
-      renderIssueThread(root, {
-        issueWorkMode: "planning",
-        onWorkModeChange: () => {},
-      });
-    });
-
-    const composer = container.querySelector(
-      '[data-testid="issue-chat-composer"]',
-    );
-    expect(composer).not.toBeNull();
-    expect(composer?.getAttribute("data-pending-work-mode")).toBe("planning");
-    expect(composer?.className).toContain("amber");
-
-    const chip = container.querySelector(
-      '[data-testid="issue-chat-composer-work-mode-chip"]',
-    );
-    expect(chip).not.toBeNull();
-    expect(chip?.getAttribute("data-pending-work-mode")).toBe("planning");
-    expect(chip?.textContent).toContain("Plan mode");
-
-    act(() => {
-      root.unmount();
-    });
-  });
-
-  it("selects planning from the add menu and removes its chip", () => {
-    const root = createRoot(container);
-    const onWorkModeChange = vi.fn();
 
     act(() => {
       renderIssueThread(root, {
         issueWorkMode: "standard",
-        onWorkModeChange: onWorkModeChange,
-      });
-    });
-
-    expect(container.querySelector('[data-testid="issue-chat-composer-work-mode-chip"]')).toBeNull();
-    const add = container.querySelector('[data-testid="issue-chat-composer-add"]') as HTMLButtonElement;
-    expect(add).not.toBeNull();
-
-    const composer = container.querySelector(
-      '[data-testid="issue-chat-composer"]',
-    );
-    expect(composer?.getAttribute("data-pending-work-mode")).toBe("standard");
-    expect(composer?.className).not.toContain("amber");
-
-    act(() => {
-      add.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0 }));
-    });
-
-    const menuItem = document.querySelector(
-      '[data-testid="composer-add-plan"]',
-    ) as HTMLButtonElement | null;
-    expect(menuItem).not.toBeNull();
-    expect(menuItem?.textContent).toContain("Plan mode");
-
-    act(() => {
-      menuItem?.click();
-    });
-
-    // Local pending switch only — does not mutate the issue until submit.
-    expect(onWorkModeChange).not.toHaveBeenCalled();
-    expect(composer?.getAttribute("data-pending-work-mode")).toBe("planning");
-    expect(composer?.className).toContain("amber");
-    const chip = container.querySelector('[data-testid="issue-chat-composer-work-mode-chip"]') as HTMLButtonElement;
-    expect(chip?.textContent).toContain("Plan mode");
-    act(() => chip.click());
-    expect(composer?.getAttribute("data-pending-work-mode")).toBe("standard");
-    expect(container.querySelector('[data-testid="issue-chat-composer-work-mode-chip"]')).toBeNull();
-
-    act(() => {
-      root.unmount();
-    });
-  });
-
-  it("selects ask mode from the composer menu and cycles work modes with cmd-period", () => {
-    const root = createRoot(container);
-    const onWorkModeChange = vi.fn();
-
-    act(() => {
-      renderIssueThread(root, {
-        issueWorkMode: "standard",
-        onWorkModeChange: onWorkModeChange,
+        onWorkModeChange: vi.fn(),
+        onAttachImage: vi.fn(),
       });
     });
 
     const add = container.querySelector('[data-testid="issue-chat-composer-add"]') as HTMLButtonElement;
-    const composer = container.querySelector(
-      '[data-testid="issue-chat-composer"]',
-    ) as HTMLDivElement | null;
     expect(add).not.toBeNull();
-    expect(composer).not.toBeNull();
-
     act(() => {
       add.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0 }));
     });
-
-    const askMenuItem = document.querySelector(
-      '[data-testid="composer-add-ask"]',
-    ) as HTMLButtonElement | null;
-    expect(askMenuItem).not.toBeNull();
-    expect(askMenuItem?.textContent).toContain("Ask mode");
-
-    act(() => {
-      askMenuItem?.click();
-    });
-
-    expect(onWorkModeChange).not.toHaveBeenCalled();
-    expect(composer?.getAttribute("data-pending-work-mode")).toBe("ask");
-    expect(composer?.className).toContain("sky");
-    expect(container.querySelector('[data-testid="issue-chat-composer-work-mode-chip"]')?.textContent).toContain("Ask mode");
-
-    act(() => {
-      composer?.dispatchEvent(
-        new KeyboardEvent("keydown", {
-          bubbles: true,
-          code: "Period",
-          key: ".",
-          metaKey: true,
-        }),
-      );
-    });
-
-    expect(composer?.getAttribute("data-pending-work-mode")).toBe("standard");
+    expect(document.querySelector('[data-testid="composer-add-plan"]')).toBeNull();
+    expect(document.querySelector('[data-testid="composer-add-ask"]')).toBeNull();
     expect(container.querySelector('[data-testid="issue-chat-composer-work-mode-chip"]')).toBeNull();
 
-    act(() => {
-      root.unmount();
-    });
-  });
-
-  it("cycles work modes and prevents default when iOS leaves the keydown code empty", () => {
-    const root = createRoot(container);
-
-    act(() => {
-      renderIssueThread(root, {
-        issueWorkMode: "standard",
-      });
-    });
-
-    const composer = container.querySelector(
-      '[data-testid="issue-chat-composer"]',
-    ) as HTMLDivElement | null;
-    expect(composer).not.toBeNull();
-    expect(composer?.getAttribute("data-pending-work-mode")).toBe("standard");
-
-    // iOS Safari with a hardware keyboard frequently reports an empty `code` for
-    // cmd-period. Without a `key` fallback the handler returns early, never calls
-    // preventDefault, and Safari's default cancel/dismiss closes the view.
-    const evt = new KeyboardEvent("keydown", {
-      bubbles: true,
-      cancelable: true,
-      code: "",
-      key: ".",
-      metaKey: true,
-    });
-    act(() => {
-      composer?.dispatchEvent(evt);
-    });
-
-    expect(evt.defaultPrevented).toBe(true);
-    expect(composer?.getAttribute("data-pending-work-mode")).not.toBe(
-      "standard",
-    );
-
-    act(() => {
-      root.unmount();
-    });
+    act(() => { root.unmount(); });
   });
 
   it("virtualizes long merged threads so only a windowed slice mounts", () => {
@@ -3399,12 +3248,8 @@ describe("IssueChatThread", () => {
       add.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0 }));
     });
     expect(document.querySelector('[data-testid="composer-add-file"]')?.getAttribute("data-disabled")).not.toBeNull();
-    const plan = document.querySelector('[data-testid="composer-add-plan"]') as HTMLButtonElement;
-    act(() => plan.click());
-    const chip = container.querySelector('[data-testid="issue-chat-composer-work-mode-chip"]') as HTMLButtonElement;
-    expect(chip?.textContent).toContain("Plan mode");
-    expect(chip.disabled).toBe(false);
-    act(() => chip.click());
+    expect(document.querySelector('[data-testid="composer-add-plan"]')).toBeNull();
+    expect(document.querySelector('[data-testid="composer-add-ask"]')).toBeNull();
     expect(container.querySelector('[data-testid="issue-chat-composer-work-mode-chip"]')).toBeNull();
 
     await act(async () => {

@@ -3146,6 +3146,7 @@ function redactedTask(task: typeof issues.$inferSelect) {
     statusVersion: task.statusVersion,
     priority: task.priority,
     workMode: task.workMode,
+    runIntent: task.runIntent,
     assigneeAgentId: task.assigneeAgentId,
     assigneeUserId: task.assigneeUserId,
     executionRunId: task.executionRunId,

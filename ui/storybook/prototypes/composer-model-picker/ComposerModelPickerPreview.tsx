@@ -3,9 +3,7 @@ import { ArrowLeft, ArrowUp, Check, ChevronDown, Plus, RotateCcw, Search, X, Zap
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { Dialog, DialogClose, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ComposerAddMenu, ComposerModeChip } from "@/components/task-chat/ComposerAddMenu";
-import { nextWorkMode } from "@/lib/work-mode-meta";
-import type { IssueWorkMode } from "@outpost/shared";
+import { ComposerAddMenu } from "@/components/task-chat/ComposerAddMenu";
 import { cn } from "@/lib/utils";
 import { composerAgentAppearance, composerAgents, effortChoices, effortLabels, fastModeAvailable, modelLabel, type ComposerAgent } from "./fixtures";
 import "./picker.css";
@@ -18,7 +16,6 @@ export type ComposerModelPickerPreviewProps = {
   initialPanel?: "closed" | "settings" | "models" | "agents";
   initialSearch?: string;
   initialAssigneeSearch?: string;
-  initialMode?: IssueWorkMode;
   compact?: boolean;
 };
 
@@ -65,7 +62,7 @@ function AnimatedPickerBody({ children }: { children: ReactNode }) {
 
 export function ComposerModelPickerPreview({
   agentId = "codex", initialModel, initialEffort, initialFast = false,
-  initialPanel = "closed", initialSearch = "", initialAssigneeSearch = "", initialMode = "standard", compact = false,
+  initialPanel = "closed", initialSearch = "", initialAssigneeSearch = "", compact = false,
 }: ComposerModelPickerPreviewProps) {
   const [agent, setAgent] = useState<ComposerAgent>(composerAgents.find((item) => item.id === agentId) ?? composerAgents[0]);
   const [modelOverride, setModelOverride] = useState<string | null>(initialModel ?? null);
@@ -77,7 +74,6 @@ export function ComposerModelPickerPreview({
   const [assigneeSearch, setAssigneeSearch] = useState(initialAssigneeSearch);
   const [highlightedAssigneeIndex, setHighlightedAssigneeIndex] = useState(0);
   const [draft, setDraft] = useState("");
-  const [mode, setMode] = useState<IssueWorkMode>(initialMode);
   const [attachments, setAttachments] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [messages, setMessages] = useState<SentMessage[]>([]);
@@ -252,7 +248,6 @@ export function ComposerModelPickerPreview({
         <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
           <textarea value={draft} onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
-              if ((event.metaKey || event.ctrlKey) && event.key === ".") { event.preventDefault(); setMode(nextWorkMode); return; }
               if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); send(); }
             }}
             placeholder={`Message ${agent.name} — describe what you want done…`}
@@ -262,9 +257,8 @@ export function ComposerModelPickerPreview({
           <div className={cn("mt-3 flex min-w-0 items-center gap-x-1.5 gap-y-3", mobile ? "flex-nowrap" : "flex-wrap")}>
             <div className="flex min-w-0 max-w-full items-center gap-1.5">
             <input ref={fileInputRef} type="file" className="hidden" onChange={(event) => { setAttachments((items) => [...items, ...Array.from(event.target.files ?? []).map((file) => file.name)]); event.target.value = ""; }} />
-            <ComposerAddMenu mode={mode} onModeChange={setMode} onAttachFile={() => fileInputRef.current?.click()}
+            <ComposerAddMenu onAttachFile={() => fileInputRef.current?.click()}
               onGoal={agent.adapterType === "codex_local" ? () => setDraft((current) => /^\/goal(?:\s|$)/.test(current) ? current : `/goal ${current}`) : undefined} mobile={mobile} />
-            <ComposerModeChip mode={mode} onRemove={() => setMode("standard")} mobile={mobile} />
             </div>
             <div className={cn("ml-auto flex min-w-0 max-w-full items-center gap-1.5", mobile && "flex-1 justify-end")}>
             {mobile ? (

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import { ChevronLeft, Ellipsis } from "lucide-react";
-import type { IssueAttachment, IssueWorkMode, RunnerGoalCapability } from "@outpost/shared";
+import type { IssueAttachment, RunnerGoalCapability } from "@outpost/shared";
 import { composerImageFiles } from "../../support/composerImageFiles";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { TaskChatComposer } from "@/components/task-chat/TaskChatComposer";
@@ -32,19 +32,17 @@ const goalCapability: RunnerGoalCapability = {
 };
 
 interface ComposerAddStoryProps {
-  initialMode: IssueWorkMode;
   goalAvailable: boolean;
   mobile: boolean;
   mobileContext: boolean;
   fullBleedMobileContext: boolean;
 }
 
-function ComposerAddStory({ initialMode, goalAvailable, mobile, mobileContext, fullBleedMobileContext }: ComposerAddStoryProps) {
+function ComposerAddStory({ goalAvailable, mobile, mobileContext, fullBleedMobileContext }: ComposerAddStoryProps) {
   const imageUrls = useRef<string[]>([]);
   useEffect(() => () => {
     imageUrls.current.forEach(url => URL.revokeObjectURL(url));
   }, []);
-  const [workMode, setWorkMode] = useState(initialMode);
   const [sent, setSent] = useState<string[]>([]);
   const [goal, setGoal] = useState<string | null>(null);
 
@@ -62,8 +60,7 @@ function ComposerAddStory({ initialMode, goalAvailable, mobile, mobileContext, f
 
   const composer = <TaskChatComposer
     onAdd={async (body) => setSent((messages) => [...messages, body])}
-    workMode={workMode}
-    onWorkModeChange={setWorkMode}
+    workMode="standard"
     onAttachImage={attachFile}
     enableReassign
     reassignOptions={assignees}
@@ -103,7 +100,7 @@ function ComposerAddStory({ initialMode, goalAvailable, mobile, mobileContext, f
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col">
       <header className="border-b border-border pb-4">
         <h1 className="text-base font-semibold">Composer actions</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Open the plus menu to attach a file, start a goal, or choose Plan or Ask mode.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Open the plus menu to attach a file or start a supported goal.</p>
       </header>
       <div className="flex flex-1 flex-col justify-end gap-3 py-6">
         {goal ? <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm">Goal: {goal}</div> : null}
@@ -121,7 +118,7 @@ const meta = {
   parameters: {
     layout: "fullscreen",
     options: { showPanel: false },
-    docs: { description: { component: "The production task composer. The Add menu opens upward on desktop and as a dialog on mobile for files, supported goals, Plan mode, and Ask mode. Plan and Ask are exclusive; selecting a mode shows a removable chip. Cmd+. cycles standard, Plan, and Ask. Mobile stories include capsule agent avatars and the actual bottom navigation." } },
+    docs: { description: { component: "The production task composer. The Add menu opens upward on desktop and as a dialog on mobile for files and supported goals. Mobile stories include capsule agent avatars and the actual bottom navigation." } },
     outpost: {
       "capabilities": [
         "tasks/create",
@@ -132,7 +129,7 @@ const meta = {
       "notes": "Images and MobileImages show the shared composer thumbnail row with local image uploads; no backend persistence is exercised. The filter uses one lowercase label without helper text. All chat-channel tasks count as bot-created; the focused visibility stories cover human-initiated channel work."
     },
   },
-  args: { initialMode: "standard", goalAvailable: true, mobile: false, mobileContext: false, fullBleedMobileContext: false },
+  args: { goalAvailable: true, mobile: false, mobileContext: false, fullBleedMobileContext: false },
 } satisfies Meta<typeof ComposerAddStory>;
 
 export default meta;
@@ -150,50 +147,11 @@ export const AddMenu: Story = {
     const page = await openAdd(canvasElement);
     await expect(page.getByRole("menuitem", { name: /Files and images/ })).toBeVisible();
     await expect(page.getByRole("menuitem", { name: /Goal/ })).toBeVisible();
-    await expect(page.getByRole("menuitem", { name: /Plan mode/ })).toBeVisible();
-    await expect(page.getByRole("menuitem", { name: /Ask mode/ })).toBeVisible();
+    await expect(page.queryByRole("menuitem", { name: /Plan mode/ })).not.toBeInTheDocument();
+    await expect(page.queryByRole("menuitem", { name: /Ask mode/ })).not.toBeInTheDocument();
   },
 };
 
-export const PlanChip: Story = {
-  name: "02 · Plan mode chip",
-  args: { initialMode: "planning" },
-  play: async ({ canvasElement }) => {
-    const page = within(canvasElement.ownerDocument.body);
-    const chip = page.getByRole("button", { name: "Remove Plan mode" });
-    const assignee = page.getByTestId("task-chat-composer-assignee");
-    await expect(chip).toBeVisible();
-    await expect(chip.getBoundingClientRect().height).toBe(assignee.getBoundingClientRect().height);
-    await expect(Math.abs(chip.getBoundingClientRect().top - assignee.getBoundingClientRect().top)).toBeLessThanOrEqual(1);
-  },
-};
-
-export const AskChip: Story = {
-  name: "03 · Ask mode chip",
-  args: { initialMode: "ask" },
-  play: async ({ canvasElement }) => {
-    const page = within(canvasElement.ownerDocument.body);
-    const chip = page.getByRole("button", { name: "Remove Ask mode" });
-    const assignee = page.getByTestId("task-chat-composer-assignee");
-    await expect(chip).toBeVisible();
-    await expect(chip.getBoundingClientRect().height).toBe(assignee.getBoundingClientRect().height);
-    await expect(Math.abs(chip.getBoundingClientRect().top - assignee.getBoundingClientRect().top)).toBeLessThanOrEqual(1);
-  },
-};
-
-export const SwitchModes: Story = {
-  name: "04 · Choose and remove a mode",
-  play: async ({ canvasElement }) => {
-    const page = await openAdd(canvasElement);
-    await userEvent.click(page.getByRole("menuitem", { name: /Plan mode/ }));
-    await expect(page.getByRole("button", { name: "Remove Plan mode" })).toBeVisible();
-    await userEvent.click(page.getByRole("button", { name: "Add to composer" }));
-    await userEvent.click(page.getByRole("menuitem", { name: /Ask mode/ }));
-    await expect(page.queryByRole("button", { name: "Remove Plan mode" })).not.toBeInTheDocument();
-    await userEvent.click(page.getByRole("button", { name: "Remove Ask mode" }));
-    await expect(page.queryByRole("button", { name: /Remove .* mode/ })).not.toBeInTheDocument();
-  },
-};
 
 export const FileUpload: Story = {
   name: "05 · Attached file",
@@ -221,7 +179,6 @@ export const Mobile: Story = {
   play: async ({ canvasElement }) => {
     const page = await openAdd(canvasElement);
     await expect(page.getByRole("dialog", { name: "Add" })).toBeVisible();
-    await expect(page.getByRole("button", { name: /Plan mode/ })).toBeVisible();
     await expect(page.getByRole("button", { name: /Files and images/ })).toBeVisible();
   },
 };
@@ -247,41 +204,6 @@ export const MobileWithBottomBar: Story = {
   },
 };
 
-export const MobilePlanWithBottomBar: Story = {
-  name: "10 · Mobile plan and attachment with bottom bar",
-  args: { initialMode: "planning", mobile: true, mobileContext: true },
-  globals: { viewport: { value: "mobile1", isRotated: false } },
-  play: async ({ canvasElement }) => {
-    const page = within(canvasElement.ownerDocument.body);
-    const input = canvasElement.querySelector<HTMLInputElement>('input[type="file"]')!;
-    await userEvent.upload(input, new File(["Mobile layout"], "notes.txt", { type: "text/plain" }));
-    await expect(page.getByText("notes.txt")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Remove Plan mode" })).toBeVisible();
-    await expect(page.getByRole("navigation", { name: "Mobile navigation" })).toBeVisible();
-    const plus = page.getByRole("button", { name: "Add to composer" }).getBoundingClientRect();
-    const send = page.getByRole("button", { name: "Send" }).getBoundingClientRect();
-    const chip = page.getByRole("button", { name: "Remove Plan mode" }).getBoundingClientRect();
-    await expect(send.width).toBe(send.height);
-    await expect(Math.abs(plus.top - send.top)).toBeLessThanOrEqual(1);
-    await expect(Math.abs(chip.top - send.top)).toBeLessThanOrEqual(1);
-    await expect(page.getByRole("button", { name: "Remove Plan mode" }).querySelector(".sr-only")?.textContent).toBe("Plan mode");
-  },
-};
-
-export const MobileAskWithBottomBar: Story = {
-  name: "10b · Mobile Ask with bottom bar",
-  args: { initialMode: "ask", mobile: true, mobileContext: true },
-  globals: { viewport: { value: "mobile1", isRotated: false } },
-  play: async ({ canvasElement }) => {
-    const page = within(canvasElement.ownerDocument.body);
-    const chip = page.getByRole("button", { name: "Remove Ask mode" }).getBoundingClientRect();
-    const send = page.getByRole("button", { name: "Send" }).getBoundingClientRect();
-    await expect(send.width).toBe(send.height);
-    await expect(Math.abs(chip.top - send.top)).toBeLessThanOrEqual(1);
-    await expect(page.getByRole("button", { name: "Remove Ask mode" }).querySelector(".sr-only")?.textContent).toBe("Ask mode");
-    await expect(page.getByRole("navigation", { name: "Mobile navigation" })).toBeVisible();
-  },
-};
 
 export const MobileFullBleedChatWithBottomBar: Story = {
   name: "11 · Mobile full-width chat with bottom bar",

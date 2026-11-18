@@ -179,6 +179,12 @@ paused.” and “Resume this task to send a message.” with a “Resume task�
 Subtrees use “Subtree is paused.” and “Resume subtree.” The takeover cannot be
 dismissed, retains drafts, and hides message inputs until the pause is released.
 
+Task Properties places **Run intent** directly below Status. Its compact picker
+offers Manual and Automatic with one-line explanations and states that the value
+is descriptive only. It must not resemble a play/pause control, scheduler, or
+live execution toggle. The composer has one ordinary conversational mode; files,
+privacy, and other attachments remain in its Add menu.
+
 Confirmations whose source work is still syncing show “Preparing approval…” and
 disable acceptance until the server reports readiness. Refresh that state automatically;
 rejection and revision remain available. Live tool reviews keep their own approval flow.

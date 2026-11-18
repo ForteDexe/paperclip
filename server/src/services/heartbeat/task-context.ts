@@ -29,7 +29,7 @@ export interface HeartbeatTaskContextInput {
   task: {
     issueRef: Pick<IssueContext,
       "id" | "identifier" | "title" | "status" | "priority" | "workMode" |
-      "conversationAgentId" | "description" | "projectId"> | null;
+      "runIntent" | "harnessKind" | "conversationAgentId" | "description" | "projectId"> | null;
     issueContext: IssueContext | null;
     context: Record<string, unknown>;
     taskSession: Pick<typeof agentTaskSessions.$inferSelect, "lastRunId"> | null;
@@ -266,6 +266,8 @@ export async function prepareHeartbeatTaskContext(db: Db, input: HeartbeatTaskCo
           title: issueRef.title,
           titleNeedsGeneration: issueContext?.titleNeedsGeneration,
           workMode: issueRef.workMode,
+          runIntent: issueRef.runIntent,
+          harnessKind: issueRef.harnessKind,
           conversationAgentId: issueContext?.conversationAgentId,
           executionPolicy: issueContext?.executionPolicy,
           description: issueRef.description,
@@ -365,6 +367,7 @@ export async function prepareHeartbeatTaskContext(db: Db, input: HeartbeatTaskCo
       title: issueRef.title,
       description: isConversation(issueContext) ? null : issueRef.description,
       workMode: issueRef.workMode,
+      runIntent: issueRef.runIntent,
     };
   } else {
     delete context.outpostIssue;

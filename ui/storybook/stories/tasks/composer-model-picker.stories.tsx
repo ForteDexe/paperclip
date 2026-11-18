@@ -141,5 +141,5 @@ export const ProductionMobileComposer: Story = {
 
 export const ProductionLongLabels: Story = {
   name: "16 · Long labels",
-  render: () => <ComposerRunSettingsLiveStory agentId="long-labels" compact initialMode="planning" />,
+  render: () => <ComposerRunSettingsLiveStory agentId="long-labels" compact />,
 };

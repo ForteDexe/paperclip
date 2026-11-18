@@ -1100,7 +1100,7 @@ describe("chat prompt policy", () => {
     expect(AGENT_CHAT_DIRECTIVE).toContain("targetRevisionId from the saved document's latestRevisionId");
     expect(AGENT_CHAT_DIRECTIVE).toContain('payload.target to { type: "issue_document", key: "plan", revisionId: latestRevisionId }');
     expect(AGENT_CHAT_DIRECTIVE).toContain("ordinary conversation replies and draft planning do not need confirmation");
-    expect(AGENT_CHAT_DIRECTIVE).toContain("In Ask mode, discuss the plan without creating or revising documents or approval cards");
+    expect(AGENT_CHAT_DIRECTIVE).not.toContain("Ask mode");
   });
 
   it("tells chat how to link execution runs to the registered run route and name their agents", () => {
@@ -1261,6 +1261,10 @@ describe("native conversation finalization", () => {
     expect(conversationNativeDecision(input)).toMatchObject({
       statusAction: "preserve",
       effects: [],
+    });
+    expect(conversationNativeDecision({ ...input, releaseCheckout: true })).toMatchObject({
+      statusAction: "preserve",
+      effects: [{ kind: "release_checkout" }],
     });
     expect(
       conversationNativeDecision({ ...input, hasPolicyGate: true }),

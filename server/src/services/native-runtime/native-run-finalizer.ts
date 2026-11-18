@@ -35,6 +35,7 @@ import { dismissAutomaticCompletionReviews } from "./automatic-completion-review
 import { findSupersededExternalReviewRequests } from "./superseded-external-review-requests.js";
 import { getNativeReviewAssignment, readNativeReviewAssignmentContext } from "./native-review-participant.js";
 import { conversationNativeDecision, isConversation, settleConversationTurnForRun } from "../agent-conversations.js";
+import { TASK_CHAT_PRIOR_STATUS_CONTEXT_KEY, usesChatTurnSemantics } from "../task-turn-semantics.js";
 import { issueTreeControlService } from "../issue-tree-control.js";
 import { COMPLETION_REVIEW_STAGE_REASON, completionReviewStageEntry } from "../issue-execution-policy.js";
 import { randomUUID } from "node:crypto";
@@ -1643,7 +1644,15 @@ export async function finalizeNativeRun(input: {
     const qualityReview = await readRequiredQualityReview(input.db, authoritativeIssue);
     // The configured review stage a completion would start, decided as the
     // issue route decides `status: "done"`. Review runs keep their own path.
-    const reviewStage = isConversation(authoritativeIssue) || reviewContext
+    const chatTurn = usesChatTurnSemantics(authoritativeIssue);
+    const savedTaskChatPriorStatus = record(run.contextSnapshot)[TASK_CHAT_PRIOR_STATUS_CONTEXT_KEY];
+    const chatTurnPriorStatus = chatTurn && !isConversation(authoritativeIssue) &&
+      authoritativeIssue.status === "in_progress" &&
+      typeof savedTaskChatPriorStatus === "string" &&
+      ["backlog", "todo", "in_progress", "in_review", "blocked", "done", "cancelled"].includes(savedTaskChatPriorStatus)
+      ? authoritativeStatus(savedTaskChatPriorStatus)
+      : authoritativeStatus(authoritativeIssue.status);
+    const reviewStage = chatTurn || reviewContext
       ? { kind: "none" as const } : completionReviewStageEntry(authoritativeIssue, run.agentId);
     const statusInput: Parameters<typeof resolveNativeFinalizerStatus>[0] = {
       requiredQualityReviewSatisfied: qualityReview.satisfied,
@@ -1687,7 +1696,7 @@ export async function finalizeNativeRun(input: {
           }) || (await readInheritedGitHubReviewWait(input.db, run))?.kind === "published" : false,
       operatorResponseWaitAuthorized: operatorResponseWait !== null,
       operatorResponseWaitOrigin: operatorResponseWaitOrigin !== null,
-      isConversation: isConversation(authoritativeIssue),
+      isConversation: chatTurn,
       hasActivePauseHold: pauseHold !== null,
       contextCompactionRun: isContextCompactionRun(run.contextSnapshot),
       reviewOwnerUserId:
@@ -1737,9 +1746,10 @@ export async function finalizeNativeRun(input: {
     }
     proposedDecision = gateDoneOnConfiguredReview(proposedDecision, reviewStage, run.agentId);
     const decision = conversationNativeDecision({
-      conversation: isConversation(authoritativeIssue), terminalState,
+      conversation: chatTurn, terminalState,
+      releaseCheckout: chatTurn && !isConversation(authoritativeIssue),
       workspaceFinalizeStatus: input.workspaceFinalizeStatus, hasPolicyGate: !!policyGate,
-      priorStatus: authoritativeStatus(authoritativeIssue.status), decision: proposedDecision,
+      priorStatus: chatTurnPriorStatus, decision: proposedDecision,
     });
     const assessmentRow = await recordNativeWorkAssessment({
       db: input.db,

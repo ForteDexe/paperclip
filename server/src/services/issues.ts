@@ -5128,6 +5128,7 @@ const issueListSelect = {
   statusVersion: issues.statusVersion,
   lastStatusDecisionId: issues.lastStatusDecisionId,
   workMode: issues.workMode,
+  runIntent: issues.runIntent,
   harnessKind: issues.harnessKind,
   priority: issues.priority,
   reviewPolicy: issues.reviewPolicy,

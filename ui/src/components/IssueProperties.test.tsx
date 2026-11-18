@@ -255,6 +255,7 @@ function createIssue(overrides: Partial<Issue> = {}): Issue {
     title: "Parent issue",
     description: null,
     status: "todo",
+    runIntent: "manual",
     priority: "medium",
     reviewPolicy: null,
     assigneeAgentId: null,
@@ -685,6 +686,33 @@ describe("IssueProperties", () => {
 
   afterEach(() => {
     document.body.innerHTML = "";
+  });
+
+  it("edits descriptive run intent without exposing scheduling controls", async () => {
+    const onUpdate = vi.fn();
+    const root = renderProperties(container, {
+      issue: createIssue(),
+      childIssues: [],
+      onUpdate,
+      inline: true,
+    });
+
+    const trigger = findRowTrigger(container, "Run intent");
+    expect(trigger?.textContent).toContain("Manual");
+    await act(async () => {
+      trigger!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(container.textContent).toContain("Descriptive only; it does not schedule or retry work.");
+    const automatic = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("After execution is authorized"),
+    );
+    await act(async () => {
+      automatic!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onUpdate).toHaveBeenCalledWith({ runIntent: "automatic" });
+    act(() => root.unmount());
   });
 
   it.each([true, false])("reserves the usage-limit row while runtime data loads (inline: %s)", async (inline) => {

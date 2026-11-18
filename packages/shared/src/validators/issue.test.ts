@@ -601,17 +601,10 @@ describe("issue validators", () => {
     ).toBe("backlog");
   });
 
-  it("defaults issue work mode to standard and accepts ask, planning, and skill_test", () => {
+  it("defaults issue work mode to standard, accepts skill_test, and rejects removed composer modes", () => {
     expect(createIssueSchema.parse({ title: "Plan first" }).workMode).toBe(
       "standard",
     );
-    expect(
-      createIssueSchema.parse({ title: "Ask first", workMode: "ask" }).workMode,
-    ).toBe("ask");
-    expect(
-      createIssueSchema.parse({ title: "Plan first", workMode: "planning" })
-        .workMode,
-    ).toBe("planning");
     expect(
       createIssueSchema.parse({
         title: "Harness test",
@@ -619,27 +612,9 @@ describe("issue validators", () => {
         harnessKind: "skill_test",
       }),
     ).toMatchObject({ workMode: "skill_test", harnessKind: "skill_test" });
-    expect(updateIssueSchema.parse({ workMode: "ask" }).workMode).toBe("ask");
-    expect(updateIssueSchema.parse({ workMode: "planning" }).workMode).toBe(
-      "planning",
-    );
     expect(updateIssueSchema.parse({ workMode: "skill_test" }).workMode).toBe(
       "skill_test",
     );
-    expect(
-      suggestedTaskDraftSchema.parse({
-        clientKey: "ask-child",
-        title: "Ask child",
-        workMode: "ask",
-      }).workMode,
-    ).toBe("ask");
-    expect(
-      suggestedTaskDraftSchema.parse({
-        clientKey: "planning-child",
-        title: "Plan child",
-        workMode: "planning",
-      }).workMode,
-    ).toBe("planning");
     expect(
       suggestedTaskDraftSchema.parse({
         clientKey: "skill-test-child",
@@ -647,6 +622,21 @@ describe("issue validators", () => {
         workMode: "skill_test",
       }).workMode,
     ).toBe("skill_test");
+    expect(createIssueSchema.safeParse({ title: "Ask first", workMode: "ask" }).success).toBe(false);
+    expect(createIssueSchema.safeParse({ title: "Plan first", workMode: "planning" }).success).toBe(false);
+    expect(updateIssueSchema.safeParse({ workMode: "ask" }).success).toBe(false);
+    expect(updateIssueSchema.safeParse({ workMode: "planning" }).success).toBe(false);
+    expect(suggestedTaskDraftSchema.safeParse({ clientKey: "ask-child", title: "Ask child", workMode: "ask" }).success).toBe(false);
+    expect(suggestedTaskDraftSchema.safeParse({ clientKey: "planning-child", title: "Plan child", workMode: "planning" }).success).toBe(false);
+  });
+
+  it("defaults run intent to manual and accepts automatic as descriptive task context", () => {
+    expect(createIssueSchema.parse({ title: "One turn at a time" }).runIntent).toBe("manual");
+    expect(createIssueSchema.parse({ title: "Carry it through", runIntent: "automatic" }).runIntent)
+      .toBe("automatic");
+    expect(updateIssueSchema.parse({ runIntent: "manual" }).runIntent).toBe("manual");
+    expect(updateIssueSchema.parse({ runIntent: "automatic" }).runIntent).toBe("automatic");
+    expect(updateIssueSchema.safeParse({ runIntent: "scheduled" }).success).toBe(false);
   });
 
   it("validates blocked inbox attention payloads and requires redacted secret fields", () => {

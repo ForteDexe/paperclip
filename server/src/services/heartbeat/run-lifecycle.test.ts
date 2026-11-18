@@ -93,6 +93,27 @@ describe("heartbeat lifecycle module boundary", () => {
     expect(deps.budgets.getInvocationBlock).not.toHaveBeenCalled();
   });
 
+  it("does not continue an ordinary task-chat turn after an empty response", async () => {
+    const database = guardedDatabase();
+    const deps = callbacks(database.db);
+    deps.getIssueExecutionContext = vi.fn(async () => ({
+      id: "issue",
+      harnessKind: null,
+      conversationAgentId: null,
+      externalConversationState: null,
+    })) as unknown as HeartbeatLifecycleDependencies["getIssueExecutionContext"];
+
+    await createHeartbeatLifecycle(database.db, deps).handleRunLivenessContinuation({
+      spaceId: "space",
+      livenessState: "empty_response",
+      contextSnapshot: { issueId: "issue" },
+    } as unknown as Run);
+
+    expect(deps.enqueueWakeup).not.toHaveBeenCalled();
+    expect(deps.budgets.getInvocationBlock).not.toHaveBeenCalled();
+    expect(database.access).not.toHaveBeenCalled();
+  });
+
   it("preserves retained native ownership before lease-release teardown reads or writes", async () => {
     const database = guardedDatabase();
     const deps = callbacks(database.db);

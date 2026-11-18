@@ -201,6 +201,23 @@ adds a new line. Settings → Experimental → **Command/Ctrl+Enter to Submit**
 restores the previous behavior, where Enter adds a new line and Command/Ctrl+Enter
 submits.
 
+### Task conversations and run intent
+
+A task thread behaves like ordinary Chat with task context attached. The agent
+receives the task, Record, workspace, and audit context, but each message is
+still one conversational turn. A direct answer can finish that turn while the
+task remains open. Saying Stop ends the current response and does not create an
+automatic continuation merely because the task is unfinished. The composer does
+not add separate Ask or Plan task modes; the user states the desired action in
+the conversation.
+
+Tasks expose a **Run intent** property with **Manual** and **Automatic** values.
+Manual means the agent should handle only the currently requested increment.
+Automatic means that, after execution is authorized, the agent should pursue
+the requested task from start to finish. This property is descriptive context
+for the agent. It is not a scheduler, heartbeat toggle, retry policy, or source
+of new authority.
+
 ### Routine responsibility
 
 The routine Overview shows its responsible user beside Default agent. People with

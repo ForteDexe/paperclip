@@ -55,14 +55,12 @@ export function IssuePropertiesPlansTab({ issue }: IssuePropertiesPlansTabProps)
       <div className="px-1 py-6 text-sm text-muted-foreground">
         {planDocumentLoading ? (
           "Loading plan…"
-        ) : issue.workMode === "planning" ? (
+        ) : pendingPlanConfirmation ? (
           <div className="space-y-2">
-            <p>This task is in plan mode but no plan document has been written yet.</p>
-            {pendingPlanConfirmation ? (
-              <p className="text-amber-foreground">
-                A plan confirmation is pending, but the plan document it should confirm is missing.
-              </p>
-            ) : null}
+            <p>No plan document has been written yet.</p>
+            <p className="text-amber-foreground">
+              A plan confirmation is pending, but the plan document it should confirm is missing.
+            </p>
           </div>
         ) : (
           "No plan yet. The plan document, accepted plans, and their revisions will appear here."

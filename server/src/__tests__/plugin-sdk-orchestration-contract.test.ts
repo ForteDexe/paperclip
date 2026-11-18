@@ -21,6 +21,7 @@ function issue(input: Partial<Issue> & Pick<Issue, "id" | "spaceId" | "title">):
   const now = new Date();
   return {
     workMode: "standard",
+    runIntent: "manual",
     reviewPolicy: null,
     responsibleUserId: null,
     projectId: null,

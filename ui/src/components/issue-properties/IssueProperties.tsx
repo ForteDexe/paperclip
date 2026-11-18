@@ -370,6 +370,7 @@ export function IssueProperties({
     });
   }, [documentDeepLink]);
   const [assigneeOpen, setAssigneeOpen] = useState(false);
+  const [runIntentOpen, setRunIntentOpen] = useState(false);
   const [assigneeSearch, setAssigneeSearch] = useState("");
   /** When a run is live, a selection is staged here until the operator confirms
    * the interrupt rather than applying it immediately. */
@@ -2374,6 +2375,49 @@ export function IssueProperties({
             showLabel
           />
         </PropertyRow>
+
+        <PropertyPicker
+          inline={inline}
+          label="Run intent"
+          open={runIntentOpen}
+          onOpenChange={setRunIntentOpen}
+          triggerContent={(
+            <span className="text-sm">
+              {issue.runIntent === "automatic" ? "Automatic" : "Manual"}
+            </span>
+          )}
+          popoverClassName="w-64"
+        >
+          {(["manual", "automatic"] as const).map((runIntent) => {
+            const selected = (issue.runIntent ?? "manual") === runIntent;
+            return (
+              <button
+                key={runIntent}
+                type="button"
+                className="flex w-full items-start gap-2 rounded px-2 py-1.5 text-left hover:bg-accent"
+                onClick={() => {
+                  onUpdate({ runIntent });
+                  setRunIntentOpen(false);
+                }}
+              >
+                <Check className={cn("mt-0.5 h-3.5 w-3.5 shrink-0", !selected && "invisible")} />
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium">
+                    {runIntent === "automatic" ? "Automatic" : "Manual"}
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    {runIntent === "automatic"
+                      ? "After execution is authorized, pursue the task from start to finish."
+                      : "Follow only the current request."}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+          <p className="border-t border-border px-2 pt-1.5 text-xs text-muted-foreground">
+            Descriptive only; it does not schedule or retry work.
+          </p>
+        </PropertyPicker>
 
         {/* PAP-411: priority UI is hidden behind SHOW_TASK_PRIORITY_UI. Revive by flipping the flag. */}
         {SHOW_TASK_PRIORITY_UI && (

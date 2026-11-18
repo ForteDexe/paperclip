@@ -144,6 +144,7 @@ export class OutpostRunnerSemanticAuthority {
                   statusVersion: context.issue.statusVersion,
                   priority: context.issue.priority,
                   workMode: context.issue.workMode,
+                  runIntent: context.issue.runIntent,
                   parentId: context.issue.parentId,
                   projectId: context.issue.projectId,
                   goalId: context.issue.goalId,

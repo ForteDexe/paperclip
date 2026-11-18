@@ -23,6 +23,7 @@ import type {
   IssuePriority,
   IssueDisplayStatus,
   IssueReviewPolicy,
+  IssueRunIntent,
   IssueRecoveryActionKind,
   IssueRecoveryActionOutcome,
   IssueRecoveryActionOwnerType,
@@ -50,7 +51,7 @@ import type {
   TrustAuthorizationPolicy,
 } from "../trust-policy.js";
 
-export type { IssueWorkMode };
+export type { IssueRunIntent, IssueWorkMode };
 
 export type IssueVisibility = "open" | "private";
 /** Management hints for this task; never includes protected project/parent identity. */
@@ -946,6 +947,8 @@ export interface Issue {
   descriptionTruncated?: boolean;
   status: IssueStatus;
   workMode: IssueWorkMode;
+  /** Descriptive execution scope; it never schedules or retries work. Current APIs always return it. */
+  runIntent?: IssueRunIntent;
   priority: IssuePriority;
   reviewPolicy: IssueReviewPolicy | null;
   assigneeAgentId: string | null;
@@ -1049,6 +1052,7 @@ export type CompactIssue = Pick<
   | "displayStatus"
   | "status"
   | "workMode"
+  | "runIntent"
   | "priority"
   | "reviewPolicy"
   | "assigneeAgentId"

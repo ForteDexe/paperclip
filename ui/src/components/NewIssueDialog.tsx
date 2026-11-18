@@ -30,7 +30,6 @@ import { getLastProjectId, getRecentProjectIds, trackRecentProject } from "../li
 import { recordRecentTask } from "../lib/recent-tasks";
 import { buildExecutionPolicy } from "../lib/issue-execution-policy";
 import { createUuid } from "../lib/uuid";
-import { isIssueWorkMode, nextWorkMode } from "../lib/work-mode-meta";
 import { useToastActions } from "../context/ToastContext";
 import { assigneeValueFromSelection, currentUserAssigneeOption, parseAssigneeValue } from "../lib/assignees";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -423,15 +422,6 @@ function defaultExecutionWorkspaceModeForIssueDefaults(
   return typeof defaults.executionWorkspaceMode === "string" && defaults.executionWorkspaceMode.length > 0
     ? defaults.executionWorkspaceMode
     : defaultExecutionWorkspaceModeForProject(project);
-}
-
-function isWorkModePeriodShortcut(e: Pick<React.KeyboardEvent, "code" | "ctrlKey" | "key" | "metaKey">) {
-  const isPeriod = e.code === "Period" || e.key === ".";
-  return (e.metaKey || e.ctrlKey) && isPeriod;
-}
-
-function isWorkModeEscapeShortcut(e: Pick<KeyboardEvent, "key" | "metaKey">) {
-  return e.metaKey && e.key === "Escape";
 }
 
 export function NewIssueDialog() {
@@ -876,7 +866,6 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
     setIsPrivate(false);
     createIssue.reset();
     if (newIssueDefaults.parentId) {
-      const nextWorkMode = isIssueWorkMode(newIssueDefaults.workMode) ? newIssueDefaults.workMode : "standard";
       const defaultProjectId = newIssueDefaults.projectId ?? "";
       const defaultProject = orderedProjects.find((project) => project.id === defaultProjectId);
       const hasExplicitProjectWorkspaceId = newIssueDefaults.projectWorkspaceId !== undefined;
@@ -897,12 +886,11 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
       setAssigneeThinkingEffort("");
       setAssigneeChrome(false);
       setExecutionWorkspaceMode(defaultExecutionWorkspaceMode);
-      setWorkMode(nextWorkMode);
+      setWorkMode("standard");
       setSelectedExecutionWorkspaceId(newIssueDefaults.executionWorkspaceId ?? "");
       executionWorkspaceDefaultProjectId.current =
         hasExplicitProjectWorkspaceId || defaultProject ? defaultProjectId || null : null;
     } else if (newIssueDefaults.title || newIssueDefaults.description) {
-      const nextWorkMode = isIssueWorkMode(newIssueDefaults.workMode) ? newIssueDefaults.workMode : "standard";
       setIssueText(newIssueDefaults.title ?? "", newIssueDefaults.description ?? "");
       setStatus(newIssueDefaults.status ?? "todo");
       setPriority(newIssueDefaults.priority ?? "");
@@ -922,7 +910,7 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
       setAssigneeThinkingEffort("");
       setAssigneeChrome(false);
       setExecutionWorkspaceMode(defaultExecutionWorkspaceModeForIssueDefaults(newIssueDefaults, defaultProject));
-      setWorkMode(nextWorkMode);
+      setWorkMode("standard");
       setSelectedExecutionWorkspaceId(newIssueDefaults.executionWorkspaceId ?? "");
       executionWorkspaceDefaultProjectId.current =
         hasExplicitProjectWorkspaceId || newIssueDefaults.executionWorkspaceId || defaultProject
@@ -931,7 +919,6 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
     } else if (draft && (draft.title.trim() || draft.description.trim())) {
       defaultAssigneePendingRef.current = false;
       defaultProjectPendingRef.current = false;
-      const nextWorkMode = isIssueWorkMode(draft.workMode) ? draft.workMode : "standard";
       const restoredProjectId = newIssueDefaults.projectId ?? draft.projectId;
       const restoredProject = orderedProjects.find((project) => project.id === restoredProjectId);
       const hasExplicitProjectWorkspaceId = newIssueDefaults.projectWorkspaceId !== undefined;
@@ -971,7 +958,7 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
                 ? "isolated_workspace"
                 : defaultExecutionWorkspaceModeForProject(restoredProject))),
       );
-      setWorkMode(nextWorkMode);
+      setWorkMode("standard");
       setSelectedExecutionWorkspaceId(
         hasExplicitExecutionWorkspaceId
           ? (newIssueDefaults.executionWorkspaceId ?? "")
@@ -982,7 +969,7 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
           ? restoredProjectId || null
           : null;
     } else {
-      setWorkMode(isIssueWorkMode(newIssueDefaults.workMode) ? newIssueDefaults.workMode : "standard");
+      setWorkMode("standard");
       const defaultProjectId = newIssueDefaults.projectId ?? "";
       const defaultProject = orderedProjects.find((project) => project.id === defaultProjectId);
       const hasExplicitProjectWorkspaceId = newIssueDefaults.projectWorkspaceId !== undefined;
@@ -1179,14 +1166,6 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
     // A transient failure keeps the request and shows the pending notice; a
     // rejection goes back to the composer with readable copy.
     if (result.kind === "rejected") throw result.error;
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (isWorkModePeriodShortcut(e)) {
-      e.preventDefault();
-      setWorkMode((current) => nextWorkMode(current));
-      return;
-    }
   }
 
   function stageFiles(files: File[]) {
@@ -1386,17 +1365,12 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
         aria-describedby={undefined}
         style={dialogViewportStyle}
         className="flex max-h-(--new-issue-dialog-height) flex-col gap-0 overflow-hidden rounded-(--radius-task-composer) border-0 bg-transparent p-0 shadow-none sm:max-w-2xl"
-        onKeyDown={handleKeyDown}
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           dialogBodyRef.current?.querySelector<HTMLElement>('[contenteditable="true"]')?.focus();
         }}
         onEscapeKeyDown={(event) => {
-          if (event.defaultPrevented) return;
-          if (isWorkModeEscapeShortcut(event)) {
-            event.preventDefault();
-            setWorkMode((current) => nextWorkMode(current));
-          } else if (createIssue.isPending) event.preventDefault();
+          if (!event.defaultPrevented && createIssue.isPending) event.preventDefault();
         }}
         onPointerDownOutside={(event) => {
           const target = event.detail.originalEvent.target as HTMLElement | null;
@@ -1417,7 +1391,6 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
           <TaskChatPresentationProvider mode={streamlinedUiEnabled || coordinatorEnabled ? "streamlined" : "production"}>
             <TaskChatComposer
               workMode={workMode}
-              onWorkModeChange={setWorkMode}
               disabled={createIssue.isPending || !effectiveSpaceId}
               placeholder="Describe a task…"
               mobile={isMobile}

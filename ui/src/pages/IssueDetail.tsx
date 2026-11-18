@@ -223,7 +223,6 @@ import { TaskChatThread } from "../components/TaskChatThread";
 import type { TaskChatIssueBrief } from "../components/task-chat/TaskChatDescriptionBubble";
 import { useClassicTaskInterfaceEnabled } from "../hooks/useClassicTaskInterfaceEnabled";
 import { useStreamlinedUiEnabled } from "../hooks/useStreamlinedUiEnabled";
-import { workModeMetaFor } from "../lib/work-mode-meta";
 import { IssueContinuationHandoff } from "../components/IssueContinuationHandoff";
 import { IssueAttachmentsSection } from "../components/IssueAttachmentsSection";
 import { IssueDocumentsSection } from "../components/IssueDocumentsSection";
@@ -7564,31 +7563,6 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
             Watchdog
           </Badge>
         ) : null}
-
-        {/* Task Chat Redesign: no mode chip in the header — mode is a
-              per-request choice made in the composer, and each agent reply
-              carries its own mode chip; a header chip would misread as a
-              task-global setting. Flag OFF keeps the legacy badge. */}
-        {!taskChatShellEnabled &&
-        (issue.workMode === "ask" || issue.workMode === "planning")
-          ? (() => {
-              const workModeMeta = workModeMetaFor(issue.workMode);
-              const WorkModeIcon = workModeMeta.icon;
-              return (
-                <Badge
-                  variant="outline"
-                  className={cn(
-                    "text-(length:--text-nano)",
-                    workModeMeta.classes.badge,
-                  )}
-                  title={`This task is in ${workModeMeta.label.toLowerCase()}.`}
-                >
-                  <WorkModeIcon className="h-3 w-3" aria-hidden />
-                  {workModeMeta.label}
-                </Badge>
-              );
-            })()
-          : null}
 
         {hasAssignedBacklogBlocker(issue.blockedBy) ? (
           <Badge

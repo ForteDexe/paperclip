@@ -8,7 +8,7 @@ import { TaskChatRunnerTurn } from "./task-chat/TaskChatRunnerTurn";
 import { useRunnerSubmission } from "@/hooks/useRunnerSubmission";
 import type { ComposerRunSettings } from "./task-chat/composer-run-settings";
 import { ComposerRunSettingsPicker } from "./task-chat/ComposerRunSettingsPicker";
-import { ComposerAddMenu, ComposerModeChip } from "./task-chat/ComposerAddMenu";
+import { ComposerAddMenu } from "./task-chat/ComposerAddMenu";
 import { TaskChatPausedTakeover, type TaskComposerPause } from "./task-chat/TaskChatPausedTakeover";
 import { useEmailComment } from "./EmailMessageCard";
 import { AssistantRuntimeProvider } from "@assistant-ui/react";
@@ -35,7 +35,6 @@ import {
   type ChangeEvent,
   type DragEvent as ReactDragEvent,
   type ErrorInfo,
-  type KeyboardEvent as ReactKeyboardEvent,
   type Ref,
   type ReactNode,
 } from "react";
@@ -231,10 +230,6 @@ import { useComposerStop } from "@/hooks/useComposerStop";
 import { useComposerSubmitKey } from "@/hooks/useComposerSubmitKey";
 import { agentUrl, cn, formatDateTime, formatShortDate } from "../lib/utils";
 import { liveBlueBadge } from "../lib/status-colors";
-import {
-  nextWorkMode,
-  workModeMetaFor,
-} from "../lib/work-mode-meta";
 import {
   Tooltip,
   TooltipContent,
@@ -4776,7 +4771,6 @@ const IssueChatComposer = forwardRef<
   const [pendingWorkMode, setPendingWorkMode] = useState<IssueWorkMode>(
     resolvedIssueWorkMode,
   );
-  const canToggleWorkMode = typeof onWorkModeChange === "function";
   const attachInputRef = useRef<HTMLInputElement | null>(null);
   const reassignTriggerRef = useRef<HTMLButtonElement | null>(null);
   const focusAssigneeOnDialogCloseRef = useRef(false);
@@ -5416,20 +5410,6 @@ const IssueChatComposer = forwardRef<
     );
   }
 
-  const pendingWorkModeMeta = workModeMetaFor(pendingWorkMode);
-
-  function handleComposerKeyDown(evt: ReactKeyboardEvent<HTMLDivElement>) {
-    // Match the period via both `code` and `key`: iOS Safari with a hardware
-    // keyboard often leaves `code` empty for cmd-period, so relying on it alone
-    // lets the event fall through and triggers Safari's default cancel/dismiss
-    // (which closes the view). Catching `key === "."` keeps the shortcut working
-    // on iOS while preserving desktop behavior.
-    const isPeriod = evt.code === "Period" || evt.key === ".";
-    if (!(evt.metaKey || evt.ctrlKey) || !isPeriod) return;
-    evt.preventDefault();
-    setPendingWorkMode((current) => nextWorkMode(current));
-  }
-
   return (
     <div
       ref={composerContainerRef}
@@ -5437,11 +5417,9 @@ const IssueChatComposer = forwardRef<
       data-pending-work-mode={pendingWorkMode}
       className={cn(
         "relative rounded-md border border-border/70 bg-background/95 p-(--sz-15px) shadow-(--shadow-extract-4) backdrop-blur transition-(--tp-border-color-background-color-box-shadow) duration-150 supports-[backdrop-filter]:bg-background/85 dark:shadow-(--shadow-extract-5)",
-        pendingWorkModeMeta.classes.container,
         isDragOver &&
           "border-primary/45 bg-background shadow-(--shadow-extract-7)",
       )}
-      onKeyDownCapture={handleComposerKeyDown}
       onDragEnterCapture={handleFileDragEnter}
       onDragOverCapture={handleFileDragOver}
       onDragLeaveCapture={handleFileDragLeave}
@@ -5623,16 +5601,11 @@ const IssueChatComposer = forwardRef<
           {canAcceptFiles ? (
             <input ref={attachInputRef} type="file" className="hidden" onChange={handleAttachFile} />
           ) : null}
-          <ComposerAddMenu mode={pendingWorkMode}
-            onModeChange={canToggleWorkMode ? setPendingWorkMode : undefined}
+          <ComposerAddMenu
             onAttachFile={canAcceptFiles ? () => attachInputRef.current?.click() : undefined}
             attachDisabled={attaching}
             disabled={!!uncertainSubmission}
             triggerTestId="issue-chat-composer-add" menuTestId="issue-chat-composer-add-menu" />
-          <ComposerModeChip mode={pendingWorkMode}
-            onRemove={canToggleWorkMode ? () => setPendingWorkMode("standard") : undefined}
-            disabled={!!uncertainSubmission}
-            testId="issue-chat-composer-work-mode-chip" />
         </div>
 
         {enableReassign && reassignOptions.length > 0 && spaceId && agentMap ? (
