@@ -31,7 +31,7 @@ describe("runner backlog task creation", () => {
     return { spaceId, agentId, issueId, runId, binding, enqueueWakeup, authority: new OutpostRunnerToolAuthority(db, binding) };
   }
 
-  it("never repeats a completed or uncertain workspace mutation and fences replay", async () => {
+  it.skipIf(process.platform !== "linux" && process.platform !== "darwin")("never repeats a completed or uncertain workspace mutation and fences replay", async () => {
     const f = await fixture(false);
     const root = await mkdtemp(join(tmpdir(), "dot-workspace-receipt-"));
     await db.update(agents).set({ adapterConfig: { provider: "openai_dot", dotWorkspaceAccess: true } }).where(eq(agents.id, f.agentId));

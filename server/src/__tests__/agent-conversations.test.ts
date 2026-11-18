@@ -1120,36 +1120,30 @@ describe("chat prompt policy", () => {
     expect(prompt).toContain("/<prefix>/agents/<agentId>/runs/<runId>");
   });
 
-  it("tells chat how to link projects and to link only the workspace pages a tool result gives", () => {
+  it("does not construct retired project or workspace detail links", () => {
     const app = readFileSync(new URL("../../../ui/src/App.tsx", import.meta.url), "utf8");
-    expect(app).toMatch(/<Route\s+path="projects\/:projectId"/);
-    expect(AGENT_CHAT_DIRECTIVE).toContain("agent profiles, projects, goals) uses that same prefix");
-    expect(AGENT_CHAT_DIRECTIVE).toContain("For a project, link /<prefix>/projects/<projectId>.");
-    expect(AGENT_CHAT_DIRECTIVE).toContain("When a tool result gives a record's href, such as a project or a workspace, link that href; a workspace without an href has no page on this instance");
+    expect(app).toMatch(/<Route\s+path="projects\/\*"\s+element={<Navigate to="\/spaces" replace \/>}\s*\/>/);
+    expect(AGENT_CHAT_DIRECTIVE).toContain("Projects and workspaces have no dedicated detail pages in the current UI");
+    expect(AGENT_CHAT_DIRECTIVE).toContain("name them instead of constructing a link, unless a tool result supplies an actual href");
+    expect(AGENT_CHAT_DIRECTIVE).not.toContain("/<prefix>/projects/<projectId>");
     const prompt = buildOutpostTaskMarkdown({ issue: { id: "chat", identifier: null, title: "Chat", workMode: "ask", conversationAgentId: "agent" } });
-    expect(prompt).toContain("/<prefix>/projects/<projectId>");
+    expect(prompt).toContain("Projects and workspaces have no dedicated detail pages");
   });
 
-  it("says the task-chat lab exists only under pnpm dev in the person's own checkout", () => {
-    expect(AGENT_CHAT_DIRECTIVE).toContain("Some developer labs, including the task-chat interaction lab at /<prefix>/dev/task-chat-lab, are registered only in a development build of the UI");
-    expect(AGENT_CHAT_DIRECTIVE).not.toContain("Developer labs, such as");
-    expect(AGENT_CHAT_DIRECTIVE).toContain("the design guide and the ux-lab pages, are registered in every build");
-    expect(AGENT_CHAT_DIRECTIVE).toContain("running pnpm dev in their own Outpost checkout and visiting /<prefix>/dev/task-chat-lab");
+  it("does not link retired developer lab routes", () => {
+    expect(AGENT_CHAT_DIRECTIVE).toContain("Developer labs and old reference surfaces such as the task-chat lab, design guide, and ux-lab pages are not live routes");
+    expect(AGENT_CHAT_DIRECTIVE).toContain("Do not construct links to them");
+    expect(AGENT_CHAT_DIRECTIVE).not.toContain("/<prefix>/dev/task-chat-lab");
     const prompt = buildOutpostTaskMarkdown({ issue: { id: "chat", identifier: null, title: "Chat", workMode: "ask", conversationAgentId: "agent" } });
-    expect(prompt).toContain("/<prefix>/dev/task-chat-lab");
+    expect(prompt).toContain("use an existing Storybook development workflow");
   });
 
-  it("links reference pages for a component or chat state instead of creating a real card or a mock", () => {
+  it("does not create live records to demonstrate retired reference fixtures", () => {
     const app = readFileSync(new URL("../../../ui/src/App.tsx", import.meta.url), "utf8");
-    expect(app).toMatch(/<Route\s+path="design-guide"/);
-    for (const lab of ["responsible-user-denial", "bootstrap-setup", "cross-issue-collaboration"]) {
-      expect(app).toMatch(new RegExp(`<Route\\s+path="ux-lab/${lab}"`));
-      expect(AGENT_CHAT_DIRECTIVE).toContain(`/ux-lab/${lab}`);
-    }
-    expect(AGENT_CHAT_DIRECTIVE).toContain("link its existing reference page instead of creating a real card, request or record and instead of drawing a mock");
-    expect(AGENT_CHAT_DIRECTIVE).toContain("the design guide at /<prefix>/design-guide shows the standard components, including the pending question card");
-    expect(AGENT_CHAT_DIRECTIVE).toContain("The ux-lab pages take no space prefix.");
-    expect(AGENT_CHAT_DIRECTIVE).toContain("synthetic presentation fixtures, not proof that the live flow works");
+    expect(app).toMatch(/<Route\s+path="design-guide"\s+element={<Navigate to="\/dashboard" replace \/>}\s*\/>/);
+    expect(app).not.toMatch(/<Route\s+path="ux-lab\//);
+    expect(AGENT_CHAT_DIRECTIVE).toContain("Do not construct links to them, probe the bundle for them, or create a real card, request, task, or Record");
+    expect(AGENT_CHAT_DIRECTIVE).not.toContain("/ux-lab/");
   });
 
   it("explains a task's purpose from its saved goal chain with goal links", () => {
@@ -1189,7 +1183,7 @@ describe("chat prompt policy", () => {
   it("gives chat replies a usable route for both task and approval sources", () => {
     expect(AGENT_CHAT_DIRECTIVE).toContain("/<prefix>/issues/<identifier>");
     expect(AGENT_CHAT_DIRECTIVE).toContain("For approval links, use /<prefix>/approvals/<approvalId>");
-    expect(AGENT_CHAT_DIRECTIVE).toContain("Never invent a hostname for a Outpost link.");
+    expect(AGENT_CHAT_DIRECTIVE).toContain("Never invent a hostname for an Outpost link.");
     expect(AGENT_CHAT_DIRECTIVE).toContain("Write every space link as a Markdown link");
     expect(AGENT_CHAT_DIRECTIVE).toContain("a bare path or a path in inline code is not clickable");
     expect(AGENT_CHAT_DIRECTIVE).toContain("Start each link target with exactly one slash");

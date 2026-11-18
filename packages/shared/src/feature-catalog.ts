@@ -210,7 +210,7 @@ export const INSTANCE_FEATURE_CATALOG: Record<InstanceFeatureKey, FeatureCatalog
     selfHostedDefault: false,
   },
   enableTaskRecordPrototype: {
-    title: "Task Record Prototype",
+    title: "Task Record",
     description:
       "Add a living, revisioned task record for the refined brief, decisions, questions, evidence, and result beside the task conversation.",
     tier: "preference",

@@ -76,10 +76,11 @@ describe("TaskRecordPanel structured workflow fields", () => {
 
     expect(container.textContent).toContain("Fixture run is in progress.");
     expect(container.textContent).toContain("Should malformed rows be skipped?");
-    const wrapUp = Array.from(container.querySelectorAll("button"))
-      .find((button) => button.textContent?.includes("Final — Wrap up"));
-    expect(wrapUp?.disabled).toBe(true);
-    expect(wrapUp?.title).toBe("Resolve or remove every Open Question before wrapping up");
+    expect(container.textContent).not.toContain("Prototype");
+    expect(container.textContent).not.toContain("Example behavior");
+    expect(container.textContent).not.toContain("Submission 1");
+    expect(container.textContent).not.toContain("Automatic execution");
+    expect(container.textContent).not.toContain("Final — Wrap up");
 
     const edit = Array.from(container.querySelectorAll("button"))
       .find((button) => button.textContent?.includes("Edit record"));

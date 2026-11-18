@@ -206,12 +206,10 @@ together. Empty validation reads as “Not run yet” and its editor explains th
 the field stays empty until a run or test exists.
 
 Record editing uses the existing structured inputs and explicit Save revision
-and Cancel actions. Automatic execution and task execution state remain separate
-controls. A disabled Final — Wrap up action explains its blocker in its title:
-the task must be paused, every feature must be implemented with validation or
-skipped by agreement, and Open Questions must be empty. Record revisions and
-feedback accumulate without waking the agent; only the explicit execution
-controls do so.
+and Cancel actions. The surface shows only persisted Record data: it does not
+prefill sample features or review turns, and it does not present local-only
+execution, feedback, or wrap-up controls as if they affected a real agent.
+Absent optional sections remain hidden in the read view.
 
 ## Proposed color foundation
 

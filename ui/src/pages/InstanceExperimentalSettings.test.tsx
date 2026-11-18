@@ -33,7 +33,7 @@ vi.mock("../context/BreadcrumbContext", () => ({
 const CASES = 'button[aria-label="Toggle cases experimental setting"]';
 const CAMPFIRE = 'button[aria-label="Toggle Campfire experimental setting"]';
 const DECISIONS = 'button[aria-label="Toggle decisions experimental setting"]';
-const TASK_RECORD = 'button[aria-label="Toggle task record prototype experimental setting"]';
+const TASK_RECORD = 'button[aria-label="Toggle task record experimental setting"]';
 const NORTH_STARS = 'button[aria-label="Toggle north stars sidebar link experimental setting"]';
 const DEVELOPER_MODE = 'button[aria-label="Toggle Outpost developer mode experimental setting"]';
 
@@ -145,7 +145,7 @@ describe("InstanceExperimentalSettings", () => {
       "Cases",
       "Campfire",
       "Decisions",
-      "Task Record Prototype",
+      "Task Record",
       "North Stars",
       "Auto-Restart Dev Server When Idle",
       "Outpost Developer Mode",

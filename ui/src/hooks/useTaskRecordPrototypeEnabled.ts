@@ -10,7 +10,7 @@ function getDetachedClient(): QueryClient {
   return detachedClient;
 }
 
-/** Experimental living task record. Fail-closed when settings are unavailable. */
+/** Living task record experiment. Fail-closed when settings are unavailable. */
 export function useTaskRecordPrototypeEnabled(): { enabled: boolean; loaded: boolean } {
   const contextClient = useContext(QueryClientContext);
   const { data, isFetched } = useQuery(

@@ -138,10 +138,9 @@ is clarified so creation does not start execution.
 
 The Record is current shared memory rather than an append-only history. Agents
 update settled facts during task discussion and work, remove resolved questions,
-and fill a feature's validation only after a real run or test. Wrap-up requires
-every feature to be implemented with validation or skipped by agreement, and no
-Open Questions may remain. Document revisions retain the change history without
-keeping obsolete requirements in the current Record.
+and fill a feature's validation only after a real run or test. Document
+revisions retain the change history without keeping obsolete requirements in
+the current Record.
 
 When an agent creates a subtask or follow-up task, its source task's feed shows
 a linked card at creation time with the current title, task number, and status.

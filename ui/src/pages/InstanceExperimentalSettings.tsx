@@ -257,15 +257,15 @@ export function InstanceExperimentalSettings() {
         />
 
         <ExperimentalToggleCard
-          title="Task Record Prototype"
-          description="Add a living source of truth beside each task conversation for the refined brief, answered questions, decisions, evidence, and result."
-          footnote="This prototype uses a revisioned task document and can be removed without changing the conversation or task model."
+          title="Task Record"
+          description="Add a living source of truth beside each task conversation for the refined brief, open questions, decisions, validation, and result."
+          footnote="Records use structured, revisioned task data and remain separate from conversation history."
           checked={enableTaskRecordPrototype}
           onCheckedChange={(checked) => toggleMutation.mutate({ enableTaskRecordPrototype: checked })}
           disabled={toggleMutation.isPending}
           settingKey="enableTaskRecordPrototype"
           managed={managedKeys.enableTaskRecordPrototype}
-          ariaLabel="Toggle task record prototype experimental setting"
+          ariaLabel="Toggle task record experimental setting"
         />
 
         <ExperimentalToggleCard
