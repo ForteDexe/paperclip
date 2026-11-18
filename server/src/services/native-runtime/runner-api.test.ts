@@ -114,6 +114,23 @@ describe("connection setup response protection", () => {
 });
 
 describe("runner API catalog", () => {
+  it("exposes dedicated structured Task Record reads and writes to call_api", () => {
+    const read = runnerApiOperation("GET /api/issues/{id}/task-record");
+    const write = runnerApiOperation("PUT /api/issues/{id}/task-record");
+    expect(read.dedicatedTools).toEqual([]);
+    expect(write.dedicatedTools).toEqual([]);
+    expect(write.requestBody?.content["application/json"].schema).toMatchObject({
+      additionalProperties: false,
+      required: expect.arrayContaining(["record", "baseRevisionId"]),
+      properties: {
+        record: {
+          additionalProperties: false,
+          required: expect.arrayContaining(["intent", "features", "nextStep"]),
+        },
+      },
+    });
+  });
+
   it("discovers the real handoff schema and recovery endpoints with standard-mode mutation authority", () => {
     const operation = runnerApiOperation("POST /api/spaces/{spaceId}/case-handoffs");
     expect(operation.dedicatedTools).toEqual(["handoff_case", "create_case"]);

@@ -770,6 +770,7 @@ export type {
   IssueThreadInteractionResult,
   IssueDocument,
   IssueDocumentSummary,
+  TaskRecordDocument,
   DocumentRevision,
   ExactDocumentRevision,
   DocumentFormat,

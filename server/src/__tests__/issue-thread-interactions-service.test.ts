@@ -1278,7 +1278,15 @@ describeEmbeddedPostgres("issueThreadInteractionService", () => {
             status: "backlog",
             workMode: "planning",
             assigneeAgentId,
-            initialWorkingSpec: "# Root follow-up\n\n## Intent\nCreate the agreed follow-up.",
+            initialTaskRecord: {
+              version: 1,
+              intent: "Create the agreed follow-up.",
+              features: [],
+              constraintsAndNonGoals: [],
+              decisions: [],
+              nextStep: null,
+              resultsAndVerification: [],
+            },
           },
           {
             clientKey: "child",
@@ -1351,7 +1359,16 @@ describeEmbeddedPostgres("issueThreadInteractionService", () => {
     expect(await issuesSvc.list(spaceId, { parentId: rootFollowUp.id })).toHaveLength(0);
     expect(await documentService(db).getIssueDocumentByKey(rootFollowUp.id, "working-spec")).toMatchObject({
       title: "Task Record",
-      body: "# Root follow-up\n\n## Intent\nCreate the agreed follow-up.",
+      format: "task_record",
+      body: JSON.stringify({
+        version: 1,
+        intent: "Create the agreed follow-up.",
+        features: [],
+        constraintsAndNonGoals: [],
+        decisions: [],
+        nextStep: null,
+        resultsAndVerification: [],
+      }),
       latestRevisionNumber: 1,
     });
 

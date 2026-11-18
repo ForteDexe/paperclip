@@ -123,16 +123,22 @@ describe("issue validators", () => {
     const parsed = createIssueSchema.parse({
       title: "Follow up PR",
       description: "Line 1\n\nLine 2",
-      initialWorkingSpec: "# Follow up PR\n\n## Intent\nShip it.",
+      initialTaskRecord: {
+        version: 1, intent: "Ship it.", features: [], constraintsAndNonGoals: [],
+        decisions: [], nextStep: null, resultsAndVerification: [],
+      },
     });
 
     expect(parsed.description).toBe("Line 1\n\nLine 2");
-    expect(parsed.initialWorkingSpec).toBe("# Follow up PR\n\n## Intent\nShip it.");
+    expect(parsed.initialTaskRecord?.intent).toBe("Ship it.");
     expect(suggestedTaskDraftSchema.parse({
       clientKey: "follow-up",
       title: "Follow up PR",
-      initialWorkingSpec: "# Follow up PR\n\n## Intent\nShip it.",
-    }).initialWorkingSpec).toContain("## Intent");
+      initialTaskRecord: {
+        version: 1, intent: "Ship it.", features: [], constraintsAndNonGoals: [],
+        decisions: [], nextStep: null, resultsAndVerification: [],
+      },
+    }).initialTaskRecord?.intent).toBe("Ship it.");
   });
 
   it("accepts null and omitted optional multiline issue fields", () => {

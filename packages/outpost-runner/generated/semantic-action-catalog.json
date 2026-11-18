@@ -3346,7 +3346,7 @@
       "standard",
       "skill_test"
     ],
-    "description": "Create a task. When the user names an existing teammate or project, resolve their IDs with list_agents or list_projects and set assigneeActorId or projectId in this creation call. A todo task can start its assignee immediately; creating it for yourself and reassigning later can start the wrong agent. Persist initialPlan and initialWorkingSpec before execution. Use backlog to save or plan without starting work; backlog tasks never wake an agent. Omitted status means todo, subject to blockers. Include required inputs and constraints in self-contained task instructions.",
+    "description": "Create a task. When the user names an existing teammate or project, resolve their IDs with list_agents or list_projects and set assigneeActorId or projectId in this creation call. A todo task can start its assignee immediately; creating it for yourself and reassigning later can start the wrong agent. Persist initialPlan and initialTaskRecord before execution. Use backlog to save or plan without starting work; backlog tasks never wake an agent. Omitted status means todo, subject to blockers. Include required inputs and constraints in self-contained task instructions.",
     "effect": "write",
     "inputSchema": {
       "additionalProperties": false,
@@ -3399,11 +3399,127 @@
             "null"
           ]
         },
-        "initialWorkingSpec": {
-          "description": "Living Task Record markdown to persist as working-spec before execution. For an early backlog briefing task, seed the settled intent and known scope, omit unknown sections, then refine it in the task conversation. Put behavior-changing decisions in feature outcomes; capture cross-cutting decisions separately only when needed. Include feature states, constraints, and an optional next step anchored to a feature name with an optional comment. Keep questions in chat and reflect only settled answers in the Record. Do not duplicate feature state in Next Step. Add concrete results or verification only after they exist.",
-          "maxLength": 200000,
+        "initialTaskRecord": {
+          "additionalProperties": false,
+          "description": "Structured Task Record. Use stable feature IDs so Next Step remains linked when behavior text changes.",
+          "properties": {
+            "constraintsAndNonGoals": {
+              "items": {
+                "maxLength": 20000,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 100,
+              "type": "array"
+            },
+            "decisions": {
+              "items": {
+                "maxLength": 20000,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 100,
+              "type": "array"
+            },
+            "features": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "behavior": {
+                    "maxLength": 500,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "id": {
+                    "maxLength": 120,
+                    "minLength": 1,
+                    "pattern": "^[a-z0-9][a-z0-9_-]*$",
+                    "type": "string"
+                  },
+                  "outcome": {
+                    "maxLength": 20000,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "state": {
+                    "enum": [
+                      "agreed",
+                      "testing",
+                      "validated",
+                      "implemented",
+                      "skipped_by_agreement"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "behavior",
+                  "outcome",
+                  "state"
+                ],
+                "type": "object"
+              },
+              "maxItems": 100,
+              "type": "array"
+            },
+            "intent": {
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            "nextStep": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "comment": {
+                      "maxLength": 4000,
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "featureId": {
+                      "maxLength": 120,
+                      "minLength": 1,
+                      "pattern": "^[a-z0-9][a-z0-9_-]*$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "featureId"
+                  ],
+                  "type": "object"
+                }
+              ]
+            },
+            "resultsAndVerification": {
+              "items": {
+                "maxLength": 20000,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 100,
+              "type": "array"
+            },
+            "version": {
+              "const": 1
+            }
+          },
+          "required": [
+            "version",
+            "intent",
+            "features",
+            "constraintsAndNonGoals",
+            "decisions",
+            "nextStep",
+            "resultsAndVerification"
+          ],
           "type": [
-            "string",
+            "object",
             "null"
           ]
         },

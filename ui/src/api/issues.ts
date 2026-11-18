@@ -47,6 +47,8 @@ import type {
   ReleaseIssueTreeHoldResponse,
   UpsertIssueWatchdog,
   UpsertIssueDocument,
+  TaskRecordDocument,
+  UpsertTaskRecord,
 } from "@outpost/shared";
 import { api, ApiError, detachInflightGet, type RequestOptions } from "./client";
 import { CommentSubmissionUnknownError } from "../lib/comment-submit-result";
@@ -744,6 +746,10 @@ export const issuesApi = {
       `/issues/${id}/documents/${encodeURIComponent(key)}`,
       data,
     ),
+  getTaskRecord: (id: string) =>
+    api.get<TaskRecordDocument>(`/issues/${id}/task-record`),
+  upsertTaskRecord: (id: string, data: UpsertTaskRecord) =>
+    api.put<TaskRecordDocument>(`/issues/${id}/task-record`, data),
   lockDocument: (id: string, key: string) =>
     api.post<IssueDocument>(
       `/issues/${id}/documents/${encodeURIComponent(key)}/lock`,

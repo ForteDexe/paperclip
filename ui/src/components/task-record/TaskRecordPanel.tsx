@@ -1,75 +1,73 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type { Issue, IssueDocument } from "@outpost/shared";
-import { Bot, Check, FilePenLine, FlaskConical, Image, Loader2, MessageSquareText, Pause, Play, Plus, Rocket, User, X } from "lucide-react";
+import { TASK_RECORD_FEATURE_STATES, taskRecordSchema, type Issue, type TaskRecord, type TaskRecordFeature } from "@outpost/shared";
+import { Bot, Check, FilePenLine, FlaskConical, Image, Loader2, MessageSquareText, Pause, Play, Plus, Rocket, Trash2, User, X } from "lucide-react";
 import { issuesApi } from "@/api/issues";
 import { DocumentMarkdownBody } from "@/components/DocumentMarkdownBody";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleSwitch } from "@/components/ui/toggle-switch";
+import { useTaskRecord } from "@/hooks/useTaskRecord";
 import { queryKeys } from "@/lib/queryKeys";
 import {
   buildTaskRecord,
-  parseTaskRecord,
-  parseTaskRecordFeatures,
-  parseTaskRecordNextStep,
   resolveTaskRecordNextStepFeature,
+  taskRecordFeatureStateLabel,
   TASK_RECORD_DOCUMENT_KEY,
-  TASK_RECORD_DOCUMENT_TITLE,
-  type TaskRecordFeature,
-  type TaskRecordNextStep,
 } from "./task-record-model";
 
-export function TaskRecordPanel({ issue, document }: { issue: Issue; document?: IssueDocument }) {
+const PREVIEW_RECORD: TaskRecord = {
+  version: 1,
+  intent: "The agreed task outcome appears here.",
+  features: [{
+    id: "example_behavior",
+    behavior: "Example behavior",
+    outcome: "The agreed result the user can test.",
+    state: "implemented",
+  }],
+  constraintsAndNonGoals: [],
+  decisions: [],
+  nextStep: { featureId: "example_behavior", comment: "Review the result the user can test." },
+  resultsAndVerification: [],
+};
+
+export function TaskRecordPanel({ issue }: { issue: Issue }) {
   const queryClient = useQueryClient();
-  const [current, setCurrent] = useState<IssueDocument | undefined>(document);
+  const taskRecordQuery = useTaskRecord(issue.id);
+  const current = taskRecordQuery.data;
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(document?.body ?? buildTaskRecord(issue));
+  const [draft, setDraft] = useState<TaskRecord>(() => buildTaskRecord(issue));
   const [automaticExecution, setAutomaticExecution] = useState(false);
   const [executionState, setExecutionState] = useState<"blocked" | "paused" | "running">("paused");
   const [pendingChanges, setPendingChanges] = useState(0);
 
   useEffect(() => {
-    if (!document) return;
-    setCurrent(document);
-    if (!editing) setDraft(document.body);
-  }, [document, editing]);
+    if (current && !editing) setDraft(structuredClone(current.record));
+  }, [current, editing]);
 
   const save = useMutation({
-    mutationFn: (body: string) => issuesApi.upsertDocument(issue.id, TASK_RECORD_DOCUMENT_KEY, {
-      title: TASK_RECORD_DOCUMENT_TITLE,
-      format: "markdown",
-      body,
+    mutationFn: (record: TaskRecord) => issuesApi.upsertTaskRecord(issue.id, {
+      record,
       baseRevisionId: current?.latestRevisionId ?? null,
       changeSummary: current ? "Update task record" : "Create task record",
     }),
     onSuccess: async (saved) => {
-      setCurrent(saved);
-      setDraft(saved.body);
+      setDraft(structuredClone(saved.record));
       setEditing(false);
       setPendingChanges((count) => count + 1);
+      queryClient.setQueryData(queryKeys.issues.taskRecord(issue.id), saved);
       await queryClient.invalidateQueries({ queryKey: queryKeys.issues.documents(issue.id) });
     },
   });
 
-  const body = current?.body ?? draft;
-  const sections = useMemo(() => parseTaskRecord(body), [body]);
-  const features = useMemo(() => parseTaskRecordFeatures(body), [body]);
-  const nextStep = useMemo(() => parseTaskRecordNextStep(body), [body]);
-  const reviewBody = sections.find((section) => ["review timeline", "stages"].includes(section.heading.toLowerCase()))?.body ?? "";
-  const reviewIsPlaceholder = !reviewBody || reviewBody.includes("The agent will add its result summary");
-  const previewFeatures = useMemo<TaskRecordFeature[]>(() => [{
-    behavior: "Example behavior",
-    outcome: "The agreed result the user can test.",
-    agentState: "Implemented",
-  }], []);
-  const previewNextStep = useMemo<TaskRecordNextStep>(() => ({
-    behavior: "Example behavior",
-    comment: "Review the result the user can test.",
-  }), []);
-  const displayedFeatures = features.length ? features : previewFeatures;
-  const allFeaturesReady = displayedFeatures.every((feature) => ["implemented", "validated", "skipped", "skipped by agreement"].includes(feature.agentState.trim().toLowerCase()));
+  const record = current?.record ?? draft;
+  const draftIsValid = taskRecordSchema.safeParse(draft).success;
+  const displayedRecord = current ? record : PREVIEW_RECORD;
+  const allFeaturesReady = record.features.length > 0 && record.features.every((feature) =>
+    ["implemented", "validated", "skipped_by_agreement"].includes(feature.state));
   const canWrapUp = executionState === "paused" && allFeaturesReady;
   const wrapUpReason = executionState === "blocked"
     ? "Resolve the blocker in chat first"
@@ -87,7 +85,11 @@ export function TaskRecordPanel({ issue, document }: { issue: Issue; document?: 
     setPendingChanges((count) => count + 1);
   };
 
-  if (!current && !editing) {
+  if (taskRecordQuery.isLoading) {
+    return <div className="flex min-h-40 items-center justify-center"><Loader2 className="animate-spin" aria-label="Loading Task Record" /></div>;
+  }
+
+  if (current === null && !editing) {
     return (
       <div className="space-y-5 py-2">
         <TaskRecordHeader />
@@ -100,7 +102,7 @@ export function TaskRecordPanel({ issue, document }: { issue: Issue; document?: 
           <Button
             className="mt-4"
             size="sm"
-            onClick={() => save.mutate(draft)}
+            onClick={() => save.mutate(buildTaskRecord(issue))}
             disabled={save.isPending || executionState === "running"}
             title={executionState === "running" ? "Pause the task before creating the Task Record" : undefined}
           >
@@ -109,8 +111,8 @@ export function TaskRecordPanel({ issue, document }: { issue: Issue; document?: 
           </Button>
         </div>
         <PrototypeNotice />
-        <FeatureTable features={previewFeatures} preview />
-        <NextStepCard nextStep={previewNextStep} features={previewFeatures} preview />
+        <FeatureTable features={PREVIEW_RECORD.features} preview />
+        <NextStepCard record={PREVIEW_RECORD} preview />
         <ContinuousReview body="The agent's result summary, verification notes, screenshots, videos, and related files will appear here as continuous submissions." preview readOnly={executionState === "running"} canWrapUp={canWrapUp} wrapUpReason={wrapUpReason} onFeedbackSaved={() => setPendingChanges((count) => count + 1)} onWrapUp={resumeTask} />
         {save.error ? <p className="text-sm text-destructive">{save.error.message}</p> : null}
       </div>
@@ -125,12 +127,12 @@ export function TaskRecordPanel({ issue, document }: { issue: Issue; document?: 
           {editing ? (
             <div className="flex items-center gap-1">
               <Button variant="ghost" size="sm" onClick={() => {
-                setDraft(current?.body ?? buildTaskRecord(issue));
+                setDraft(current ? structuredClone(current.record) : buildTaskRecord(issue));
                 setEditing(false);
               }} disabled={save.isPending}>
                 <X aria-hidden /> Cancel
               </Button>
-              <Button size="sm" onClick={() => save.mutate(draft)} disabled={save.isPending || !draft.trim()}>
+              <Button size="sm" onClick={() => save.mutate(draft)} disabled={save.isPending || !draftIsValid}>
                 {save.isPending ? <Loader2 className="animate-spin" aria-hidden /> : <Check aria-hidden />}
                 Save revision
               </Button>
@@ -149,30 +151,18 @@ export function TaskRecordPanel({ issue, document }: { issue: Issue; document?: 
       <AutomationSwitch checked={automaticExecution} onCheckedChange={changeAutomaticExecution} executionState={executionState} onExecutionStateChange={setExecutionState} pendingChanges={pendingChanges} onResume={resumeTask} resumeDisabled={editing} />
 
       {editing ? (
-        <div className="space-y-2">
-          <Textarea aria-label="Task record Markdown" className="min-h-[32rem] resize-y font-mono text-xs leading-relaxed" value={draft} onChange={(event) => setDraft(event.target.value)} />
-          <p className="text-xs text-muted-foreground">Markdown is stored as a revisioned task document.</p>
-        </div>
-      ) : sections.length > 0 ? (
+        <TaskRecordEditor record={draft} onChange={setDraft} />
+      ) : (
         <div className="space-y-5">
           <PrototypeNotice />
-          <div className="space-y-3">
-          {sections.filter((section) => !["features and behaviors", "next step", "open questions", "questions", "review timeline", "stages"].includes(section.heading.toLowerCase())).map((section) => (
-            <section key={section.heading} className="rounded-lg border bg-card/30 p-4">
-              <h3 className="mb-3 text-sm font-semibold">{section.heading}</h3>
-              {section.body ? (
-                <DocumentMarkdownBody documentKey={TASK_RECORD_DOCUMENT_KEY} currentIssueId={issue.id}>
-                  {section.body}
-                </DocumentMarkdownBody>
-              ) : <p className="text-sm text-muted-foreground">Nothing recorded yet.</p>}
-            </section>
-          ))}
-          </div>
-          <FeatureTable features={displayedFeatures} preview={features.length === 0} />
-          {nextStep ? <NextStepCard nextStep={nextStep} features={features} /> : null}
+          <RecordTextSection title="Intent" items={[displayedRecord.intent]} />
+          <FeatureTable features={displayedRecord.features} preview={!current} />
+          {displayedRecord.constraintsAndNonGoals.length > 0 ? <RecordTextSection title="Constraints and Non-Goals" items={displayedRecord.constraintsAndNonGoals} list /> : null}
+          {displayedRecord.decisions.length > 0 ? <RecordTextSection title="Decisions" items={displayedRecord.decisions} list /> : null}
+          {displayedRecord.nextStep ? <NextStepCard record={displayedRecord} preview={!current} /> : null}
           <ContinuousReview
-            body={reviewBody || "The agent's result summary, verification notes, screenshots, videos, and related files will appear here as continuous submissions."}
-            preview={reviewIsPlaceholder}
+            body={displayedRecord.resultsAndVerification.map((item) => `- ${item}`).join("\n") || "The agent's result summary, verification notes, screenshots, videos, and related files will appear here as continuous submissions."}
+            preview={displayedRecord.resultsAndVerification.length === 0}
             readOnly={executionState === "running"}
             canWrapUp={canWrapUp}
             wrapUpReason={wrapUpReason}
@@ -180,12 +170,93 @@ export function TaskRecordPanel({ issue, document }: { issue: Issue; document?: 
             onWrapUp={resumeTask}
           />
         </div>
-      ) : (
-        <DocumentMarkdownBody documentKey={TASK_RECORD_DOCUMENT_KEY} currentIssueId={issue.id}>{body}</DocumentMarkdownBody>
       )}
 
       {save.error ? <p className="text-sm text-destructive">Could not save the record: {save.error.message}</p> : null}
     </article>
+  );
+}
+
+function RecordTextSection({ title, items, list = false }: { title: string; items: string[]; list?: boolean }) {
+  return (
+    <section className="rounded-lg border bg-card/30 p-4">
+      <h3 className="mb-3 text-sm font-semibold">{title}</h3>
+      {list ? (
+        <ul className="list-disc space-y-2 pl-5 text-sm">{items.map((item, index) => <li key={`${title}-${index}`} className="whitespace-pre-wrap">{item}</li>)}</ul>
+      ) : <p className="whitespace-pre-wrap text-sm">{items[0]}</p>}
+    </section>
+  );
+}
+
+function TaskRecordEditor({ record, onChange }: { record: TaskRecord; onChange: (record: TaskRecord) => void }) {
+  const updateFeature = (index: number, patch: Partial<TaskRecordFeature>) => onChange({
+    ...record,
+    features: record.features.map((feature, candidate) => candidate === index ? { ...feature, ...patch } : feature),
+  });
+  const addFeature = () => onChange({
+    ...record,
+    features: [...record.features, {
+      id: `feature_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`,
+      behavior: "",
+      outcome: "",
+      state: "agreed",
+    }],
+  });
+  const removeFeature = (index: number) => {
+    const removed = record.features[index];
+    onChange({
+      ...record,
+      features: record.features.filter((_, candidate) => candidate !== index),
+      nextStep: record.nextStep?.featureId === removed?.id ? null : record.nextStep,
+    });
+  };
+
+  return (
+    <div className="space-y-5">
+      <StructuredField title="Intent">
+        <Textarea aria-label="Intent" value={record.intent} onChange={(event) => onChange({ ...record, intent: event.target.value })} />
+      </StructuredField>
+      <StructuredField title="Features and Behaviors" action={<Button type="button" variant="outline" size="sm" onClick={addFeature}><Plus aria-hidden /> Add feature</Button>}>
+        <div className="space-y-3">
+          {record.features.length === 0 ? <p className="text-sm text-muted-foreground">No features recorded yet.</p> : record.features.map((feature, index) => (
+            <div key={feature.id} className="grid gap-3 rounded-md border p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_12rem_auto]">
+              <Input aria-label={`Feature ${index + 1} behavior`} value={feature.behavior} placeholder="Feature or behavior" onChange={(event) => updateFeature(index, { behavior: event.target.value })} />
+              <Textarea aria-label={`Feature ${index + 1} outcome`} value={feature.outcome} placeholder="Agreed outcome" onChange={(event) => updateFeature(index, { outcome: event.target.value })} />
+              <Select value={feature.state} onValueChange={(state) => updateFeature(index, { state: state as TaskRecordFeature["state"] })}>
+                <SelectTrigger aria-label={`Feature ${index + 1} state`}><SelectValue /></SelectTrigger>
+                <SelectContent>{TASK_RECORD_FEATURE_STATES.map((state) => <SelectItem key={state} value={state}>{taskRecordFeatureStateLabel(state)}</SelectItem>)}</SelectContent>
+              </Select>
+              <Button type="button" variant="ghost" size="icon" aria-label={`Remove ${feature.behavior || `feature ${index + 1}`}`} onClick={() => removeFeature(index)}><Trash2 aria-hidden /></Button>
+            </div>
+          ))}
+        </div>
+      </StructuredField>
+      <TextListEditor title="Constraints and Non-Goals" items={record.constraintsAndNonGoals} onChange={(items) => onChange({ ...record, constraintsAndNonGoals: items })} />
+      <TextListEditor title="Decisions" items={record.decisions} onChange={(items) => onChange({ ...record, decisions: items })} />
+      <StructuredField title="Next Step">
+        <div className="grid gap-3 md:grid-cols-2">
+          <Select value={record.nextStep?.featureId ?? "none"} onValueChange={(featureId) => onChange({ ...record, nextStep: featureId === "none" ? null : { featureId, comment: record.nextStep?.comment ?? null } })}>
+            <SelectTrigger aria-label="Next Step feature"><SelectValue placeholder="No immediate next step" /></SelectTrigger>
+            <SelectContent><SelectItem value="none">No immediate next step</SelectItem>{record.features.filter((feature) => feature.behavior.trim()).map((feature) => <SelectItem key={feature.id} value={feature.id}>{feature.behavior}</SelectItem>)}</SelectContent>
+          </Select>
+          <Input aria-label="Next Step comment" value={record.nextStep?.comment ?? ""} disabled={!record.nextStep} placeholder="Optional comment" onChange={(event) => record.nextStep && onChange({ ...record, nextStep: { ...record.nextStep, comment: event.target.value || null } })} />
+        </div>
+      </StructuredField>
+      <TextListEditor title="Results and Verification" items={record.resultsAndVerification} onChange={(items) => onChange({ ...record, resultsAndVerification: items })} />
+      <p className="text-xs text-muted-foreground">Each section is saved as a structured Record field. Markdown is generated only for agent-readable presentation.</p>
+    </div>
+  );
+}
+
+function StructuredField({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
+  return <section className="space-y-3 rounded-lg border bg-card/30 p-4"><div className="flex items-center justify-between gap-2"><h3 className="text-sm font-semibold">{title}</h3>{action}</div>{children}</section>;
+}
+
+function TextListEditor({ title, items, onChange }: { title: string; items: string[]; onChange: (items: string[]) => void }) {
+  return (
+    <StructuredField title={title} action={<Button type="button" variant="outline" size="sm" onClick={() => onChange([...items, ""])}><Plus aria-hidden /> Add item</Button>}>
+      <div className="space-y-2">{items.length === 0 ? <p className="text-sm text-muted-foreground">Nothing recorded.</p> : items.map((item, index) => <div key={`${title}-${index}`} className="flex gap-2"><Textarea aria-label={`${title} item ${index + 1}`} value={item} onChange={(event) => onChange(items.map((candidate, candidateIndex) => candidateIndex === index ? event.target.value : candidate))} /><Button type="button" variant="ghost" size="icon" aria-label={`Remove ${title} item ${index + 1}`} onClick={() => onChange(items.filter((_, candidateIndex) => candidateIndex !== index))}><Trash2 aria-hidden /></Button></div>)}</div>
+    </StructuredField>
   );
 }
 
@@ -271,11 +342,11 @@ function FeatureTable({ features, preview = false }: { features: TaskRecordFeatu
       <div className="overflow-hidden rounded-lg border">
         {features.map((feature, index) => {
           return (
-            <div key={`${feature.behavior}-${index}`} className="grid gap-3 border-b p-4 last:border-b-0 md:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
+            <div key={feature.id} className="grid gap-3 border-b p-4 last:border-b-0 md:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-sm font-medium">{feature.behavior}</p>
-                  <Badge variant="outline" className="text-xs text-muted-foreground">{feature.agentState || "Not reported"}</Badge>
+                  <Badge variant="outline" className="text-xs text-muted-foreground">{taskRecordFeatureStateLabel(feature.state)}</Badge>
                 </div>
               </div>
               <div>
@@ -289,16 +360,9 @@ function FeatureTable({ features, preview = false }: { features: TaskRecordFeatu
   );
 }
 
-function NextStepCard({
-  nextStep,
-  features,
-  preview = false,
-}: {
-  nextStep: TaskRecordNextStep;
-  features: TaskRecordFeature[];
-  preview?: boolean;
-}) {
-  const feature = resolveTaskRecordNextStepFeature(nextStep, features);
+function NextStepCard({ record, preview = false }: { record: TaskRecord; preview?: boolean }) {
+  const feature = resolveTaskRecordNextStepFeature(record);
+  if (!record.nextStep || !feature) return null;
   return (
     <section className="space-y-3">
       <div className="flex items-center gap-2">
@@ -307,12 +371,12 @@ function NextStepCard({
       </div>
       <div className="rounded-lg border bg-card/30 p-4">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="text-sm font-medium">{nextStep.behavior}</p>
+          <p className="text-sm font-medium">{feature.behavior}</p>
           <Badge variant="outline" className="text-xs text-muted-foreground">
-            {feature?.agentState || "Feature not found"}
+            {taskRecordFeatureStateLabel(feature.state)}
           </Badge>
         </div>
-        {nextStep.comment ? <p className="mt-2 text-sm text-muted-foreground">{nextStep.comment}</p> : null}
+        {record.nextStep.comment ? <p className="mt-2 text-sm text-muted-foreground">{record.nextStep.comment}</p> : null}
       </div>
     </section>
   );

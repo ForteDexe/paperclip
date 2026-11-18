@@ -16,6 +16,8 @@ import {
   startEmbeddedPostgresTestDatabase,
 } from "./helpers/embedded-postgres.js";
 import { documentService } from "../services/documents.js";
+import { taskRecordService } from "../services/task-records.js";
+import { getTaskRecordContext } from "../services/task-plan-context.js";
 
 const embeddedPostgresSupport = await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
@@ -131,6 +133,63 @@ describeEmbeddedPostgres("documentService system issue documents", () => {
       key: ISSUE_CONTINUATION_SUMMARY_DOCUMENT_KEY,
       body: "# Handoff",
     }));
+  });
+
+  it("stores structured Task Record fields and generates Markdown only for assignment context", async () => {
+    const { issueId, spaceId } = await createIssueWithDocuments();
+    const records = taskRecordService(db);
+    const record = {
+      version: 1 as const,
+      intent: "Return normalized parser records.",
+      features: [{
+        id: "parse_input",
+        behavior: "Parse input",
+        outcome: "Return normalized records.",
+        state: "agreed" as const,
+      }],
+      constraintsAndNonGoals: ["Do not change the transport."],
+      decisions: [],
+      nextStep: { featureId: "parse_input", comment: "Implement the parser." },
+      resultsAndVerification: [],
+    };
+
+    const created = await records.upsert({
+      issueId,
+      record,
+      baseRevisionId: null,
+      changeSummary: "Create structured record",
+    });
+    expect(created.document).toMatchObject({
+      key: "working-spec",
+      format: "task_record",
+      latestRevisionNumber: 1,
+      record,
+    });
+    expect((await svc.getIssueDocumentByKey(issueId, "working-spec"))?.body)
+      .toBe(JSON.stringify(record));
+    expect((await svc.listIssueDocuments(issueId)).map((document) => document.key))
+      .toEqual(["plan"]);
+
+    const context = await getTaskRecordContext({ db, spaceId, issueId });
+    expect(context?.body).toContain("| Parse input | Return normalized records. | agreed |");
+    expect(context?.body).toContain("- Feature or behavior: Parse input");
+    expect(context?.body).not.toContain('"features"');
+
+    const updatedRecord = {
+      ...record,
+      features: [{ ...record.features[0]!, state: "validated" as const }],
+      resultsAndVerification: ["Focused parser tests pass."],
+    };
+    const updated = await records.upsert({
+      issueId,
+      record: updatedRecord,
+      baseRevisionId: created.document.latestRevisionId,
+      changeSummary: "Record verification",
+    });
+    expect(updated.document).toMatchObject({
+      latestRevisionNumber: 2,
+      record: updatedRecord,
+    });
   });
 
   it("returns each actual writer run in revision history without attributing human revisions to a run", async () => {

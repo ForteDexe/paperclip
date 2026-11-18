@@ -477,7 +477,15 @@ import {
         assigneeAgentId: agentId,
         status: "todo",
         initialPlan: "Write an output document containing HANDOFF_ACCEPTANCE_PHRASE.",
-        initialWorkingSpec: "# Handoff\n\n## Intent\nPreserve TASK_RECORD_ACCEPTANCE_PHRASE.",
+        initialTaskRecord: {
+          version: 1,
+          intent: "Preserve TASK_RECORD_ACCEPTANCE_PHRASE.",
+          features: [],
+          constraintsAndNonGoals: [],
+          decisions: [],
+          nextStep: null,
+          resultsAndVerification: [],
+        },
       });
       const initial = await getTaskPlanContext({ db, spaceId, issueId: task.id });
       const initialRecord = await getTaskRecordContext({ db, spaceId, issueId: task.id });

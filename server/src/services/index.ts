@@ -10,6 +10,7 @@ export { agentService, deduplicateAgentName } from "./agents.js";
 export { agentInstructionsService, syncInstructionsBundleConfigFromFilePath } from "./agent-instructions.js";
 export { assetService } from "./assets.js";
 export { documentService, extractLegacyPlanBody } from "./documents.js";
+export { taskRecordService } from "./task-records.js";
 export { artifactReviewDocumentService } from "./artifact-review-documents.js";
 export { documentAnnotationService } from "./document-annotations.js";
 export {

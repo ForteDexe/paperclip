@@ -81,7 +81,7 @@ describe("runner backlog task creation", () => {
 
   it.each([false, true])("persists the plan and task record without waking an assigned backlog task (conversation=%s)", async conversation => {
     const f = await fixture(conversation);
-    const call = { tool: "create_task", callId: "save-later", arguments: { idempotencyKey: "save-later", title: "Plan for later", status: "backlog", initialPlan: "1. Check status.\n2. Save the plan.\n3. Confirm creation.", initialWorkingSpec: "# Plan for later\n\n## Intent\nShip the agreed behavior.\n\n## Next Step\nStart implementation." } };
+    const call = { tool: "create_task", callId: "save-later", arguments: { idempotencyKey: "save-later", title: "Plan for later", status: "backlog", initialPlan: "1. Check status.\n2. Save the plan.\n3. Confirm creation.", initialTaskRecord: { version: 1, intent: "Ship the agreed behavior.", features: [{ id: "ship_behavior", behavior: "Ship behavior", outcome: "Ship the agreed behavior.", state: "agreed" }], constraintsAndNonGoals: [], decisions: [], nextStep: { featureId: "ship_behavior", comment: "Start implementation." }, resultsAndVerification: [] } } };
     const receipt = await f.authority.execute(call) as { task: { id: string } };
     expect(receipt).toMatchObject({ scheduledWakeIds: [], task: { status: "backlog", assigneeActorId: f.agentId, parentId: conversation ? null : f.issueId } });
     const [task] = await db.select().from(issues).where(eq(issues.id, receipt.task.id));
@@ -89,7 +89,8 @@ describe("runner backlog task creation", () => {
     expect(await documentService(db).getIssueDocumentByKey(task!.id, "plan")).toMatchObject({ body: call.arguments.initialPlan });
     expect(await documentService(db).getIssueDocumentByKey(task!.id, "working-spec")).toMatchObject({
       title: "Task Record",
-      body: call.arguments.initialWorkingSpec,
+      format: "task_record",
+      body: JSON.stringify(call.arguments.initialTaskRecord),
       latestRevisionNumber: 1,
     });
     expect(f.enqueueWakeup).not.toHaveBeenCalled();

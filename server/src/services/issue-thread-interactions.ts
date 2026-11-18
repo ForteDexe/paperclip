@@ -4278,7 +4278,7 @@ export function issueThreadInteractionService(
             title: task.title,
             description: task.description ?? null,
             initialPlan: task.initialPlan ?? null,
-            initialWorkingSpec: task.initialWorkingSpec ?? null,
+            initialTaskRecord: task.initialTaskRecord ?? null,
             ...(task.requiredQualityReview ? { executionPolicy: { mode: "normal" as const, commentRequired: true, stages: [], requiredQualityReview: task.requiredQualityReview } } : {}),
             status: task.status ?? "todo",
             workMode: task.workMode ?? "standard",

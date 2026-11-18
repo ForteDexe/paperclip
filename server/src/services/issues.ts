@@ -1,6 +1,6 @@
 import { assertAgentInteraction } from "./agent-interaction-policy.js";
 import { currentPluginInteractionOrigin } from "./plugin-interaction-context.js";
-import type { IssueDisplayStatus } from "@outpost/shared";
+import { renderTaskRecordMarkdown, type IssueDisplayStatus, type TaskRecord } from "@outpost/shared";
 import { issueDisplayStatusSql } from "./issue-display-status.js";
 import { notifyStrandedAgentStatus, notifyActiveRunSilence } from "./live-run-recovery-notifications.js";
 import { finishedIdleWake } from "./idle-work-proof.js";
@@ -50,6 +50,7 @@ import { assertHandedOffRunTaskOwnership } from "../run-task-ownership.js";
 import { retryIdempotentDatabaseOperation } from "../database-retry.js";
 import { externalConversationStateSql, nonIdleSlackIssueCondition, resumeSlackConversation } from "./slack-conversation-state.js";
 import { documentService } from "./documents.js";
+import { taskRecordService } from "./task-records.js";
 import { parseTaskSearch, taskSearchCtes, taskSearchScore } from "./task-search.js";
 import { createdFromIssueCondition } from "./issue-creation-origin.js";
 import { loadRunBoundIssue } from "./issue-creation-source.js";
@@ -168,8 +169,6 @@ import {
   isAgentCreatedIssue,
   isUuidLike,
   normalizeIssueIdentifier as normalizeIssueReferenceIdentifier,
-  TASK_RECORD_DOCUMENT_KEY,
-  TASK_RECORD_DOCUMENT_TITLE,
 } from "@outpost/shared";
 import { conflict, forbidden, HttpError, notFound, unprocessable } from "../errors.js";
 import { isForeignKeyViolation } from "../db-errors.js";
@@ -2061,7 +2060,7 @@ type IssueCreateInput = Omit<typeof issues.$inferInsert, "spaceId" | "title" | "
   workspaceSelectionActor?: AuthorizationActor;
   title?: string;
   initialPlan?: string | null;
-  initialWorkingSpec?: string | null;
+  initialTaskRecord?: TaskRecord | null;
   /** Internal, server-derived provenance for an accepted in-app chat suggestion. */
   conversationHandoff?: { conversationId: string; sessionGeneration: number };
   labelIds?: string[];
@@ -10360,7 +10359,7 @@ export function issueService(db: Db) {
       const {
         workspaceSelection, workspaceSelectionSource = "explicit", workspaceSelectionActor,
         initialPlan,
-        initialWorkingSpec,
+        initialTaskRecord,
         conversationHandoff,
         labelIds: inputLabelIds,
         blockedByIssueIds,
@@ -10426,7 +10425,12 @@ export function issueService(db: Db) {
           spaceId, actorAgentId: issueData.createdByAgentId,
           operation: "assign", targetAgentId: issueData.assigneeAgentId,
           assigneeUserId: issueData.assigneeUserId, parentIssueId: requestedParentId,
-          texts: [resolvedTitle, issueData.description ?? "", initialPlan ?? "", initialWorkingSpec ?? ""], lock: true,
+          texts: [
+            resolvedTitle,
+            issueData.description ?? "",
+            initialPlan ?? "",
+            initialTaskRecord ? renderTaskRecordMarkdown(initialTaskRecord) : "",
+          ], lock: true,
         });
         const parentResolution = confirmPlacement(
           await resolveNewTaskParent(tx, spaceId, requestedParentId, parentDepthPolicy),
@@ -11032,18 +11036,19 @@ export function issueService(db: Db) {
             sourceTrust: issue.sourceTrust,
           }, { initialTaskCreation: true });
         }
-        if (initialWorkingSpec?.trim()) {
-          await documentService(tx as unknown as Db).upsertIssueDocument({
+        if (initialTaskRecord) {
+          await taskRecordService(tx as unknown as Db).upsert({
             issueId: issue.id,
-            key: TASK_RECORD_DOCUMENT_KEY,
-            title: TASK_RECORD_DOCUMENT_TITLE,
-            format: "markdown",
-            body: initialWorkingSpec,
-            createdByAgentId: issueData.createdByAgentId,
-            createdByUserId: issueData.createdByUserId,
-            createdByRunId: actorRunId,
+            record: initialTaskRecord,
+            baseRevisionId: null,
+            writer: {
+              agentId: issueData.createdByAgentId,
+              userId: issueData.createdByUserId,
+              runId: actorRunId,
+            },
             sourceTrust: issue.sourceTrust,
-          }, { initialTaskCreation: true });
+            initialTaskCreation: true,
+          });
         }
         const [enriched] = await withIssueLabels(tx, [issue]);
         const [withRelations] = await withIssueRelationSummaries(

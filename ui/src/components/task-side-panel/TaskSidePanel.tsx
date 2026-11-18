@@ -892,7 +892,6 @@ function TaskSidePanelForScope({
     content = (
       <TaskRecordPanel
         issue={issue}
-        document={documents.find((candidate) => candidate.key === TASK_RECORD_DOCUMENT_KEY)}
       />
     );
   } else if (activeTab.payload.kind === "subtasks") {

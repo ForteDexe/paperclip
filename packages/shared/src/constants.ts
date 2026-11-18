@@ -453,6 +453,7 @@ export type IssueTreeHoldReleasePolicyStrategy = (typeof ISSUE_TREE_HOLD_RELEASE
 export const ISSUE_CONTINUATION_SUMMARY_DOCUMENT_KEY = "continuation-summary" as const;
 export const SYSTEM_ISSUE_DOCUMENT_KEYS = [
   ISSUE_CONTINUATION_SUMMARY_DOCUMENT_KEY,
+  TASK_RECORD_DOCUMENT_KEY,
   "pipeline-case-body",
 ] as const;
 export type SystemIssueDocumentKey = (typeof SYSTEM_ISSUE_DOCUMENT_KEYS)[number];

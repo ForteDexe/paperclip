@@ -5,7 +5,7 @@ workflow. Do not apply it to ordinary debugging, maintenance, refactors, or
 small feature changes.
 
 The goals are to prove the useful workflow with representative production data
-and to keep the task's `working-spec` Task Record current with the features and
+and to keep the task's structured Task Record current with the features and
 behaviors agreed during discussion. The record is not an upfront implementation
 plan: do not predict classes, functions, files, or architecture before the
 useful behavior is understood.
@@ -25,7 +25,7 @@ conversation. Before implementation starts:
    Task Record.
 
 Do not create a placeholder tool folder or a local `WORKING_SPEC.md`. The Task
-Record lives in Outpost's database as a revisioned task document. Once the task
+Record lives in Outpost's database as revisioned structured data. Once the task
 starts, disposable prototypes and probes may live in `.experiment` within the
 task's execution workspace; production implementation belongs in the confirmed
 production destination.
@@ -59,7 +59,7 @@ materially change the required result.
 - Put a behavior-changing decision into the corresponding feature outcome.
   Use Decisions only for current cross-cutting choices that do not map to a
   feature or constraint.
-- Anchor Next Step to the exact name of the feature with the immediate action.
+- Anchor Next Step to the stable id of the feature with the immediate action.
   Add an optional comment, but do not duplicate the feature state there.
 - Ask questions in chat or task interactions. After an answer is settled,
   update the affected feature, constraint, or cross-cutting decision instead

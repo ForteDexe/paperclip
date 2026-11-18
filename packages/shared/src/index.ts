@@ -1,4 +1,5 @@
 export type { InboxMineSnapshot, InboxSourceError } from "./types/inbox-mine.js";
+export * from "./task-record.js";
 export {
   PRODUCT_VOCABULARY,
   countedProductLabel,
@@ -1168,6 +1169,7 @@ export type {
   IssueThreadInteractionResult,
   IssueDocument,
   IssueDocumentSummary,
+  TaskRecordDocument,
   DocumentRevision,
   ExactDocumentRevision,
   DocumentFormat,

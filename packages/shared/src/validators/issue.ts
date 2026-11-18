@@ -48,6 +48,7 @@ import {
 } from "./trust-policy.js";
 import { objectWithoutDefaults } from "./partial.js";
 import { questionSetToAskUserQuestionsPayload } from "../question-set.js";
+import { taskRecordSchema } from "../task-record.js";
 
 export const issueSummariesQuerySchema = z.object({
   ids: z.string().transform((value) => value.split(",").map((id) => id.trim().toLowerCase()))
@@ -898,7 +899,7 @@ function requireBlockedStatusForUnblockDescriptor(
 
 const createIssueDuplicateGuardSchema = {
   initialPlan: z.string().min(1).max(200000).optional().nullable(),
-  initialWorkingSpec: z.string().min(1).max(200000).optional().nullable(),
+  initialTaskRecord: taskRecordSchema.optional().nullable(),
   idempotencyKey: z.string().trim().min(1).max(255).optional().nullable(),
   allowDuplicate: z
     .boolean()
@@ -1347,7 +1348,7 @@ export const suggestedTaskDraftSchema = z
       .optional(),
     status: z.enum(["backlog", "todo"]).optional(),
     initialPlan: z.string().trim().min(1).max(200000).nullable().optional(),
-    initialWorkingSpec: z.string().trim().min(1).max(200000).nullable().optional(),
+    initialTaskRecord: taskRecordSchema.nullable().optional(),
     requiredQualityReview: requiredQualityReviewSchema.optional(),
     priority: z.enum(ISSUE_PRIORITIES).nullable().optional(),
     workMode: z.enum(ISSUE_WORK_MODES).nullable().optional(),
@@ -2386,7 +2387,7 @@ export type CreateIssueAttachmentMetadata = z.infer<
   typeof createIssueAttachmentMetadataSchema
 >;
 
-export const ISSUE_DOCUMENT_FORMATS = ["markdown"] as const;
+export const ISSUE_DOCUMENT_FORMATS = ["markdown", "task_record"] as const;
 
 export const issueDocumentFormatSchema = z.enum(ISSUE_DOCUMENT_FORMATS);
 

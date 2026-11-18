@@ -22,6 +22,7 @@ import { createSkillAction } from "../protocol-actions/create-skill.js";
 import { searchApiAction } from "../protocol-actions/search-api.js";
 import { callApiAction } from "../protocol-actions/call-api.js";
 import { projectIconSchema, projectRepositoryUrlSchema } from "../protocol-actions/create-project.js";
+import { taskRecordInputSchema } from "../protocol-actions/task-record-schema.js";
 
 const ALL_MODES = ["standard", "ask", "planning", "skill_test"] as const;
 const WORK_MODES = ["standard", "planning", "skill_test"] as const;
@@ -535,7 +536,7 @@ const descriptors: readonly OutpostSemanticActionDescriptor[] = [
   descriptor({
     operationId: "create_task",
     title: "Create task",
-    description: "Create a task. When the user names an existing teammate or project, resolve their IDs with list_agents or list_projects and set assigneeActorId or projectId in this creation call. A todo task can start its assignee immediately; creating it for yourself and reassigning later can start the wrong agent. Persist initialPlan and initialWorkingSpec before execution. Use backlog to save or plan without starting work; backlog tasks never wake an agent. Omitted status means todo, subject to blockers. Include required inputs and constraints in self-contained task instructions.",
+    description: "Create a task. When the user names an existing teammate or project, resolve their IDs with list_agents or list_projects and set assigneeActorId or projectId in this creation call. A todo task can start its assignee immediately; creating it for yourself and reassigning later can start the wrong agent. Persist initialPlan and initialTaskRecord before execution. Use backlog to save or plan without starting work; backlog tasks never wake an agent. Omitted status means todo, subject to blockers. Include required inputs and constraints in self-contained task instructions.",
     placement: "optional",
     effect: "write",
     requiredClaims: ["delegation:tasks:create"],
@@ -546,7 +547,7 @@ const descriptors: readonly OutpostSemanticActionDescriptor[] = [
         title: text("Task title.", 500),
         projectId: nullableText("Project ID from list_projects. Set the requested project in this creation call so the task does not inherit a different project."),
         initialPlan: nullableText("Remaining execution steps to persist as the task plan. Exclude completed planning, approval, and handoff steps; cite the source plan revision and approval. A copied plan is not a new approval gate."),
-        initialWorkingSpec: nullableText("Living Task Record markdown to persist as working-spec before execution. For an early backlog briefing task, seed the settled intent and known scope, omit unknown sections, then refine it in the task conversation. Put behavior-changing decisions in feature outcomes; capture cross-cutting decisions separately only when needed. Include feature states, constraints, and an optional next step anchored to a feature name with an optional comment. Keep questions in chat and reflect only settled answers in the Record. Do not duplicate feature state in Next Step. Add concrete results or verification only after they exist.", 200_000),
+        initialTaskRecord: taskRecordInputSchema,
         description: nullableText("Task description."),
         requiredQualityReview: object({
           version: { const: 1 },

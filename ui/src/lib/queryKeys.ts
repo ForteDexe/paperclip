@@ -340,6 +340,7 @@ export const queryKeys = {
     attachments: (issueId: string) => ["issues", "attachments", issueId] as const,
     attachmentPreview: (attachmentId: string) => ["issues", "attachment-preview", attachmentId] as const,
     documents: (issueId: string) => ["issues", "documents", issueId] as const,
+      taskRecord: (issueId: string) => ["issues", "task-record", issueId] as const,
     document: (issueId: string, key: string) =>
       ["issues", "document", issueId, key] as const,
     documentRevisions: (issueId: string, key: string) =>

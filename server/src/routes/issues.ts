@@ -154,6 +154,8 @@ import {
   updateIssueWorkProductSchema,
   updateDocumentAnnotationThreadSchema,
   upsertIssueDocumentSchema,
+  upsertTaskRecordSchema,
+  TASK_RECORD_DOCUMENT_KEY,
   updateIssueSchema,
   isClosedIsolatedExecutionWorkspace,
   isMarkdownArtifactWorkProduct,
@@ -228,6 +230,7 @@ import {
   type IssueListOptions,
   clampIssueListLimit,
   documentService,
+  taskRecordService,
   documentAnnotationService,
   logActivity,
   publishActivity,
@@ -3577,6 +3580,7 @@ export function issueRoutes(
   const activitySvc = activityService(db);
   const issueRunPresence = issueRunPresenceService(db, { heartbeat, getAgentById: (id) => agentsSvc.getById(id) });
   const documentsSvc = documentService(db);
+  const taskRecordsSvc = taskRecordService(db);
   const artifactReviewDocumentsSvc = artifactReviewDocumentService(db, storage);
   const spaceSkillsSvc = spaceSkillService(db);
   const documentAnnotationsSvc = documentAnnotationService(db);
@@ -11195,6 +11199,69 @@ export function issueRoutes(
     },
   );
 
+  router.get("/issues/:id/task-record", async (req, res) => {
+    const id = req.params.id as string;
+    const issue = await getAccessibleResource(req, res, getIssueById(req, id), "Issue not found");
+    if (!issue) return;
+    if (!(await assertIssueReadAllowed(req, res, issue))) return;
+    const document = await taskRecordsSvc.get(issue.id);
+    if (!document) {
+      res.status(404).json({ error: "Task Record not found" });
+      return;
+    }
+    res.json(document);
+  });
+
+  router.put(
+    "/issues/:id/task-record",
+    validate(upsertTaskRecordSchema),
+    async (req, res) => {
+      const id = req.params.id as string;
+      const issue = await getAccessibleResource(req, res, svc.getById(id), "Issue not found");
+      if (!issue) return;
+      if (!(await assertAgentIssueMutationAllowed(req, res, issue))) return;
+      if (!(await assertDeliverableMutationAllowedByRunContext(req, res, issue))) return;
+
+      const actor = getActorInfo(req);
+      const sourceTrust = await sourceTrustForActorWrite(issue, actor);
+      const result = await taskRecordsSvc.upsert({
+        issueId: issue.id,
+        record: req.body.record,
+        baseRevisionId: req.body.baseRevisionId,
+        changeSummary: req.body.changeSummary ?? null,
+        writer: {
+          agentId: actor.agentId ?? null,
+          userId: actor.actorType === "user" ? actor.actorId : null,
+          runId: actor.runId ?? null,
+        },
+        sourceTrust,
+      });
+
+      await logActivity(db, {
+        spaceId: issue.spaceId,
+        actorType: actor.actorType,
+        actorId: actor.actorId,
+        agentId: actor.agentId,
+        runId: actor.runId,
+        agentApiKeyId: actor.agentApiKeyId,
+        action: result.created ? "issue.task_record_created" : "issue.task_record_updated",
+        entityType: "issue",
+        entityId: issue.id,
+        details: {
+          documentId: result.document.id,
+          revisionNumber: result.document.latestRevisionNumber,
+        },
+      });
+      await revalidateActiveSourceRecoveryAfterCommittedWrite({
+        issue,
+        trigger: "document",
+        actor,
+        documentChanged: true,
+      });
+      res.status(result.created ? 201 : 200).json(result.document);
+    },
+  );
+
   router.get("/issues/:id/documents", async (req, res) => {
     const id = req.params.id as string;
     const issue = await getAccessibleResource(
@@ -11231,6 +11298,10 @@ export function issueRoutes(
         error: "Invalid document key",
         details: keyParsed.error.issues,
       });
+      return;
+    }
+    if (keyParsed.data === TASK_RECORD_DOCUMENT_KEY) {
+      res.status(404).json({ error: "Document not found" });
       return;
     }
     const doc = await documentsSvc.getIssueDocumentByKey(
@@ -11324,7 +11395,6 @@ export function issueRoutes(
         });
         return;
       }
-
       const { actor, annotationActor } = annotationActorInput(req);
       const referenceSummaryBefore =
         await issueReferencesSvc.listIssueReferenceSummary(issue.id);
@@ -11580,6 +11650,10 @@ export function issueRoutes(
           error: "Invalid document key",
           details: keyParsed.error.issues,
         });
+        return;
+      }
+      if (keyParsed.data === TASK_RECORD_DOCUMENT_KEY || req.body.format === "task_record") {
+        res.status(400).json({ error: "Use the structured Task Record endpoint" });
         return;
       }
 

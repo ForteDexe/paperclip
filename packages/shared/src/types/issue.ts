@@ -1,4 +1,5 @@
 import type { ChatProvider } from "./chat-channels.js";
+import type { TaskRecord } from "../task-record.js";
 import type { TaskWorkspaceIntent, TaskWorkspacePendingSelection } from "./task-workspace.js";
 import type { ExecutionProjection, ExecutionBlocker, TaskInterruptionPresentation } from "./execution-projection.js";
 import type {
@@ -171,7 +172,7 @@ export interface IssueAssigneeAdapterOverrides {
   useProjectWorkspace?: boolean;
 }
 
-export type DocumentFormat = "markdown";
+export type DocumentFormat = "markdown" | "task_record";
 
 export interface IssueDocumentSummary {
   id: string;
@@ -196,6 +197,11 @@ export interface IssueDocumentSummary {
 
 export interface IssueDocument extends IssueDocumentSummary {
   body: string;
+}
+
+export interface TaskRecordDocument extends Omit<IssueDocumentSummary, "format"> {
+  format: "task_record";
+  record: TaskRecord;
 }
 
 export interface DocumentRevision {
@@ -1296,8 +1302,8 @@ export interface SuggestedTaskDraft {
   status?: "backlog" | "todo";
   /** Persisted atomically as the new task's initial plan after acceptance. */
   initialPlan?: string | null;
-  /** Persisted atomically as the new task's living Task Record after acceptance. */
-  initialWorkingSpec?: string | null;
+  /** Persisted atomically as the new task's structured Task Record after acceptance. */
+  initialTaskRecord?: TaskRecord | null;
   requiredQualityReview?: RequiredQualityReview;
   priority?: IssuePriority | null;
   workMode?: IssueWorkMode | null;

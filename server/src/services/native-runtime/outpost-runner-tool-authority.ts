@@ -10,7 +10,7 @@ import { createCostEventInTransaction } from "../costs.js";
 import { withOperationAccountingTransaction } from "../accounting-transaction.js";
 import { nativeRunKeyScope, nativeSkillTestToolAllowed, assertNativeSkillTestTool } from "./native-skill-test-scope.js";
 import { notifyAttentionRetentionWork } from "../retention-work-notifications.js";
-import { requiredQualityReviewSchema, type RequestCheckboxConfirmationOption } from "@outpost/shared";
+import { requiredQualityReviewSchema, TASK_RECORD_DOCUMENT_KEY, taskRecordSchema, type RequestCheckboxConfirmationOption } from "@outpost/shared";
 import { priorRecoveryApiReceipt } from "../recovery-effect-receipts.js";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "../delivery-work-notifications.js";
 import { caseHandoffService } from "../case-handoffs.js";
@@ -963,12 +963,15 @@ export class OutpostRunnerToolAuthority {
       case "list_documents":
         return { documents: await documentService(this.db).listIssueDocuments(this.binding.issueId) };
       case "read_document": {
-        const document = await documentService(this.db).getIssueDocumentByKey(this.binding.issueId, requiredString(input.key));
+        const key = requiredString(input.key);
+        if (key === TASK_RECORD_DOCUMENT_KEY) throw new Error("outpost_runner_use_structured_task_record_api");
+        const document = await documentService(this.db).getIssueDocumentByKey(this.binding.issueId, key);
         if (!document) throw new Error("outpost_runner_document_not_found");
         return { document };
       }
       case "list_document_revisions": {
         const key = requiredString(input.key);
+        if (key === TASK_RECORD_DOCUMENT_KEY) throw new Error("outpost_runner_use_structured_task_record_api");
         const service = documentService(this.db);
         const revisions = await service.listIssueDocumentRevisions(this.binding.issueId, key);
         return { revisions };
@@ -1754,6 +1757,9 @@ export class OutpostRunnerToolAuthority {
 
   async #writeDocument(input: Record<string, unknown>, recovering = false): Promise<unknown> {
     const idempotencyKey = requiredString(input.idempotencyKey);
+    if (requiredString(input.key) === TASK_RECORD_DOCUMENT_KEY) {
+      throw new Error("outpost_runner_use_structured_task_record_api");
+    }
     let publication: Awaited<ReturnType<typeof persistActivity>>["publication"] | null = null;
     const result = await this.#withMutationReceipt("write_document", idempotencyKey, input, async (tx, context) => {
       // execute() checks the work mode before dispatch. A recovered write
@@ -1976,7 +1982,9 @@ export class OutpostRunnerToolAuthority {
           }),
         } : {}),
         initialPlan: nullableProviderId(input.initialPlan),
-        initialWorkingSpec: nullableProviderId(input.initialWorkingSpec),
+        initialTaskRecord: input.initialTaskRecord === undefined || input.initialTaskRecord === null
+          ? undefined
+          : taskRecordSchema.parse(input.initialTaskRecord),
         title: requiredString(input.title),
         description: input.description === null || input.description === undefined
           ? null

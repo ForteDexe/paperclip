@@ -6,7 +6,11 @@ import {
   issues,
   type Db,
 } from "@outpost/db";
-import { TASK_RECORD_DOCUMENT_KEY } from "@outpost/shared";
+import {
+  TASK_RECORD_DOCUMENT_KEY,
+  parseTaskRecordBody,
+  renderTaskRecordMarkdown,
+} from "@outpost/shared";
 import { redactQuarantinedBodyForHigherTrust } from "./source-trust.js";
 
 async function getTaskDocumentContext(input: {
@@ -22,6 +26,7 @@ async function getTaskDocumentContext(input: {
       documentId: documents.id,
       revisionId: documentRevisions.id,
       revisionNumber: documentRevisions.revisionNumber,
+      format: documentRevisions.format,
       body: documentRevisions.body,
       sourceTrust: documents.sourceTrust,
     })
@@ -72,5 +77,10 @@ export async function getTaskRecordContext(input: {
   issueId: string;
   exposeLowTrustRaw?: boolean;
 }) {
-  return getTaskDocumentContext(input, TASK_RECORD_DOCUMENT_KEY);
+  const document = await getTaskDocumentContext(input, TASK_RECORD_DOCUMENT_KEY);
+  if (!document || document.format !== "task_record") return null;
+  const record = parseTaskRecordBody(document.body);
+  return record
+    ? { ...document, body: renderTaskRecordMarkdown(record) }
+    : null;
 }

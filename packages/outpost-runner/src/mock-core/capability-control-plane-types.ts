@@ -401,7 +401,7 @@ export type CapabilitySemanticCommand =
       title: string;
       description?: string | null;
       initialPlan?: string | null;
-      initialWorkingSpec?: string | null;
+      initialTaskRecord?: CapabilityJsonValue;
       assigneeActorId?: string | null;
       priority?: CapabilityFixtureTask["priority"];
       blockedByTaskIds?: string[];

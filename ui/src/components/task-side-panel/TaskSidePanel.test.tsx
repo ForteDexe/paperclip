@@ -58,6 +58,10 @@ vi.mock("@/hooks/useIssuePlanDocument", () => ({
   useIssuePlanDocument: () => ({ data: fixture.plan }),
 }));
 
+vi.mock("@/hooks/useTaskRecord", () => ({
+  useTaskRecord: () => ({ data: null, isLoading: false }),
+}));
+
 vi.mock("@/lib/router", () => ({
   useLocation: () => routeFixture.location,
   useNavigate: () => routeFixture.navigate,

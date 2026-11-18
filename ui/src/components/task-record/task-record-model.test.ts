@@ -1,78 +1,39 @@
 import { describe, expect, it } from "vitest";
 import {
   buildTaskRecord,
-  parseTaskRecord,
-  parseTaskRecordFeatures,
-  parseTaskRecordNextStep,
   resolveTaskRecordNextStepFeature,
+  taskRecordFeatureStateLabel,
 } from "./task-record-model";
 
 describe("task record model", () => {
-  it("seeds the living record from the task", () => {
-    const record = buildTaskRecord({ title: "Preview texel density", description: "Show a checkerboard preview." });
-    expect(record).toContain("# Preview texel density");
-    expect(record).toContain("## Intent\nShow a checkerboard preview.");
-    expect(record).not.toContain("## Decisions");
-    expect(record).not.toContain("## Status");
-    expect(record).not.toContain("## Open Questions");
-    expect(record).not.toContain("Evidence");
-    expect(record).not.toContain("## Review Timeline");
-    expect(record).toContain("| Feature or behavior | Agreed outcome | State |");
-    expect(record).toContain("## Next Step\n- Feature or behavior: Initial scope\n- Comment: Define the next concrete action.");
-  });
-
-  it("parses ordered sections without damaging Markdown tables", () => {
-    const sections = parseTaskRecord("# Work\n\n## Intent\nShip it.\n\n## Notes\n| State | Note |\n| --- | --- |\n| Testing | Waiting on the focused test. |");
-    expect(sections).toEqual([
-      { heading: "Intent", body: "Ship it." },
-      { heading: "Notes", body: "| State | Note |\n| --- | --- |\n| Testing | Waiting on the focused test. |" },
-    ]);
-  });
-
-  it("parses agent-maintained feature rows", () => {
-    const features = parseTaskRecordFeatures(`## Features and Behaviors
-| Feature or behavior | Agreed outcome | State |
-| --- | --- | --- |
-| Preview | Shows a checkerboard | Implemented |
-| Toggle | Preserves the setting | Testing |
-`);
-    expect(features).toEqual([
-      { behavior: "Preview", outcome: "Shows a checkerboard", agentState: "Implemented" },
-      { behavior: "Toggle", outcome: "Preserves the setting", agentState: "Testing" },
-    ]);
-  });
-
-  it("rejects obsolete feature table shapes", () => {
-    expect(parseTaskRecordFeatures(`## Features and Behaviors
-| Feature or behavior | Agreed outcome | State | Evidence |
-| --- | --- | --- | --- |
-| Preview | Shows a checkerboard | Testing | old-shot.png |
-`)).toEqual([]);
-  });
-
-  it("anchors the next step to a feature and derives its state", () => {
-    const markdown = `## Features and Behaviors
-| Feature or behavior | Agreed outcome | State |
-| --- | --- | --- |
-| Preview | Shows a checkerboard | Testing |
-
-## Next Step
-- Feature or behavior: Preview
-- Comment: Verify the reopened preview keeps the chosen scale.
-`;
-    const features = parseTaskRecordFeatures(markdown);
-    const nextStep = parseTaskRecordNextStep(markdown);
-
-    expect(nextStep).toEqual({
-      behavior: "Preview",
-      comment: "Verify the reopened preview keeps the chosen scale.",
+  it("builds structured initial fields from the task", () => {
+    expect(buildTaskRecord({
+      title: "Preview texel density",
+      description: "Show a checkerboard preview.",
+    })).toEqual({
+      version: 1,
+      intent: "Show a checkerboard preview.",
+      features: [],
+      constraintsAndNonGoals: [],
+      decisions: [],
+      nextStep: null,
+      resultsAndVerification: [],
     });
-    expect(resolveTaskRecordNextStepFeature(nextStep, features)?.agentState).toBe("Testing");
   });
 
-  it("allows an anchored next step without a comment", () => {
-    expect(parseTaskRecordNextStep(`## Next Step
-- Feature or behavior: Preview
-`)).toEqual({ behavior: "Preview", comment: "" });
+  it("resolves Next Step by stable feature id after a behavior rename", () => {
+    const record = buildTaskRecord({ title: "Parser", description: "Parse files." });
+    record.features = [{
+      id: "parse_input",
+      behavior: "Parse renamed input",
+      outcome: "Return normalized records.",
+      state: "testing",
+    }];
+    record.nextStep = { featureId: "parse_input", comment: "Run the focused test." };
+    expect(resolveTaskRecordNextStepFeature(record)?.behavior).toBe("Parse renamed input");
+  });
+
+  it("maps stored feature states to presentation labels", () => {
+    expect(taskRecordFeatureStateLabel("skipped_by_agreement")).toBe("Skipped by agreement");
   });
 });

@@ -31,7 +31,15 @@ describe("mock backlog task creation", () => {
         kind: "create_task",
         title: "Task with record",
         status: "backlog",
-        initialWorkingSpec: "# Task with record\n\n## Status\n**Agreed**",
+        initialTaskRecord: {
+          version: 1,
+          intent: "Create the agreed task.",
+          features: [],
+          constraintsAndNonGoals: [],
+          decisions: [],
+          nextStep: null,
+          resultsAndVerification: [],
+        },
       },
     });
 
@@ -43,7 +51,15 @@ describe("mock backlog task creation", () => {
         title: "Task Record",
         revisions: [expect.objectContaining({
           revision: 1,
-          body: "# Task with record\n\n## Status\n**Agreed**",
+          body: JSON.stringify({
+            version: 1,
+            intent: "Create the agreed task.",
+            features: [],
+            constraintsAndNonGoals: [],
+            decisions: [],
+            nextStep: null,
+            resultsAndVerification: [],
+          }),
         })],
       });
   });

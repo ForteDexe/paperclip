@@ -968,7 +968,7 @@ export class CapabilityMockControlPlaneAdapter implements CapabilityMockControlP
         }
         for (const initialDocument of [
           { key: "plan", title: "Plan", body: command.initialPlan },
-          { key: "working-spec", title: "Task Record", body: command.initialWorkingSpec },
+          { key: "working-spec", title: "Task Record", body: command.initialTaskRecord == null ? undefined : JSON.stringify(command.initialTaskRecord) },
         ]) {
           if (!initialDocument.body?.trim()) continue;
           const document = this.#newDocument(child.id, initialDocument.key, initialDocument.title);
