@@ -1,5 +1,6 @@
 import type { Issue, IssueDisplayStatus, IssueStatus } from "@outpost/shared";
 import { workflowSort } from "./workflow-sort";
+import { resolveTaskProjectedStatus } from "./task-status-presentation";
 
 export type SubIssueProgressTargetKind = "next" | "blocked";
 
@@ -38,7 +39,7 @@ export function buildSubIssueProgressSummary(issues: Issue[]): SubIssueProgressS
   const countsByStatus: Partial<Record<IssueDisplayStatus, number>> = {};
   const progressIssues = issues.filter((issue) => issue.status !== "cancelled");
   for (const issue of progressIssues) {
-    const status = issue.displayStatus ?? issue.status;
+    const status = resolveTaskProjectedStatus(issue) as IssueDisplayStatus;
     countsByStatus[status] = (countsByStatus[status] ?? 0) + 1;
   }
 

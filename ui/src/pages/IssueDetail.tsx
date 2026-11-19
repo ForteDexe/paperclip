@@ -356,6 +356,7 @@ import {
   Activity as ActivityIcon,
   AlertTriangle,
   Archive,
+  ArchiveRestore,
   ArrowLeft,
   Check,
   ChevronRight,
@@ -4281,7 +4282,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
 
       try {
         await issuesApi.unarchiveFromInbox(id);
-        pushToast({ title: "Task restored to inbox", tone: "success" });
+        pushToast({ title: "Task unarchived", tone: "success" });
       } catch (error) {
         if (spaceId) {
           beginLocalInboxArchive(spaceId, id);
@@ -4293,7 +4294,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
           body:
             error instanceof Error
               ? error.message
-              : "Unable to restore this task to the inbox",
+              : "Unable to unarchive this task",
           tone: "error",
         });
       } finally {
@@ -5751,13 +5752,13 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
       }
       invalidateIssueCollections();
       navigate(
-        sourceBreadcrumb.href.startsWith("/inbox")
+        sourceBreadcrumb.href.startsWith("/inbox") || sourceBreadcrumb.href.startsWith("/issues")
           ? sourceBreadcrumb.href
-          : "/inbox",
+          : "/issues?view=all",
         { replace: true },
       );
       pushToast({
-        title: "Task archived from inbox",
+        title: "Task archived",
         tone: "success",
         action: {
           label: "Undo",
@@ -5781,7 +5782,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
         body:
           err instanceof Error
             ? err.message
-            : "Unable to archive this task from the inbox",
+            : "Unable to archive this task",
         tone: "error",
       });
     },
@@ -5805,6 +5806,22 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
       } finally {
         if (context.account && !context.account.isCurrentScope()) context.release();
       }
+    },
+  });
+
+  const unarchiveTask = useAccountBoundMutation({
+    mutationFn: (id: string) => issuesApi.unarchiveFromInbox(id),
+    onSuccess: () => {
+      invalidateIssueDetail();
+      invalidateIssueCollections();
+      pushToast({ title: "Task unarchived", tone: "success" });
+    },
+    onError: (err) => {
+      pushToast({
+        title: "Unarchive failed",
+        body: err instanceof Error ? err.message : "Unable to unarchive this task",
+        tone: "error",
+      });
     },
   });
 
@@ -6218,7 +6235,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
 
   const goToInboxShortcutArmedRef = useRef(false);
   const goToInboxShortcutTimeoutRef = useRef<number | null>(null);
-  const canQuickArchiveFromInbox = !issue?.hiddenAt;
+  const canQuickArchiveFromInbox = !issue?.hiddenAt && !issue?.archivedAt;
 
   useEffect(() => {
     if (!issue?.id || !canQuickArchiveFromInbox) return;
@@ -6627,8 +6644,10 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
   const backHref = sourceBreadcrumb.href ?? "/inbox";
   const showInboxToolbar = isMobile && isFromInbox;
   const archivePending = archiveFromInbox.isPending;
+  const unarchivePending = unarchiveTask.isPending;
   const issueHidden = !!issue?.hiddenAt;
-  const canArchiveFromInbox = isFromInbox && !!issue?.id && !issueHidden;
+  const canArchiveTask = !!issue?.id && !issueHidden && !issue.archivedAt;
+  const canUnarchiveTask = !!issue?.id && !issueHidden && !!issue.archivedAt;
 
   useEffect(() => {
     if (!showInboxToolbar) {
@@ -7662,21 +7681,6 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
         )}
 
         <div className="hidden md:flex items-center md:ml-auto shrink-0">
-          {!streamlinedTaskDetailEnabled && canArchiveFromInbox && (
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              onClick={() => {
-                if (!archivePending && issue?.id)
-                  archiveFromInbox.mutate(issue.id);
-              }}
-              disabled={archivePending}
-              title="Archive from inbox"
-              aria-label="Archive from inbox"
-            >
-              <Archive className="h-4 w-4" />
-            </Button>
-          )}
           {fileViewerEnabled ? (
             <Button
               variant="ghost"
@@ -7721,6 +7725,26 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
                 "absolute right-0 top-0 flex h-7 items-center",
             )}
           >
+            {(canArchiveTask || canUnarchiveTask) && (
+              <Button
+                variant="ghost"
+                size={streamlinedTaskDetailEnabled ? "xs" : "icon-xs"}
+                onClick={() => {
+                  if (!issue?.id) return;
+                  if (canUnarchiveTask) {
+                    if (!unarchivePending) unarchiveTask.mutate(issue.id);
+                  } else if (!archivePending) {
+                    archiveFromInbox.mutate(issue.id);
+                  }
+                }}
+                disabled={archivePending || unarchivePending}
+                title={canUnarchiveTask ? "Unarchive task" : "Archive task"}
+                aria-label={canUnarchiveTask ? "Unarchive task" : "Archive task"}
+              >
+                {canUnarchiveTask ? <ArchiveRestore className="h-3 w-3" /> : <Archive className="h-3 w-3" />}
+                {streamlinedTaskDetailEnabled ? (canUnarchiveTask ? "Unarchive" : "Archive") : null}
+              </Button>
+            )}
             <IssuePrivacyActions
                 issue={issue}
                 spaceId={issue.spaceId}
@@ -7786,18 +7810,23 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
                       )}
                       Copy as markdown
                     </button>
-                    {canArchiveFromInbox ? (
+                    {canArchiveTask || canUnarchiveTask ? (
                       <button
                         className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-accent/50 disabled:opacity-50"
-                        disabled={archivePending}
+                        disabled={archivePending || unarchivePending}
                         onClick={() => {
-                          if (!archivePending && issue?.id)
-                            archiveFromInbox.mutate(issue.id);
+                          if (issue?.id) {
+                            if (canUnarchiveTask) {
+                              if (!unarchivePending) unarchiveTask.mutate(issue.id);
+                            } else if (!archivePending) {
+                              archiveFromInbox.mutate(issue.id);
+                            }
+                          }
                           setMoreOpen(false);
                         }}
                       >
-                        <Archive className="h-3 w-3" />
-                        Archive from inbox
+                        {canUnarchiveTask ? <ArchiveRestore className="h-3 w-3" /> : <Archive className="h-3 w-3" />}
+                        {canUnarchiveTask ? "Unarchive task" : "Archive task"}
                       </button>
                     ) : null}
                   </>

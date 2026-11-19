@@ -23,6 +23,19 @@ export interface TaskStatusPresentation {
   ariaLabel: string;
 }
 
+/**
+ * A display projection only refines an actively executing lifecycle. A newer
+ * canonical transition (for example in_progress -> blocked) must win over a
+ * stale list projection everywhere that groups, filters, or sorts tasks.
+ */
+export function resolveTaskProjectedStatus(
+  input: Pick<TaskStatusPresentationInput, "status" | "displayStatus">,
+): string {
+  return input.status === "in_progress"
+    ? (input.displayStatus ?? input.status)
+    : input.status;
+}
+
 export function taskStatusLabel(status: string): string {
   return status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
@@ -79,7 +92,7 @@ function blockedAttentionLabel(blockerAttention: IssueBlockerAttention | null | 
 export function resolveTaskStatusPresentation(input: TaskStatusPresentationInput): TaskStatusPresentation {
   const { status, displayStatus, externalConversationState, blockerAttention } = input;
   // A saved/optimistic transition must win over the previous read projection.
-  const projectedStatus = status === "in_progress" ? (displayStatus ?? status) : status;
+  const projectedStatus = resolveTaskProjectedStatus({ status, displayStatus });
   const visibleStatus = projectedStatus === "in_review" && externalConversationState === "waiting"
     ? "idle"
     : projectedStatus;

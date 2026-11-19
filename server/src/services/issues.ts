@@ -1906,6 +1906,8 @@ export interface IssueFilters {
    */
   touchedCandidates?: "participation";
   inboxArchivedByUserId?: string;
+  /** Keep archived rows in a user-context list while still projecting archive metadata. */
+  includeInboxArchived?: boolean;
   unreadForUserId?: string;
   projectId?: string;
   workspaceId?: string;
@@ -6573,7 +6575,7 @@ async function blockedInboxIssueConditions(
     conditions.push(eq(issues.assigneeUserId, filters.assigneeUserId));
   if (touchedByUserId)
     conditions.push(touchedByUserCondition(spaceId, touchedByUserId));
-  if (inboxArchivedByUserId)
+  if (inboxArchivedByUserId && !filters?.includeInboxArchived)
     conditions.push(
       inboxVisibleForUserCondition(spaceId, inboxArchivedByUserId),
     );
@@ -8478,7 +8480,7 @@ export function issueService(db: Db) {
           ? sql<boolean>`${issues.id} IN (SELECT "mine_participants"."id" FROM ${mineParticipationIssueIds(db, spaceId, touchedByUserId)})`
           : touchedByUserCondition(spaceId, touchedByUserId));
       }
-      if (inboxArchivedByUserId) {
+      if (inboxArchivedByUserId && !filters?.includeInboxArchived) {
         conditions.push(
           inboxVisibleForUserCondition(spaceId, inboxArchivedByUserId),
         );

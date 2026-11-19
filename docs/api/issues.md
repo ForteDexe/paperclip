@@ -22,6 +22,8 @@ Query parameters:
 | `ids` | One to 100 comma-separated task UUIDs; requires `view=index` or `view=rows` without `attention` |
 | `parentIds` | One to 100 comma-separated parent UUIDs for batched child context; same projection restriction as `ids` |
 | `oneChildPerParent` | With `view=index` and `parentIds`, return at most one readable child per parent for collapsed-tree affordances |
+| `inboxArchivedByUserId` | Apply one user's active archive state and include that user's archive metadata; operators may pass `me` |
+| `includeInboxArchived` | With `inboxArchivedByUserId`, keep archived tasks in the result instead of hiding them |
 
 Results sorted by priority.
 

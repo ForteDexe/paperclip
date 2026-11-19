@@ -83,6 +83,27 @@ describe("IssueFiltersPopover", () => {
     act(() => root.unmount());
   });
 
+  it.each(["legacy", "streamlined", "refreshed"] as const)("offers archived task visibility in %s", presentation => {
+    const root = createRoot(container);
+    const onChange = vi.fn();
+    act(() => root.render(
+      <IssueFiltersPopover
+        presentation={presentation}
+        enableLiveRunsFilter={false}
+        enableArchivedTasksFilter
+        state={defaultIssueFilterState}
+        onChange={onChange}
+        activeFilterCount={0}
+      />,
+    ));
+    const row = Array.from(container.querySelectorAll("label"))
+      .find(label => label.textContent === "Show archived tasks");
+    expect(row).toBeDefined();
+    act(() => row?.querySelector("input")?.click());
+    expect(onChange).toHaveBeenCalledWith({ showArchivedTasks: true });
+    act(() => root.unmount());
+  });
+
   it("uses a scrollable popover and a three-column desktop grid", () => {
     const root = createRoot(container);
 

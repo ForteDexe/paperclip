@@ -77,6 +77,12 @@ it("separates monitored waits from In Progress in task filters", () => {
   expect(applyIssueFilters(rows, { ...defaultIssueFilterState, statuses: ["in_progress"] }).map(row => row.id)).toEqual(["working"]);
 });
 
+it("keeps canonical blocked tasks out of In Progress when a display projection is stale", () => {
+  const blocked = makeIssue({ id: "blocked", status: "blocked", displayStatus: "in_progress" });
+  expect(applyIssueFilters([blocked], { ...defaultIssueFilterState, statuses: ["blocked"] })).toEqual([blocked]);
+  expect(applyIssueFilters([blocked], { ...defaultIssueFilterState, statuses: ["in_progress"] })).toEqual([]);
+});
+
 describe("issue filters", () => {
   it("hides automation by default while an opt-in includes every creation source", () => {
     const issues = [makeIssue({ id: "human", createdByUserId: "person" }), makeIssue({ id: "agent", createdByAgentId: "agent" }), makeIssue({ id: "routine", originKind: "routine_execution", createdByUserId: "person" }), makeIssue({ id: "system" })];
@@ -104,6 +110,9 @@ describe("issue filters", () => {
     expect(normalizeIssueFilterState({ hideRoutineExecutions: false, statuses: ["todo"] })).toMatchObject({ showAgentCreatedTasks: false, statuses: ["todo"] });
     expect(normalizeIssueFilterState({ showAgentCreatedTasks: "true" }).showAgentCreatedTasks).toBe(false);
     expect(normalizeIssueFilterState({ showAgentCreatedTasks: true }).showAgentCreatedTasks).toBe(true);
+    expect(normalizeIssueFilterState({ showArchivedTasks: true }).showArchivedTasks).toBe(true);
+    expect(normalizeIssueFilterState({ showArchivedTasks: "true" }).showArchivedTasks).toBe(false);
+    expect(countActiveIssueFilters({ ...defaultIssueFilterState, showArchivedTasks: true })).toBe(1);
   });
 
   it("searches filter options case-insensitively without mutating the source", () => {

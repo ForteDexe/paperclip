@@ -229,6 +229,11 @@ them. Agents cannot transfer routine responsibility.
 
 ### Task collection creation filters
 
+The Tasks collection hides tasks archived by the current user. **Show archived
+tasks** includes them again and exposes their current archive state. Archiving is
+per user: it removes a task from that user's normal collection without changing
+the task lifecycle, and later qualifying activity can resurface it.
+
 Tasks opens All tasks for new users. A saved view or an explicit view in the URL
 takes precedence over this default.
 The task table orders rows by Last updated, newest first, without highlighting a

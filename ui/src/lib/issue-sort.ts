@@ -1,6 +1,7 @@
 import type { Issue } from "@outpost/shared";
 import { issuePriorityOrder, issueStatusOrder } from "./issue-filters";
 import { workflowSort } from "./workflow-sort";
+import { resolveTaskProjectedStatus } from "./task-status-presentation";
 
 /** URL sort fields are shared by all task interfaces, including hidden columns. */
 export const ISSUE_SORT_FIELDS = ["status", "priority", "title", "created", "updated", "workflow", "taskId", "createdBy", "assignee", "project", "parentTask", "tags", "worktree"] as const;
@@ -31,7 +32,7 @@ export function sortIssues(issues: readonly Issue[], sort: IssueSort, context: (
   }
   const value = (issue: Issue): string | number | null | undefined => {
     switch (sort.sortField) {
-      case "status": return issueStatusOrder.indexOf(issue.displayStatus ?? issue.status);
+      case "status": return issueStatusOrder.indexOf(resolveTaskProjectedStatus(issue));
       case "priority": return issuePriorityOrder.indexOf(issue.priority);
       case "title": return issue.title;
       case "created": return new Date(issue.createdAt).getTime();

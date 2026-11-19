@@ -96,7 +96,7 @@ import { statusBadge } from "../lib/status-colors";
 import { isSuccessfulRunHandoffRequired } from "../lib/successful-run-handoff";
 import { deriveOriginatingActor, ISSUE_STATUSES, ISSUE_DISPLAY_STATUSES, type Issue, type IssueDisplayStatus, type IssueStatus, type Project } from "@outpost/shared";
 import { Badge } from "@/components/ui/badge";
-import { taskStatusIconProps } from "@/lib/task-status-presentation";
+import { resolveTaskProjectedStatus, taskStatusIconProps } from "@/lib/task-status-presentation";
 const ISSUE_SEARCH_DEBOUNCE_MS = 250;
 const ISSUE_SEARCH_RESULT_LIMIT = 200;
 const ISSUE_BOARD_COLUMN_RESULT_LIMIT = 200;
@@ -456,6 +456,8 @@ interface IssuesListProps {
   initialWorkspaces?: string[];
   routineTasksOnly?: boolean;
   onRoutineTasksOnlyChange?: (checked: boolean) => void;
+  showArchivedTasks?: boolean;
+  onShowArchivedTasksChange?: (checked: boolean) => void;
   /** URL sorting overrides the saved collection preference when supplied. */
   sort?: IssueSort;
   onSortChange?: (sort: IssueSort) => void;
@@ -681,6 +683,8 @@ export function IssuesList({
   initialWorkspaces,
   routineTasksOnly,
   onRoutineTasksOnlyChange,
+  showArchivedTasks,
+  onShowArchivedTasksChange,
   sort,
   onSortChange,
   initialSearch,
@@ -762,7 +766,8 @@ export function IssuesList({
     ...savedViewState,
     ...sort,
     ...(routineTasksOnly === undefined ? {} : { routineTasksOnly }),
-  }), [savedViewState, sort, routineTasksOnly]);
+    ...(showArchivedTasks === undefined ? {} : { showArchivedTasks }),
+  }), [savedViewState, sort, routineTasksOnly, showArchivedTasks]);
   const showAgentCreatedTasks = useShowAgentCreatedTasks(selectedSpaceId, viewStateKey);
   useEffect(() => {
     if (!enableAgentCreatedVisibilityFilter) return;
@@ -804,6 +809,7 @@ export function IssuesList({
 
   const updateView = useCallback((patch: Partial<IssueViewState>) => {
     if (patch.routineTasksOnly !== undefined) onRoutineTasksOnlyChange?.(patch.routineTasksOnly);
+    if (patch.showArchivedTasks !== undefined) onShowArchivedTasksChange?.(patch.showArchivedTasks);
     if (patch.sortField !== undefined || patch.sortDir !== undefined) {
       onSortChange?.({
         sortField: patch.sortField ?? viewState.sortField,
@@ -818,7 +824,7 @@ export function IssuesList({
       }, { viewState: next, columns: visibleIssueColumns });
       return next;
     });
-  }, [scopedKey, selectedSpaceId, viewStateKey, visibleIssueColumns, onRoutineTasksOnlyChange, onSortChange, sort, viewState.sortField, viewState.sortDir]);
+  }, [scopedKey, selectedSpaceId, viewStateKey, visibleIssueColumns, onRoutineTasksOnlyChange, onShowArchivedTasksChange, onSortChange, sort, viewState.sortField, viewState.sortDir]);
 
   useEffect(() => {
     if (!experimentalSettingsLoaded || externalObjectsEnabled || viewState.externalObjectStatuses.length === 0) return;
@@ -1244,7 +1250,7 @@ export function IssuesList({
       return [{ key: "__all", label: null as string | null, items: filtered }];
     }
     if (viewState.groupBy === "status") {
-      const groups = groupBy(filtered, (i) => i.displayStatus ?? i.status);
+      const groups = groupBy(filtered, resolveTaskProjectedStatus);
       return issueStatusOrder
         .filter((s) => groups[s]?.length)
         .map((s) => ({ key: s, label: issueFilterLabel(s), items: groups[s]! }));
@@ -1857,6 +1863,7 @@ export function IssuesList({
 
           <IssueFiltersPopover
             enableRoutineTasksFilter={routineTasksOnly !== undefined}
+            enableArchivedTasksFilter={showArchivedTasks !== undefined}
             presentation="legacy"
             state={viewState}
             onChange={updateView}

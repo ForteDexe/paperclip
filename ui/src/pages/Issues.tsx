@@ -8,7 +8,7 @@ import { DesignSandboxTasks } from "./DesignSandboxTasks";
 import { useEffect, useMemo, useCallback, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useLocation, useNavigate, useSearchParams } from "@/lib/router";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { issuesApi } from "../api/issues";
 import { agentsApi } from "../api/agents";
 import { heartbeatsApi } from "../api/heartbeats";
@@ -175,6 +175,7 @@ function OrganizationIssues({
   const { enabled: streamlinedUiEnabled } = useStreamlinedUiEnabled();
   const issuesPresentation = resolveIssuesPresentation(streamlinedUiEnabled);
   const { selectedSpaceId } = useSpace();
+  const queryClient = useQueryClient();
   const { setBreadcrumbs } = useBreadcrumbs();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -204,6 +205,7 @@ function OrganizationIssues({
     }, { replace: true });
   }, [setSearchParams, syncedSearch]);
   const routineTasksOnly = searchParams.get("originKind") === "routine_execution";
+  const showArchivedTasks = searchParams.get("archived") === "true";
   const includeAgentCreatedTasks = showAgentCreatedTasks || routineTasksOnly;
   const originKind = routineTasksOnly ? "routine_execution" : undefined;
   const handleRoutineTasksOnlyChange = useCallback((checked: boolean) => {
@@ -213,6 +215,16 @@ function OrganizationIssues({
       else next.delete("q");
       if (checked) next.set("originKind", "routine_execution");
       else next.delete("originKind");
+      return next;
+    }, { replace: true });
+  }, [setSearchParams, syncedSearch]);
+  const handleShowArchivedTasksChange = useCallback((checked: boolean) => {
+    setSearchParams(current => {
+      const next = new URLSearchParams(current);
+      if (syncedSearch) next.set("q", syncedSearch);
+      else next.delete("q");
+      if (checked) next.set("archived", "true");
+      else next.delete("archived");
       return next;
     }, { replace: true });
   }, [setSearchParams, syncedSearch]);
@@ -290,6 +302,7 @@ function OrganizationIssues({
       serverSortField,
       serverSortDir,
       includeBlockedBy,
+      showArchivedTasks,
     ],
     queryFn: ({ pageParam, signal }) => issuesApi.listCompact(selectedSpaceId!, {
       projection: streamlinedUiEnabled ? "index" : undefined,
@@ -303,6 +316,8 @@ function OrganizationIssues({
       sortField: serverSortField,
       sortDir: serverSortDir,
       includeBlockedBy: includeBlockedBy || undefined,
+      inboxArchivedByUserId: "me",
+      includeInboxArchived: showArchivedTasks || undefined,
     }, { signal }),
     initialPageParam: 0,
     getNextPageParam: (lastPage, _allPages, lastPageParam) =>
@@ -327,6 +342,14 @@ function OrganizationIssues({
 
   // Optimistic, rolls back with a readable toast, and resends after an outage.
   const updateIssue = useUpdateIssueMutation({ spaceId: selectedSpaceId });
+  const toggleArchive = useMutation({
+    mutationFn: ({ id, archived }: { id: string; archived: boolean }) =>
+      archived ? issuesApi.unarchiveFromInbox(id) : issuesApi.archiveFromInbox(id),
+    onSuccess: async () => {
+      if (!selectedSpaceId) return;
+      await queryClient.invalidateQueries({ queryKey: queryKeys.issues.list(selectedSpaceId) });
+    },
+  });
 
   if (!selectedSpaceId) {
     return (
@@ -363,12 +386,23 @@ function OrganizationIssues({
       enableAgentCreatedVisibilityFilter
       routineTasksOnly={routineTasksOnly}
       onRoutineTasksOnlyChange={handleRoutineTasksOnlyChange}
+      showArchivedTasks={showArchivedTasks}
+      onShowArchivedTasksChange={handleShowArchivedTasksChange}
       sort={sort}
       onSortChange={handleSortChange}
       hasMoreIssues={hasMoreServerIssues}
       onLoadMoreIssues={loadMoreServerIssues}
+      onToggleArchive={(issue) => toggleArchive.mutate({ id: issue.id, archived: Boolean(issue.archivedAt) })}
+      archivePendingIssueId={toggleArchive.isPending ? toggleArchive.variables?.id ?? null : null}
       onUpdateIssue={(id, data) => updateIssue.mutate({ id, data })}
-      searchFilters={participantAgentId || workspaceIdFilter || originKind || includeBlockedBy ? { participantAgentId, workspaceId: workspaceIdFilter, originKind, ...(includeBlockedBy ? { includeBlockedBy: true } : {}) } : undefined}
+      searchFilters={{
+        participantAgentId,
+        workspaceId: workspaceIdFilter,
+        originKind,
+        inboxArchivedByUserId: "me",
+        includeInboxArchived: showArchivedTasks || undefined,
+        ...(includeBlockedBy ? { includeBlockedBy: true } : {}),
+      }}
     />
   );
 }

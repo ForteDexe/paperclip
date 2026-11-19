@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { resolveTaskStatusPresentation } from "./task-status-presentation";
+import {
+  resolveTaskProjectedStatus,
+  resolveTaskStatusPresentation,
+} from "./task-status-presentation";
 
 describe("execution-backed task status", () => {
   it.each([
@@ -21,6 +24,7 @@ describe("execution-backed task status", () => {
 
   it.each(["done", "cancelled", "blocked", "in_review", "todo"])("preserves an optimistic %s transition over a stale display status", (status) => {
     expect(resolveTaskStatusPresentation({ status, displayStatus: "in_progress" }).glyphStatus).toBe(status);
+    expect(resolveTaskProjectedStatus({ status, displayStatus: "in_progress" })).toBe(status);
   });
 
   it("preserves status when the server did not send a projection", () => {

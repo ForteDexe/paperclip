@@ -17,7 +17,7 @@ import { taskListViews, taskListViewStorageKey, type TaskListView } from "@/lib/
 
 const mocks = vi.hoisted(() => ({ list: vi.fn(), get: vi.fn(), attention: vi.fn(), breadcrumbs: vi.fn(), liveRuns: vi.fn(), localTrusted: false, realFilters: false, labels: [] as { id: string; name: string; color: string }[], identity: { userId: "person" as string | null, settled: true } }));
 vi.mock("@/api/heartbeats", () => ({ heartbeatsApi: { liveRunsForSpace: mocks.liveRuns } }));
-vi.mock("@/api/issues", () => ({ issuesApi: { list: mocks.list, listCompact: mocks.list, get: mocks.get, listLabels: async () => mocks.labels, update: vi.fn() } }));
+vi.mock("@/api/issues", () => ({ issuesApi: { list: mocks.list, listCompact: mocks.list, get: mocks.get, listLabels: async () => mocks.labels, update: vi.fn(), archiveFromInbox: vi.fn(), unarchiveFromInbox: vi.fn() } }));
 vi.mock("@/api/attention", () => ({ attentionApi: { taskIndex: mocks.attention } }));
 vi.mock("@/api/agents", () => ({ agentsApi: { list: async () => [] } }));
 vi.mock("@/api/projects", () => ({ projectsApi: { list: async () => [] } }));
@@ -35,6 +35,8 @@ vi.mock("@/components/TaskListToolbar", () => ({ TaskListToolbar: ({ filters, vi
   {taskListViews.map(option => <button key={option.value} onClick={() => onViewChange(option.value)}>{option.label}</button>)}
   <button onClick={() => filters.onChange({ routineTasksOnly: true })}>Routine tasks</button>
   <button onClick={() => filters.onChange({ routineTasksOnly: false })}>Show other tasks</button>
+  <button onClick={() => filters.onChange({ showArchivedTasks: true })}>Show archived tasks</button>
+  <button onClick={() => filters.onChange({ showArchivedTasks: false })}>Hide archived tasks</button>
   <button onClick={() => filters.onChange({ liveOnly: true })}>Live runs only</button>
   <button onClick={() => filters.onChange({ priorities: ["high"] })}>High priority</button>
   <button onClick={() => filters.onChange({ statuses: ["in_progress"] })}>In progress only</button>
@@ -173,6 +175,27 @@ describe("Coordinator tasks using the proposed table", () => {
     expect(mocks.list.mock.lastCall?.[1].originKind).toBeUndefined();
     flushSync(() => Array.from(host.querySelectorAll("button")).find(button => button.textContent === "Routine tasks")!.click());
     await vi.waitFor(() => expect(host.querySelector('[data-task-id="manual-task"]')).toBeNull());
+  });
+
+  it("hides archived tasks by default and lets the visibility filter include them", async () => {
+    const active = createIssue({ id: "active-task", spaceId: "space", parentId: null, title: "Active task" });
+    const archived = createIssue({ id: "archived-task", spaceId: "space", parentId: null, title: "Archived task", archivedAt: new Date() });
+    mocks.list.mockImplementation(async (_space, filters) => filters.includeInboxArchived ? [active, archived] : [active]);
+
+    await mount("/issues?view=all");
+    expect(mocks.list).toHaveBeenCalledWith("space", expect.objectContaining({
+      inboxArchivedByUserId: "me",
+      includeInboxArchived: undefined,
+    }), expect.anything());
+    expect(host.textContent).not.toContain("Archived task");
+
+    flushSync(() => [...host.querySelectorAll("button")].find(button => button.textContent === "Show archived tasks")!.click());
+    await vi.waitFor(() => expect(host.textContent).toContain("Archived task"));
+    expect(host.querySelector("output")?.textContent).toContain("archived=true");
+    expect(mocks.list.mock.lastCall?.[1]).toMatchObject({
+      inboxArchivedByUserId: "me",
+      includeInboxArchived: true,
+    });
   });
 
   it("reads newest-first sorting and puts column sort clicks in the URL", async () => {

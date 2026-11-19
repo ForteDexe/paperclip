@@ -113,6 +113,7 @@ export function IssueFiltersPopover({
   enableLiveRunsFilter = true,
   enableAgentCreatedVisibilityFilter = false,
   enableRoutineTasksFilter = false,
+  enableArchivedTasksFilter = false,
   buttonVariant = "ghost",
   iconOnly = false,
   creators,
@@ -130,6 +131,7 @@ export function IssueFiltersPopover({
   enableLiveRunsFilter?: boolean;
   enableAgentCreatedVisibilityFilter?: boolean;
   enableRoutineTasksFilter?: boolean;
+  enableArchivedTasksFilter?: boolean;
   buttonVariant?: "ghost" | "outline";
   iconOnly?: boolean;
   creators?: CreatorOption[];
@@ -214,7 +216,7 @@ export function IssueFiltersPopover({
           ? "w-(--sz-calc-10) max-h-(--sz-calc-9) overflow-y-auto overscroll-contain p-0"
           : "w-(--sz-calc-10) p-0"}
       >
-        {refreshed ? <IssueFilterPanel enableLiveRunsFilter={enableLiveRunsFilter} enableAgentCreatedVisibilityFilter={enableAgentCreatedVisibilityFilter} enableRoutineTasksFilter={enableRoutineTasksFilter} state={state} onChange={onChange} activeFilterCount={activeFilterCount} agents={agents} projects={projects} labels={labels} creators={creators} currentUserId={currentUserId} onClear={clearFilters} /> : <div className="space-y-3 p-3">
+        {refreshed ? <IssueFilterPanel enableLiveRunsFilter={enableLiveRunsFilter} enableAgentCreatedVisibilityFilter={enableAgentCreatedVisibilityFilter} enableRoutineTasksFilter={enableRoutineTasksFilter} enableArchivedTasksFilter={enableArchivedTasksFilter} state={state} onChange={onChange} activeFilterCount={activeFilterCount} agents={agents} projects={projects} labels={labels} creators={creators} currentUserId={currentUserId} onClear={clearFilters} /> : <div className="space-y-3 p-3">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">Filters</span>
             {activeFilterCount > 0 ? (
@@ -520,7 +522,7 @@ export function IssueFiltersPopover({
                 </div>
               ) : null}
 
-              {enableLiveRunsFilter || enableAgentCreatedVisibilityFilter || enableRoutineTasksFilter ? <div className="space-y-1" data-filter-options="visibility">
+              {enableLiveRunsFilter || enableAgentCreatedVisibilityFilter || enableRoutineTasksFilter || enableArchivedTasksFilter ? <div className="space-y-1" data-filter-options="visibility">
                 <span className="text-xs text-muted-foreground">Visibility</span>
                 {enableLiveRunsFilter ? <label className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1 hover:bg-accent/50">
                   <Checkbox
@@ -544,6 +546,13 @@ export function IssueFiltersPopover({
                     onCheckedChange={(checked) => onChange({ routineTasksOnly: checked === true })}
                   />
                   <span className="text-sm">Routine tasks</span>
+                </label> : null}
+                {enableArchivedTasksFilter ? <label className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1 hover:bg-accent/50">
+                  <Checkbox
+                    checked={state.showArchivedTasks}
+                    onCheckedChange={(checked) => onChange({ showArchivedTasks: checked === true })}
+                  />
+                  <span className="text-sm">Show archived tasks</span>
                 </label> : null}
               </div> : null}
             </div>

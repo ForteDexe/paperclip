@@ -202,6 +202,17 @@ describe("issuesApi.list", () => {
     );
   });
 
+  it("can include the current user's archived tasks in collection requests", async () => {
+    await issuesApi.listCompact("space-1", {
+      inboxArchivedByUserId: "me",
+      includeInboxArchived: true,
+    });
+
+    expect(mockApi.get).toHaveBeenCalledWith(
+      "/spaces/space-1/issues?inboxArchivedByUserId=me&includeInboxArchived=true&view=compact",
+    );
+  });
+
   it("passes plan document filters through to the space issues endpoint", async () => {
     await issuesApi.list("space-1", { hasPlanDocument: false, limit: 25 });
 

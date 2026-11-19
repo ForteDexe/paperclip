@@ -109,7 +109,7 @@ it("restores URL sorting, resets paging on a sort click, and preserves routine f
     await vi.waitFor(() => expect(host.querySelector("output")?.textContent).toContain("desc-99"));
     expect(mocks.list.mock.lastCall?.[1]).toMatchObject({ sortField: "created", sortDir: "desc", originKind: "routine_execution", offset: 0 });
     expect(JSON.parse(host.querySelector("output")!.getAttribute("data-search-filters")!)).toEqual({
-      originKind: "routine_execution", participantAgentId: "agent",
+      originKind: "routine_execution", participantAgentId: "agent", inboxArchivedByUserId: "me",
     });
     flushSync(() => host.querySelector("button")!.click());
     await vi.waitFor(() => expect(host.querySelector("output")?.textContent).toContain("desc-100"));

@@ -48,6 +48,7 @@ const mockIssuesApi = vi.hoisted(() => ({
   createLabel: vi.fn(),
   upsertWatchdog: vi.fn(),
   deleteWatchdog: vi.fn(),
+  archiveFromInbox: vi.fn(),
   unarchiveFromInbox: vi.fn(),
 }));
 
@@ -662,6 +663,7 @@ describe("IssueProperties", () => {
     }));
     mockIssuesApi.upsertWatchdog.mockResolvedValue({});
     mockIssuesApi.deleteWatchdog.mockResolvedValue({ ok: true });
+    mockIssuesApi.archiveFromInbox.mockResolvedValue({ id: "issue-1", archivedAt: new Date() });
     mockIssuesApi.unarchiveFromInbox.mockResolvedValue({ ok: true });
     mockAuthApi.getSession.mockResolvedValue({ user: { id: "user-1" } });
     mockAccessApi.listUserDirectory.mockResolvedValue({
@@ -3664,7 +3666,7 @@ describe("IssueProperties", () => {
     act(() => root.unmount());
   });
 
-  it("does not render archive attribution for user (manual) archives", async () => {
+  it("offers unarchive without agent attribution for user archives", async () => {
     const root = renderProperties(container, {
       issue: createIssue({
         archivedAt: new Date("2026-04-06T12:10:00.000Z"),
@@ -3683,7 +3685,26 @@ describe("IssueProperties", () => {
     expect(container.textContent).not.toContain("Archived by");
     expect(
       Array.from(container.querySelectorAll("button")).some((button) => button.textContent?.includes("Unarchive")),
-    ).toBe(false);
+    ).toBe(true);
+
+    act(() => root.unmount());
+  });
+
+  it("offers archive directly in Properties for an active task", async () => {
+    const root = renderProperties(container, {
+      issue: createIssue({ archivedAt: null }),
+      childIssues: [],
+      onUpdate: vi.fn(),
+      inline: true,
+    });
+    await flush();
+
+    const archiveButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .find((button) => button.textContent?.includes("Archive task"));
+    expect(archiveButton).toBeTruthy();
+    await act(async () => archiveButton!.click());
+    await flush();
+    expect(mockIssuesApi.archiveFromInbox).toHaveBeenCalledWith("issue-1");
 
     act(() => root.unmount());
   });

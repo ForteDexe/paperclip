@@ -30,6 +30,7 @@ import { cn } from "../lib/utils";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { HorizontalScrollViewport } from "./HorizontalScrollViewport";
+import { resolveTaskProjectedStatus } from "../lib/task-status-presentation";
 
 export const KANBAN_BOARD_HIGH_VOLUME_THRESHOLD = 100;
 export const KANBAN_COLUMN_PAGE_SIZE_OPTIONS = [10, 25, 50] as const;
@@ -419,7 +420,7 @@ export function KanbanBoard({
       grouped[status] = [];
     }
     for (const issue of issues) {
-      const status = issue.displayStatus ?? issue.status;
+      const status = resolveTaskProjectedStatus(issue) as IssueDisplayStatus;
       if (grouped[status]) {
         grouped[status].push(issue);
       }

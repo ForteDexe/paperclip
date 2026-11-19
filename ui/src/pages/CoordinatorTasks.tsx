@@ -88,11 +88,12 @@ export function CoordinatorTasks({ viewControl }: { viewControl?: ReactNode } = 
     return next;
   }, { replace: true });
   const routineTasksOnly = params.get("originKind") === "routine_execution";
+  const showArchivedTasks = params.get("archived") === "true";
   const originKind = routineTasksOnly ? "routine_execution" : undefined;
   const normalizedView = normalizeTaskViewKey(urlView);
   const presetStatuses = normalizedView && taskView(normalizedView).surface === "issues" ? taskView(normalizedView).statuses ?? [] : [];
   const initialStatuses: string[] = params.has("status") ? params.getAll("status") : presetStatuses;
-  const previousUrlFilters = useRef({ assignee: urlAssignee, statuses: urlStatuses, labels: urlLabels, view: urlView, routineTasksOnly });
+  const previousUrlFilters = useRef({ assignee: urlAssignee, statuses: urlStatuses, labels: urlLabels, view: urlView, routineTasksOnly, showArchivedTasks });
   const needsAttention = view === "blocked";
   const query = params.get("q") ?? "";
   const deferredQuery = useDeferredValue(query.trim());
@@ -115,13 +116,14 @@ export function CoordinatorTasks({ viewControl }: { viewControl?: ReactNode } = 
   useEffect(() => { setBreadcrumbs([{ label: "Tasks" }]); }, [setBreadcrumbs]);
 
   const tasks = useInfiniteQuery({
-    queryKey: [...queryKeys.issues.list(spaceId!), "coordinator-table", "index", userId, deferredQuery, participantAgentId, workspaceIds, originKind, serverSortField, serverSortDir, includeBlockedBy, view === "unread"],
+    queryKey: [...queryKeys.issues.list(spaceId!), "coordinator-table", "index", userId, deferredQuery, participantAgentId, workspaceIds, originKind, serverSortField, serverSortDir, includeBlockedBy, view === "unread", showArchivedTasks],
     queryFn: async ({ pageParam, signal }) => {
       const pages = await Promise.all((workspaceIds.length ? workspaceIds : [undefined]).map(workspaceId => issuesApi.listCompact(spaceId!, {
       projection: "index", limit: pageSize, offset: pageParam, includeAgentCreatedTasks: true, includeRoutineExecutions: true,
       sortField: serverSortField, sortDir: serverSortDir,
       includeBlockedBy: includeBlockedBy || undefined, q: deferredQuery || undefined, participantAgentId, workspaceId, originKind,
       unreadForUserId: view === "unread" ? "me" : undefined,
+      inboxArchivedByUserId: "me", includeInboxArchived: showArchivedTasks || undefined,
       }, { signal })));
       return { items: pages.flat(), hasNextPage: pages.some(page => page.length === pageSize) };
     },
@@ -136,16 +138,17 @@ export function CoordinatorTasks({ viewControl }: { viewControl?: ReactNode } = 
   const attentionIds = needsAttention ? attention.data?.taskIds ?? [] : [];
   const attentionBatches = Array.from({ length: Math.ceil(attentionIds.length / 100) }, (_, index) => attentionIds.slice(index * 100, (index + 1) * 100));
   const attentionTasks = useQueries({ queries: attentionBatches.map(ids => ({
-    queryKey: [...queryKeys.issues.list(spaceId!), "coordinator-attention-index", userId, participantAgentId, deferredQuery, originKind, includeBlockedBy, ids],
+    queryKey: [...queryKeys.issues.list(spaceId!), "coordinator-attention-index", userId, participantAgentId, deferredQuery, originKind, includeBlockedBy, showArchivedTasks, ids],
     queryFn: async ({ signal }: { signal: AbortSignal }) => {
       const rows = await issuesApi.listCompact(spaceId!, {
         ids, projection: "index", limit: 100, q: deferredQuery || undefined, participantAgentId, originKind, includeBlockedBy: includeBlockedBy || undefined,
         includeAgentCreatedTasks: true, includeRoutineExecutions: true,
+        inboxArchivedByUserId: "me", includeInboxArchived: true,
       }, { signal });
       if (!deferredQuery && !participantAgentId && !originKind && ids.some(id => !rows.some(row => row.id === id))) {
         throw new Error("Some tasks with pending decisions couldn’t load.");
       }
-      return rows;
+      return showArchivedTasks ? rows : rows.filter(row => !row.archivedAt);
     },
     enabled: !!spaceId,
   })) });
@@ -201,26 +204,31 @@ export function CoordinatorTasks({ viewControl }: { viewControl?: ReactNode } = 
     searchMode: "server",
     liveIssueIds: collectLiveIssueIds(liveRuns.data, records),
     viewStorageKey,
-    initialFilters: { labels: params.getAll("label").filter(Boolean), assignees: params.getAll("assignee"), statuses: initialStatuses, routineTasksOnly },
+    initialFilters: { labels: params.getAll("label").filter(Boolean), assignees: params.getAll("assignee"), statuses: initialStatuses, routineTasksOnly, showArchivedTasks },
   });
   useEffect(() => {
     const previous = previousUrlFilters.current;
-    if (previous.assignee === urlAssignee && previous.view === urlView && previous.statuses === urlStatuses && previous.labels === urlLabels && previous.routineTasksOnly === routineTasksOnly) return;
-    previousUrlFilters.current = { assignee: urlAssignee, statuses: urlStatuses, labels: urlLabels, view: urlView, routineTasksOnly };
+    if (previous.assignee === urlAssignee && previous.view === urlView && previous.statuses === urlStatuses && previous.labels === urlLabels && previous.routineTasksOnly === routineTasksOnly && previous.showArchivedTasks === showArchivedTasks) return;
+    previousUrlFilters.current = { assignee: urlAssignee, statuses: urlStatuses, labels: urlLabels, view: urlView, routineTasksOnly, showArchivedTasks };
     collection.updateFilters({
       ...(previous.labels !== urlLabels ? { labels: params.getAll("label").filter(Boolean) } : {}),
       ...(previous.routineTasksOnly !== routineTasksOnly ? { routineTasksOnly } : {}),
+      ...(previous.showArchivedTasks !== showArchivedTasks ? { showArchivedTasks } : {}),
       ...(previous.assignee !== urlAssignee ? { assignees: params.getAll("assignee") } : {}),
       ...(previous.view !== urlView || previous.statuses !== urlStatuses ? { statuses: initialStatuses } : {}),
     });
-  }, [urlAssignee, urlView, urlStatuses, urlLabels, initialStatuses, routineTasksOnly, collection.updateFilters]);
+  }, [urlAssignee, urlView, urlStatuses, urlLabels, initialStatuses, routineTasksOnly, showArchivedTasks, collection.updateFilters]);
   const updateFilters = (patch: Partial<IssueFilterState>) => {
     collection.updateFilters(patch);
-    if (patch.assignees === undefined && patch.statuses === undefined && patch.labels === undefined && patch.routineTasksOnly === undefined) return;
+    if (patch.assignees === undefined && patch.statuses === undefined && patch.labels === undefined && patch.routineTasksOnly === undefined && patch.showArchivedTasks === undefined) return;
     const next = new URLSearchParams(params);
     if (patch.routineTasksOnly !== undefined) {
       if (patch.routineTasksOnly) next.set("originKind", "routine_execution");
       else next.delete("originKind");
+    }
+    if (patch.showArchivedTasks !== undefined) {
+      if (patch.showArchivedTasks) next.set("archived", "true");
+      else next.delete("archived");
     }
     if (patch.labels !== undefined) {
       next.delete("label");
@@ -241,16 +249,24 @@ export function CoordinatorTasks({ viewControl }: { viewControl?: ReactNode } = 
   const clearFilters = () => {
     collection.updateFilters(defaultIssueFilterState);
     const next = new URLSearchParams(params);
-    for (const key of ["q", "assignee", "status", "label", "originKind"]) next.delete(key);
+    for (const key of ["q", "assignee", "status", "label", "originKind", "archived"]) next.delete(key);
     if (next.get("view") !== "needs_attention") next.set("view", "all");
     navigate({ search: next.toString(), hash: location.hash }, { replace: true });
   };
   const update = useMutation({ mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => issuesApi.update(id, data),
     onSuccess: () => { void client.invalidateQueries({ queryKey: queryKeys.issues.list(spaceId!) }); void client.invalidateQueries({ queryKey: queryKeys.attention(spaceId!) }); },
   });
+  const toggleArchive = useMutation({
+    mutationFn: ({ id, archived }: { id: string; archived: boolean }) =>
+      archived ? issuesApi.unarchiveFromInbox(id) : issuesApi.archiveFromInbox(id),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.issues.list(spaceId!) });
+      void client.invalidateQueries({ queryKey: queryKeys.attention(spaceId!) });
+    },
+  });
   const error = (needsAttention ? attention.error ?? attentionTasks.find(task => task.error)?.error : tasks.error)
     ?? (view === "unread" ? parentContext.error : null)
-    ?? agents.error ?? projects.error ?? directory.error ?? labels.error ?? update.error
+    ?? agents.error ?? projects.error ?? directory.error ?? labels.error ?? update.error ?? toggleArchive.error
     ?? (collection.filters.liveOnly ? liveRuns.error : null);
   const pending = (needsAttention ? attention.isPending || attentionTasks.some(task => task.isPending) : tasks.isPending)
     || (view === "unread" && parentIds.length > 0 && parentContext.isPending)
@@ -283,7 +299,7 @@ export function CoordinatorTasks({ viewControl }: { viewControl?: ReactNode } = 
     <TaskListToolbar view={view} onViewChange={setView} viewControl={viewControl}
       query={collection.query} onQueryChange={collection.setQuery} layout={collection.layout} onLayoutChange={collection.setLayout}
       allExpanded={collection.allExpanded} onToggleExpanded={collection.toggleExpanded} onNewTask={() => openNewIssue()}
-      filters={{ enableRoutineTasksFilter: true, state: collection.filters, onChange: updateFilters, activeFilterCount: collection.activeFilterCount,
+      filters={{ enableRoutineTasksFilter: true, enableArchivedTasksFilter: true, state: collection.filters, onChange: updateFilters, activeFilterCount: collection.activeFilterCount,
         agents: agents.data ?? [], projects: projects.data ?? [], labels: labels.data ?? [], currentUserId: userId, creators: collection.creators }} />
     {error ? <div role="alert" className="flex items-center gap-2 text-sm text-destructive"><span>{error instanceof Error ? error.message : "Could not load tasks"}</span><Button variant="outline" size="sm" onClick={retry}>Retry</Button></div> : null}
     {rowDetailsError ? <div role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><span>Task details couldn’t load.</span><Button variant="ghost" size="sm" onClick={() => void retryRowDetails()}>Retry</Button></div> : null}
@@ -293,6 +309,8 @@ export function CoordinatorTasks({ viewControl }: { viewControl?: ReactNode } = 
         preferenceLocation={userId ? { spaceId, collectionKey: `coordinator-tasks:${userId}` } : undefined}
         collectionKey={JSON.stringify([spaceId, userId, needsAttention, deferredQuery, participantAgentId, workspaceIds, collection.view, collection.filters])}
         sort={sort} onSortChange={setSort} preloadSpaceId={collection.layout === "list" ? spaceId : null}
+        onToggleArchive={(issue) => toggleArchive.mutate({ id: issue.id, archived: Boolean(issue.archivedAt) })}
+        archivePendingIssueId={toggleArchive.isPending ? toggleArchive.variables?.id ?? null : null}
         issueLinkState={issueLinkState} collapsedIds={collection.collapsedIds} onCollapsedIdsChange={collection.setCollapsedIds} /> : empty}</div>
       {collection.layout === "board" ? collection.matchingItems.length
         ? <KanbanBoard showOverflowFades issues={collection.matchingItems.map(item => enrichIssueRow(item.issue))} agents={agents.data} onUpdateIssue={(id, data) => update.mutate({ id, data })} /> : empty : null}

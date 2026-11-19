@@ -107,7 +107,8 @@ import {
 import { taskDateGroup, taskDateGroupSeparator, type TaskDateGroup } from "../lib/task-date-groups";
 import { deriveOriginatingActor, ISSUE_STATUSES, ISSUE_DISPLAY_STATUSES, type Issue, type IssueDisplayStatus, type IssueStatus, type Project } from "@outpost/shared";
 import { Badge } from "@/components/ui/badge";
-import { taskStatusIconProps } from "@/lib/task-status-presentation";
+import { resolveTaskProjectedStatus, taskStatusIconProps } from "@/lib/task-status-presentation";
+import { TaskRowArchiveMenu } from "./TaskRowArchiveMenu";
 const ISSUE_SEARCH_DEBOUNCE_MS = 250;
 const ISSUE_SEARCH_RESULT_LIMIT = 200;
 const ISSUE_BOARD_COLUMN_RESULT_LIMIT = 200;
@@ -476,6 +477,8 @@ interface IssuesListProps {
   initialStatuses?: string[];
   routineTasksOnly?: boolean;
   onRoutineTasksOnlyChange?: (checked: boolean) => void;
+  showArchivedTasks?: boolean;
+  onShowArchivedTasksChange?: (checked: boolean) => void;
   /** URL sorting overrides the saved collection preference when supplied. */
   sort?: IssueSort;
   onSortChange?: (sort: IssueSort) => void;
@@ -509,6 +512,8 @@ interface IssuesListProps {
    * the merged Tasks surface uses to put its Views control there (PAP-670).
    */
   toolbarContext?: ReactNode;
+  onToggleArchive?: (issue: Issue) => void;
+  archivePendingIssueId?: string | null;
   onUpdateIssue: (id: string, data: Record<string, unknown>) => void;
 }
 
@@ -730,6 +735,8 @@ function StreamlinedIssuesList({
   initialStatuses,
   routineTasksOnly,
   onRoutineTasksOnlyChange,
+  showArchivedTasks,
+  onShowArchivedTasksChange,
   sort,
   onSortChange,
   initialSearch,
@@ -751,6 +758,8 @@ function StreamlinedIssuesList({
   rowPresentation = "legacy",
   toolbarContext,
   toolbarPresentation = "legacy",
+  onToggleArchive,
+  archivePendingIssueId,
   onUpdateIssue,
 }: IssuesListProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -832,7 +841,8 @@ function StreamlinedIssuesList({
     ...savedViewState,
     ...sort,
     ...(routineTasksOnly === undefined ? {} : { routineTasksOnly }),
-  }), [savedViewState, sort, routineTasksOnly]);
+    ...(showArchivedTasks === undefined ? {} : { showArchivedTasks }),
+  }), [savedViewState, sort, routineTasksOnly, showArchivedTasks]);
   const showAgentCreatedTasks = useShowAgentCreatedTasks(selectedSpaceId, viewStateKey);
   useEffect(() => {
     if (!enableAgentCreatedVisibilityFilter) return;
@@ -889,6 +899,7 @@ function StreamlinedIssuesList({
 
   const updateView = useCallback((patch: Partial<IssueViewState>) => {
     if (patch.routineTasksOnly !== undefined) onRoutineTasksOnlyChange?.(patch.routineTasksOnly);
+    if (patch.showArchivedTasks !== undefined) onShowArchivedTasksChange?.(patch.showArchivedTasks);
     if (patch.sortField !== undefined || patch.sortDir !== undefined) {
       onSortChange?.({
         sortField: patch.sortField ?? viewState.sortField,
@@ -910,6 +921,7 @@ function StreamlinedIssuesList({
     preferenceLocation.legacyViewStorageKey,
     visibleIssueColumns,
     onRoutineTasksOnlyChange,
+    onShowArchivedTasksChange,
     onSortChange,
     sort,
     viewState.sortField,
@@ -1351,7 +1363,7 @@ function StreamlinedIssuesList({
       return [{ key: "__all", label: null as string | null, items: filtered }];
     }
     if (viewState.groupBy === "status") {
-      const groups = groupBy(filtered, (i) => i.displayStatus ?? i.status);
+      const groups = groupBy(filtered, resolveTaskProjectedStatus);
       return issueStatusOrder
         .filter((s) => groups[s]?.length)
         .map((s) => ({ key: s, label: issueFilterLabel(s), items: groups[s]! }));
@@ -1994,6 +2006,7 @@ function StreamlinedIssuesList({
 
           <IssueFiltersPopover
             enableRoutineTasksFilter={routineTasksOnly !== undefined}
+            enableArchivedTasksFilter={showArchivedTasks !== undefined}
             state={viewState}
             onChange={updateView}
             buttonVariant="outline"
@@ -2349,6 +2362,13 @@ function StreamlinedIssuesList({
                           </>
                         )}
                         className={cn(isMutedIssue && "opacity-70", selectedNavKey === `issue:${issue.id}` && "bg-accent/50 hover:bg-accent/50")}
+                        actions={onToggleArchive ? (
+                          <TaskRowArchiveMenu
+                            issue={issue}
+                            pending={archivePendingIssueId === issue.id}
+                            onToggleArchive={onToggleArchive}
+                          />
+                        ) : undefined}
                         leadingControl={rowPresentation === "task" ? (
                           hasChildren ? (
                             <button

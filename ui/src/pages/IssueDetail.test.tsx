@@ -1567,7 +1567,7 @@ describe("IssueDetail", () => {
           const more = container.querySelector<HTMLButtonElement>('button[aria-label="More task actions"]');
           await act(async () => more!.click());
           const archive = Array.from(document.body.querySelectorAll<HTMLButtonElement>("button"))
-            .find(button => button.textContent?.trim() === "Archive from inbox");
+            .find(button => button.textContent?.trim() === "Archive task");
           expect(archive).toBeDefined();
           await act(async () => archive!.click());
           await flushReact();
@@ -1608,7 +1608,7 @@ describe("IssueDetail", () => {
         await waitForAssertion(() => expect(container.querySelector('button[aria-label="More task actions"]')).not.toBeNull());
         await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="More task actions"]')!.click());
         const button = Array.from(document.body.querySelectorAll<HTMLButtonElement>("button"))
-          .find(entry => entry.textContent?.trim() === "Archive from inbox")!;
+          .find(entry => entry.textContent?.trim() === "Archive task")!;
         await act(async () => button.click());
         await waitForAssertion(() => expect(getLocalInboxArchiveIssueIds(issue.spaceId).has(issue.id)).toBe(true));
         await waitForAssertion(() => expect(mockIssuesApi.archiveFromInbox).toHaveBeenCalledWith(issue.id));
@@ -4013,6 +4013,10 @@ describe("IssueDetail", () => {
     await flushReact();
     await flushReact();
 
+    expect(
+      container.querySelector('button[aria-label="Archive task"]')?.textContent,
+    ).toContain("Archive");
+
     const moreButton = container.querySelector<HTMLButtonElement>(
       'button[aria-label="More task actions"]',
     );
@@ -4020,7 +4024,7 @@ describe("IssueDetail", () => {
     const archiveButton =
       Array.from(
         document.body.querySelectorAll<HTMLButtonElement>("button"),
-      ).find((button) => button.textContent?.trim() === "Archive from inbox") ??
+      ).find((button) => button.textContent?.trim() === "Archive task") ??
       null;
     expect(archiveButton).not.toBeNull();
 
@@ -4054,9 +4058,9 @@ describe("IssueDetail", () => {
     expect(mockNavigate).toHaveBeenCalledWith("/inbox/mine", { replace: true });
     const archiveToast = mockPushToast.mock.calls
       .map(([toast]) => toast)
-      .find((toast) => toast.title === "Task archived from inbox");
+      .find((toast) => toast.title === "Task archived");
     expect(archiveToast).toMatchObject({
-      title: "Task archived from inbox",
+      title: "Task archived",
       tone: "success",
       action: { label: "Undo" },
     });
@@ -4104,7 +4108,7 @@ describe("IssueDetail", () => {
         queryClient.getQueryData<Issue[]>(unreadKey)?.map((item) => item.id),
       ).toEqual(["issue-1", "issue-2"]);
       expect(mockPushToast).toHaveBeenCalledWith({
-        title: "Task restored to inbox",
+        title: "Task unarchived",
         tone: "success",
       });
     });
@@ -4146,7 +4150,7 @@ describe("IssueDetail", () => {
     const archiveButton =
       Array.from(
         document.body.querySelectorAll<HTMLButtonElement>("button"),
-      ).find((button) => button.textContent?.trim() === "Archive from inbox") ??
+      ).find((button) => button.textContent?.trim() === "Archive task") ??
       null;
     expect(archiveButton).not.toBeNull();
     await act(async () => {
@@ -4160,7 +4164,7 @@ describe("IssueDetail", () => {
 
     const archiveToast = mockPushToast.mock.calls
       .map(([toast]) => toast)
-      .find((toast) => toast.title === "Task archived from inbox");
+      .find((toast) => toast.title === "Task archived");
     expect(archiveToast?.action?.onClick).toEqual(expect.any(Function));
 
     await act(async () => {
@@ -4178,7 +4182,7 @@ describe("IssueDetail", () => {
     });
   });
 
-  it("archives a task-page issue with y and returns to the inbox", async () => {
+  it("offers archive on a task page and returns to the task list", async () => {
     mockLocation.state = createIssueDetailLocationState(
       "Tasks",
       "/issues/all",
@@ -4202,9 +4206,9 @@ describe("IssueDetail", () => {
     await act(async () => moreButton!.click());
     expect(
       Array.from(document.body.querySelectorAll("button")).some(
-        (button) => button.textContent?.trim() === "Archive from inbox",
+        (button) => button.textContent?.trim() === "Archive task",
       ),
-    ).toBe(false);
+    ).toBe(true);
 
     mockIssuesApi.archiveFromInbox.mockClear();
     document.dispatchEvent(
@@ -4212,8 +4216,31 @@ describe("IssueDetail", () => {
     );
     await waitForAssertion(() => {
       expect(mockIssuesApi.archiveFromInbox).toHaveBeenCalledWith("issue-1");
-      expect(mockNavigate).toHaveBeenCalledWith("/inbox", { replace: true });
+      expect(mockNavigate).toHaveBeenCalledWith("/issues/all", { replace: true });
     });
+  });
+
+  it("offers unarchive for an archived task", async () => {
+    mockLocation.state = createIssueDetailLocationState("Tasks", "/issues?view=all&archived=true", "issues");
+    mockIssuesApi.get.mockResolvedValue(createIssue({
+      archivedAt: new Date("2026-11-18T12:00:00.000Z"),
+      archivedByActorType: "user",
+    }));
+    mockAuthApi.getSession.mockResolvedValue({ session: { userId: "user-1" }, user: { id: "user-1" } });
+    mockInstanceSettingsApi.getGeneral.mockResolvedValue({ feedbackDataSharingPreference: "prompt" });
+
+    await act(async () => renderIssueView());
+    await flushReact();
+    await flushReact();
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="More task actions"]')!.click());
+    const unarchive = Array.from(document.body.querySelectorAll<HTMLButtonElement>("button"))
+      .find(button => button.textContent?.trim() === "Unarchive task");
+    expect(unarchive).toBeDefined();
+
+    await act(async () => unarchive!.click());
+    await waitForAssertion(() => expect(mockIssuesApi.unarchiveFromInbox).toHaveBeenCalledWith("issue-1"));
+    expect(mockIssuesApi.archiveFromInbox).not.toHaveBeenCalled();
+    expect(mockPushToast).toHaveBeenCalledWith({ title: "Task unarchived", tone: "success" });
   });
 
   it("arms the inbox archive shortcut only for the selected inbox row", async () => {

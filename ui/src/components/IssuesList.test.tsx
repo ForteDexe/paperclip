@@ -143,6 +143,7 @@ vi.mock("./IssueRow", () => ({
     treeGuides,
     showIdentifier,
     trailingMeta,
+    actions,
   }: {
     issue: Issue;
     desktopMetaLeading?: ReactNode;
@@ -158,6 +159,7 @@ vi.mock("./IssueRow", () => ({
     treeGuides?: number;
     showIdentifier?: boolean;
     trailingMeta?: ReactNode;
+    actions?: ReactNode;
   }) => (
     <div
       data-testid="issue-row"
@@ -179,6 +181,7 @@ vi.mock("./IssueRow", () => ({
       {desktopMetaLeading}
       {desktopTrailing}
       {trailingMeta}
+      {actions}
       {checklistDependencyChips}
     </div>
   ),
@@ -2496,6 +2499,29 @@ describe("IssuesList", () => {
     act(() => {
       root.unmount();
     });
+  });
+
+  it("renders the task row action trigger on the active IssuesList path", async () => {
+    const issue = createIssue({ identifier: "PAP-1", title: "Archive me" });
+    const onToggleArchive = vi.fn();
+    const { root } = renderWithQueryClient(
+      <IssuesList
+        issues={[issue]}
+        agents={[]}
+        projects={[]}
+        viewStateKey="outpost:test-issues"
+        rowPresentation="task"
+        onToggleArchive={onToggleArchive}
+        onUpdateIssue={() => undefined}
+      />,
+      container,
+    );
+
+    await waitForAssertion(() => {
+      expect(container.querySelector('button[aria-label="More actions for PAP-1"]')).not.toBeNull();
+    });
+
+    act(() => root.unmount());
   });
 
   it("draws local-calendar separators between date-sorted rows", async () => {

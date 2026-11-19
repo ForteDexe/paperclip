@@ -92,7 +92,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { IssuePropertiesPlansTab } from "./IssuePropertiesPlansTab";
 import { IssuePropertiesArtifactsTab } from "./IssuePropertiesArtifactsTab";
-import { User, ArrowUpRight, Plus, X, GitBranch, FolderOpen, HardDrive, Check, Clock, RotateCcw, Loader2, CheckCircle2, ArchiveRestore, ChevronLeft } from "lucide-react";
+import { User, ArrowUpRight, Plus, X, GitBranch, FolderOpen, HardDrive, Check, Clock, RotateCcw, Loader2, CheckCircle2, Archive, ArchiveRestore, ChevronLeft } from "lucide-react";
 import { InlineEntitySelector, type InlineEntityOption } from "../InlineEntitySelector";
 import {
   AssigneeRunningBanner,
@@ -412,6 +412,7 @@ export function IssueProperties({
   const [monitorServiceInput, setMonitorServiceInput] = useState(executionPolicy?.monitor?.serviceName ?? "");
   const [runtimeActionMessage, setRuntimeActionMessage] = useState<string | null>(null);
   const [runtimeActionErrorMessage, setRuntimeActionErrorMessage] = useState<string | null>(null);
+  const [archiveErrorMessage, setArchiveErrorMessage] = useState<string | null>(null);
   const [unarchiveErrorMessage, setUnarchiveErrorMessage] = useState<string | null>(null);
   const [watchdogOpen, setWatchdogOpen] = useState(false);
   const [watchdogAgentInput, setWatchdogAgentInput] = useState(issue.watchdog?.watchdogAgentId ?? "");
@@ -514,6 +515,26 @@ export function IssueProperties({
       onUpdate({ labelIds: [...(issue.labelIds ?? []), created.id] });
       void queryClient.invalidateQueries({ queryKey: queryKeys.issues.labels(spaceId!) });
       setNewLabelName("");
+    },
+  });
+
+  const archiveFromInbox = useMutation({
+    mutationFn: () => issuesApi.archiveFromInbox(issue.id),
+    onMutate: () => {
+      setArchiveErrorMessage(null);
+    },
+    onSuccess: (result) => {
+      setArchiveErrorMessage(null);
+      queryClient.setQueryData<Issue>(queryKeys.issues.detail(issue.id), (current) =>
+        current ? { ...current, archivedAt: result.archivedAt, archivedByActorType: "user" } : current,
+      );
+      void queryClient.invalidateQueries({ queryKey: queryKeys.issues.detail(issue.id) });
+      if (spaceId) invalidateInboxIssueQueries(queryClient, spaceId);
+    },
+    onError: (error) => {
+      setArchiveErrorMessage(error instanceof Error && error.message.trim().length > 0
+        ? error.message
+        : "Failed to archive this task. Please try again.");
     },
   });
 
@@ -3044,52 +3065,56 @@ export function IssueProperties({
             title={streamlinedPropertiesEnabled ? timeAgo(issue.updatedAt) : undefined}
           >{timeAgo(issue.updatedAt)}</span>
         </PropertyRow>
-        {issue.archivedAt && issue.archivedByActorType === "agent" && issue.archivedByAgentId ? (
-          (() => {
-            const archivedByAgent = (agents ?? []).find((candidate) => candidate.id === issue.archivedByAgentId);
-            const archivedByName = agentName(issue.archivedByAgentId);
-            return (
-              <PropertyRow label="Archived">
-                <div className="flex min-w-0 max-w-full flex-col items-start gap-1">
-                  {/* The row label already reads "Archived", so the value shows just
-                      the attributing agent (icon + name) — this gives the name the
-                      full ~164px value column at the real 320px pane width, where an
-                      "Archived by …" prefix would clip even short names. The full
-                      phrasing + timestamp live in the tooltip so any residual
-                      truncation on genuinely long names is recoverable. */}
-                  <span
-                    className="flex min-w-0 max-w-full items-center gap-1.5 text-sm"
-                    title={`Archived by ${archivedByName} · ${formatDateTime(issue.archivedAt)}`}
-                  >
-                    {archivedByAgent
-                      ? <AgentAvatar agent={archivedByAgent} size={16} className="h-3.5 w-3.5 shrink-0 text-muted-foreground"/>
-                      : null}
-                    <span className="min-w-0 truncate">
-                      {archivedByName}
-                    </span>
-                  </span>
-                  <div className="flex min-w-0 max-w-full items-center gap-2">
-                    <span className="shrink-0 text-xs text-muted-foreground">{timeAgo(issue.archivedAt)}</span>
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground disabled:opacity-50"
-                      onClick={() => unarchiveFromInbox.mutate()}
-                      disabled={unarchiveFromInbox.isPending}
-                    >
-                      <ArchiveRestore className="h-3 w-3" />
-                      {unarchiveFromInbox.isPending ? "Unarchiving…" : "Unarchive"}
-                    </button>
-                  </div>
-                  {unarchiveErrorMessage ? (
-                    <p className="text-xs text-destructive" role="alert">
-                      {unarchiveErrorMessage}
-                    </p>
-                  ) : null}
-                </div>
-              </PropertyRow>
-            );
-          })()
-        ) : null}
+        {issue.archivedAt ? (
+          <PropertyRow label="Archived">
+            <div className="flex min-w-0 max-w-full flex-col items-start gap-1">
+              {issue.archivedByActorType === "agent" && issue.archivedByAgentId ? (() => {
+                const archivedByAgent = (agents ?? []).find((candidate) => candidate.id === issue.archivedByAgentId);
+                const archivedByName = agentName(issue.archivedByAgentId);
+                return <span
+                  className="flex min-w-0 max-w-full items-center gap-1.5 text-sm"
+                  title={`Archived by ${archivedByName} · ${formatDateTime(issue.archivedAt)}`}
+                >
+                  {archivedByAgent
+                    ? <AgentAvatar agent={archivedByAgent} size={16} className="h-3.5 w-3.5 shrink-0 text-muted-foreground"/>
+                    : null}
+                  <span className="min-w-0 truncate">{archivedByName}</span>
+                </span>;
+              })() : (
+                <span className="text-xs text-muted-foreground">{timeAgo(issue.archivedAt)}</span>
+              )}
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground disabled:opacity-50"
+                onClick={() => unarchiveFromInbox.mutate()}
+                disabled={unarchiveFromInbox.isPending}
+              >
+                <ArchiveRestore className="h-3 w-3" />
+                {unarchiveFromInbox.isPending ? "Unarchiving…" : "Unarchive task"}
+              </button>
+              {unarchiveErrorMessage ? (
+                <p className="text-xs text-destructive" role="alert">{unarchiveErrorMessage}</p>
+              ) : null}
+            </div>
+          </PropertyRow>
+        ) : (
+          <PropertyRow label="Archive">
+            <div className="flex min-w-0 max-w-full flex-col items-start gap-1">
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground disabled:opacity-50"
+                onClick={() => archiveFromInbox.mutate()}
+                disabled={archiveFromInbox.isPending}
+              >
+                <Archive className="h-3 w-3" />
+                {archiveFromInbox.isPending ? "Archiving…" : "Archive task"}
+              </button>
+              {archiveErrorMessage ? (
+                <p className="text-xs text-destructive" role="alert">{archiveErrorMessage}</p>
+              ) : null}
+            </div>
+          </PropertyRow>
+        )}
         {issue.requestDepth > 0 && (
           <PropertyRow label="Depth">
             <span className="text-sm font-mono">{issue.requestDepth}</span>

@@ -208,6 +208,7 @@ export type IssueListFilters = {
   assigneeUserId?: string;
   touchedByUserId?: string;
   inboxArchivedByUserId?: string;
+  includeInboxArchived?: boolean;
   unreadForUserId?: string;
   labelId?: string;
   workspaceId?: string;
@@ -251,6 +252,8 @@ function issueListSearchParams(filters?: IssueListFilters) {
     params.set("touchedByUserId", filters.touchedByUserId);
   if (filters?.inboxArchivedByUserId)
     params.set("inboxArchivedByUserId", filters.inboxArchivedByUserId);
+  if (filters?.includeInboxArchived)
+    params.set("includeInboxArchived", "true");
   if (filters?.unreadForUserId)
     params.set("unreadForUserId", filters.unreadForUserId);
   if (filters?.labelId) params.set("labelId", filters.labelId);

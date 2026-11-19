@@ -1,4 +1,5 @@
 import { isAgentCreatedIssue, type ExternalObjectSummary, type Issue } from "@outpost/shared";
+import { resolveTaskProjectedStatus } from "./task-status-presentation";
 
 export type IssueFilterWorkspaceLookup = {
   mode?: string | null;
@@ -38,6 +39,7 @@ export type IssueFilterState = {
   externalObjectStatuses: string[];
   showAgentCreatedTasks: boolean;
   routineTasksOnly?: boolean;
+  showArchivedTasks?: boolean;
 };
 
 export const defaultIssueFilterState: IssueFilterState = {
@@ -52,6 +54,7 @@ export const defaultIssueFilterState: IssueFilterState = {
   externalObjectStatuses: [],
   showAgentCreatedTasks: false,
   routineTasksOnly: false,
+  showArchivedTasks: false,
 };
 
 export const externalObjectFilterOrder = [
@@ -121,6 +124,7 @@ export function normalizeIssueFilterState(value: unknown): IssueFilterState {
     externalObjectStatuses: normalizeIssueFilterValueArray(candidate.externalObjectStatuses),
     showAgentCreatedTasks: candidate.showAgentCreatedTasks === true,
     routineTasksOnly: candidate.routineTasksOnly === true,
+    showArchivedTasks: candidate.showArchivedTasks === true,
   };
 }
 
@@ -244,7 +248,7 @@ export function applyIssueFilters(
   if (enableAgentCreatedVisibilityFilter && !state.showAgentCreatedTasks && !state.routineTasksOnly) {
     result = result.filter((issue) => !isAgentCreatedIssue(issue));
   }
-  if (state.statuses.length > 0) result = result.filter((issue) => state.statuses.includes(issue.displayStatus ?? issue.status));
+  if (state.statuses.length > 0) result = result.filter((issue) => state.statuses.includes(resolveTaskProjectedStatus(issue)));
   if (state.priorities.length > 0) result = result.filter((issue) => state.priorities.includes(issue.priority));
   if (state.assignees.length > 0) {
     result = result.filter((issue) => {
@@ -304,6 +308,7 @@ export function countActiveIssueFilters(
   if (state.workspaces.length > 0) count += 1;
   if (state.liveOnly) count += 1;
   if (state.routineTasksOnly) count += 1;
+  if (state.showArchivedTasks) count += 1;
   if (state.externalObjectStatuses.length > 0) count += 1;
   if (enableAgentCreatedVisibilityFilter && state.showAgentCreatedTasks) count += 1;
   return count;

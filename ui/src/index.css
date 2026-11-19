@@ -4363,6 +4363,16 @@ html:has(.design-proposal-theme) [data-slot="card-title"] { color: var(--foregro
   grid-row: 1;
   padding-inline-start: calc(var(--task-row-depth) * var(--task-row-indent-step));
 }
+.task-row-refreshed[data-columns="all"] [data-slot="task-row-actions"] {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  z-index: 2;
+  display: flex;
+  width: var(--task-list-controls-width);
+  align-items: center;
+  justify-content: center;
+}
 .task-row-refreshed[data-title-hidden="true"] [data-slot="task-row-content"] { display: none; }
 .task-row-refreshed[data-title-hidden="true"] [data-slot="task-row-leading"] { flex: 1; }
 .task-row-refreshed[data-columns="all"] [data-slot="task-row-trailing"]:empty { display: none; }

@@ -140,6 +140,7 @@ export const ORGANIZATION_SCOPED_PARAMS = [
   "participantAgentId",
   "originKind",
   "q",
+  "archived",
 ] as const;
 
 /** Resolves which view a `/issues` visit opens. */

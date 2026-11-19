@@ -21,6 +21,7 @@ import { useTaskListColumnPreferences } from "../hooks/useTaskListColumnPreferen
 import { usePreloadTaskChats } from "../hooks/usePreloadTaskChats";
 import { CHAT_BOOTSTRAP_PRELOAD_LIMIT } from "../lib/issue-chat-bootstrap";
 import type { TaskCollectionPreferenceLocation } from "../lib/task-collection-preferences";
+import { TaskRowArchiveMenu } from "./TaskRowArchiveMenu";
 
 export type TaskListItem = {
   issue: Issue;
@@ -69,7 +70,7 @@ function TaskChatPreload({ spaceId, refs }: { spaceId: string; refs: readonly st
 }
 
 /** Opt-in collection built from the reviewed row, hierarchy and column primitives. */
-export function TaskList({ items, allItems = items, initialColumns = defaultTaskListColumns, density = "comfortable", collapsedIds, onCollapsedIdsChange, groupBy = "none", emptyState, issueLinkState, collectionKey, preferenceLocation, sort: controlledSort, onSortChange, preloadSpaceId }: {
+export function TaskList({ items, allItems = items, initialColumns = defaultTaskListColumns, density = "comfortable", collapsedIds, onCollapsedIdsChange, groupBy = "none", emptyState, issueLinkState, collectionKey, preferenceLocation, sort: controlledSort, onSortChange, preloadSpaceId, onToggleArchive, archivePendingIssueId }: {
   items: readonly TaskListItem[];
   allItems?: readonly TaskListItem[];
   initialColumns?: readonly TaskListColumnId[];
@@ -86,6 +87,8 @@ export function TaskList({ items, allItems = items, initialColumns = defaultTask
   onSortChange?: (sort: TaskListSort | undefined) => void;
   /** Preload the chat of the top rows for this space. Only a page's main task list sets this. */
   preloadSpaceId?: string | null;
+  onToggleArchive?: (issue: Issue) => void;
+  archivePendingIssueId?: string | null;
 }) {
   const localKey = useId();
   const { columns, order: columnOrder, setColumns, setOrder: setColumnOrder } = useTaskListColumnPreferences(preferenceLocation, initialColumns);
@@ -157,6 +160,13 @@ export function TaskList({ items, allItems = items, initialColumns = defaultTask
             worktree: branch ? <span className="inline-flex items-center gap-1.5"><GitBranch className="size-3 shrink-0" aria-hidden />{branch}</span> : undefined,
             lastUpdated: timeAgo(issue.updatedAt),
           }}
+          actions={onToggleArchive ? (
+            <TaskRowArchiveMenu
+              issue={issue}
+              pending={archivePendingIssueId === issue.id}
+              onToggleArchive={onToggleArchive}
+            />
+          ) : undefined}
         />
         {expanded ? children.map(child => renderBranch(child, depth + 1)) : null}
       </Fragment>

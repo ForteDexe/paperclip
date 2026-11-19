@@ -2947,6 +2947,7 @@ function toCompactIssue(issue: any): CompactIssue {
     title: issue.title,
     description: issue.description,
     status: issue.status,
+    displayStatus: issue.displayStatus,
     workMode: issue.workMode,
     runIntent: issue.runIntent,
     priority: issue.priority,
@@ -2972,6 +2973,16 @@ function toCompactIssue(issue: any): CompactIssue {
     cancelledAt: issue.cancelledAt,
     createdAt: issue.createdAt,
     updatedAt: issue.updatedAt,
+    ...(issue.archivedAt !== undefined ? { archivedAt: issue.archivedAt } : {}),
+    ...(issue.archivedByActorType !== undefined
+      ? { archivedByActorType: issue.archivedByActorType }
+      : {}),
+    ...(issue.archivedByAgentId !== undefined
+      ? { archivedByAgentId: issue.archivedByAgentId }
+      : {}),
+    ...(issue.archivedByRunId !== undefined
+      ? { archivedByRunId: issue.archivedByRunId }
+      : {}),
     ...(issue.labelIds ? { labelIds: issue.labelIds } : {}),
     ...(issue.labels ? { labels: issue.labels } : {}),
     ...(issue.blockedBy ? { blockedBy: issue.blockedBy } : {}),
@@ -8981,6 +8992,15 @@ export function issueRoutes(
       res.status(400).json({ error: "includeAgentCreatedTasks must be true or false when provided" });
       return;
     }
+    const includeInboxArchived = parseOptionalBooleanQuery(req.query.includeInboxArchived);
+    if (includeInboxArchived === null) {
+      res.status(400).json({ error: "includeInboxArchived must be true or false when provided" });
+      return;
+    }
+    if (includeInboxArchived && !inboxArchivedByUserId) {
+      res.status(400).json({ error: "includeInboxArchived requires inboxArchivedByUserId" });
+      return;
+    }
     const includeLiveDescendantSummary = parseOptionalBooleanQuery(
       req.query.includeLiveDescendantSummary,
     );
@@ -9131,6 +9151,7 @@ export function issueRoutes(
       assigneeUserId,
       touchedByUserId,
       inboxArchivedByUserId,
+      includeInboxArchived: includeInboxArchived === true,
       unreadForUserId,
       projectId: uuidFilters.projectId,
       workspaceId: uuidFilters.workspaceId,

@@ -195,6 +195,46 @@ describeEmbeddedPostgres("inbox archive routes", () => {
       .expect(({ body }) => expect(body).toEqual({ ok: true, userId: seeded.responsibleUserId }));
   });
 
+  it("can include the operator's archived tasks in the task collection", async () => {
+    const seeded = await seed();
+    const app = appFor({
+      type: "operator",
+      source: "session",
+      userId: seeded.responsibleUserId,
+      spaceIds: [seeded.spaceId],
+      memberships: [{ spaceId: seeded.spaceId, membershipRole: "operator", status: "active" }],
+      isInstanceAdmin: false,
+    });
+
+    await request(app).post(`/api/issues/${seeded.issueId}/inbox-archive`).send({}).expect(200);
+
+    await request(app)
+      .get(`/api/spaces/${seeded.spaceId}/issues`)
+      .query({ includeInboxArchived: true })
+      .expect(400)
+      .expect(({ body }) => expect(body.error).toBe("includeInboxArchived requires inboxArchivedByUserId"));
+
+    await request(app)
+      .get(`/api/spaces/${seeded.spaceId}/issues`)
+      .query({ inboxArchivedByUserId: "me" })
+      .expect(200)
+      .expect(({ body }) => expect(body.map((issue: { id: string }) => issue.id)).not.toContain(seeded.issueId));
+
+    await request(app)
+      .get(`/api/spaces/${seeded.spaceId}/issues`)
+      .query({ inboxArchivedByUserId: "me", includeInboxArchived: true, view: "index" })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toEqual(expect.arrayContaining([
+          expect.objectContaining({
+            id: seeded.issueId,
+            archivedAt: expect.any(String),
+            listProjection: "index",
+          }),
+        ]));
+      });
+  });
+
   it.each([false, true])("allows manual archive during human completion (existing archive: %s)", async (alreadyArchived) => {
     const seeded = await seed();
     const svc = issueService(db);

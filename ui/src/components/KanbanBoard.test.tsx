@@ -242,6 +242,14 @@ describe("KanbanBoard", () => {
     render({ issues: [applyOptimisticIssueFieldUpdate(issue, { status: "done" })!] });
     expect(column()?.textContent).toContain("Done");
   });
+
+  it("keeps a canonically blocked card out of In Progress when its display projection is stale", () => {
+    const issue = { ...createIssue(1, "blocked"), displayStatus: "in_progress" as const };
+    const { container } = renderOperator({ issues: [issue] });
+    const column = container.querySelector('a[href="/issues/PAP-1"]')?.closest('[data-issue-row-details]')?.parentElement?.parentElement;
+    expect(column?.textContent).toContain("Blocked");
+    expect(column?.textContent).not.toContain("In Progress");
+  });
 });
 
 
